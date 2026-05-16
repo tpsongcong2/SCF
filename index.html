@@ -96,8 +96,8 @@ td{padding:9px 12px;border-top:.5px solid var(--bd);vertical-align:middle}
 </head>
 <body>
 <div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script>
 // Bat loi JS - hien thi thay vi trang trang
 window.onerror = function(msg, src, line) {
@@ -1942,7 +1942,11 @@ function App(){
   );
 }
 
-ReactDOM.createRoot(document.getElementById('app')).render(h(App));
+try {
+  ReactDOM.createRoot(document.getElementById('app')).render(h(App));
+} catch(e) {
+  document.getElementById('app').innerHTML = '<div style="padding:2rem;color:#A32D2D;font-family:monospace;background:#fff;min-height:100vh"><h2>Loi render SCF App</h2><p style="margin-top:1rem">'+e.message+'</p><pre style="margin-top:1rem;font-size:11px;opacity:.6">'+e.stack+'</pre></div>';
+}
 
 
 </script>
