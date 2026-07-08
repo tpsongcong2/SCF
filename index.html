@@ -15,10 +15,10 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" crossorigin="anonymous"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--pri:#257052;--pri2:#48a97a;--pri3:#123c2d;--acc:#f4b942;--bg:#f5f8f6;--bg2:#edf4f0;--card:#fff;--tx:#14281f;--tx2:#567064;--bd:rgba(18,60,45,.10);--bd2:rgba(18,60,45,.20);--sb-w:230px;--r:8px;--rl:12px}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh}
+:root{--pri:#257052;--pri2:#48a97a;--pri3:#123c2d;--acc:#f4b942;--bg:#f5f8f6;--bg2:#edf4f0;--card:#fff;--tx:#14281f;--tx2:#567064;--bd:rgba(18,60,45,.10);--bd2:rgba(18,60,45,.20);--sb-w:230px;--r:8px;--rl:12px;--ui-font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--ui-base-size:14px;--ui-base-weight:400;--ui-base-style:normal;--ui-form-size:14px;--ui-form-weight:400;--ui-form-style:normal;--ui-menu-size:12px;--ui-menu-weight:700;--ui-menu-style:normal;--ui-button-size:13px;--ui-button-weight:700;--ui-button-style:normal;--ui-table-size:13px;--ui-table-weight:400;--ui-table-style:normal;--ui-header-size:12px;--ui-header-weight:700;--ui-header-style:normal;--ui-badge-size:11px;--ui-badge-weight:700;--ui-badge-style:normal}
+body{font-family:var(--ui-font-family);background:var(--bg);color:var(--tx);font-size:var(--ui-base-size);font-weight:var(--ui-base-weight);font-style:var(--ui-base-style);min-height:100vh}
 body.modal-open{overflow:hidden}
-input,select,textarea,button{font-family:inherit;font-size:14px}
+input,select,textarea,button{font-family:inherit}
 input,select,textarea{background:#fff;border:.5px solid var(--bd2);border-radius:var(--r);padding:8px 10px;outline:none;transition:border-color .15s;width:100%}
 input:focus,select:focus,textarea:focus{border-color:var(--pri)}
 button{cursor:pointer;border:.5px solid var(--bd2);border-radius:var(--r);background:#fff;padding:7px 14px;color:var(--tx);transition:.15s;display:inline-flex;align-items:center;gap:5px}
@@ -107,7 +107,15 @@ td{padding:9px 12px;border-top:.5px solid var(--bd);vertical-align:middle}
 .topnav-link:hover,.topnav-link.on{background:#236247;color:#fff}
 .topnav-link i{font-size:15px;color:#bfe7d3}
 .content{flex:1;padding:1.5rem;max-width:none;width:100%}
-.ptitle{font-size:18px;font-weight:600;color:var(--pri3);margin-bottom:1.25rem;display:flex;align-items:center;gap:8px}
+.ptitle{font-size:18px;font-weight:600;color:var(--pri3);margin-bottom:1.25rem;display:none;align-items:center;gap:8px}
+input,select,textarea{font-size:var(--ui-form-size)!important;font-weight:var(--ui-form-weight)!important;font-style:var(--ui-form-style)!important}
+button{font-size:var(--ui-button-size)!important;font-weight:var(--ui-button-weight)!important;font-style:var(--ui-button-style)!important}
+table,td{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important}
+th{font-size:var(--ui-header-size)!important;font-weight:var(--ui-header-weight)!important;font-style:var(--ui-header-style)!important}
+.fl label{font-size:var(--ui-form-size)!important;font-weight:var(--ui-form-weight)!important;font-style:var(--ui-form-style)!important}
+.badge,.detail-count-badge{font-size:var(--ui-badge-size)!important;font-weight:var(--ui-badge-weight)!important;font-style:var(--ui-badge-style)!important}
+.sb-btn span,.topnav-btn,.topnav-link,.topbar-meta,.topbar-user,.topbar-user-dept,.topbar-meta span,.topbar-user-dept span:not(.badge){font-size:var(--ui-menu-size)!important;font-weight:var(--ui-menu-weight)!important;font-style:var(--ui-menu-style)!important}
+.topbar-company,.topbar-user-name{font-size:calc(var(--ui-menu-size) + 1px)!important;font-weight:var(--ui-menu-weight)!important;font-style:var(--ui-menu-style)!important}
 .login-bg{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1b4332 0%,#2d6a4f 50%,#1a3a2a 100%)}
 .login-card{background:#fff;border-radius:16px;padding:2.5rem;width:380px;max-width:95vw}
 .pw-wrap{position:relative}
@@ -558,6 +566,70 @@ const DEPTS=['Ban Giám Đốc','Kế toán','Kho vận','Sản xuất','Bán h�
 const deptCode=(i)=>'BP'+String(i+1).padStart(3,'0');
 const DEF_DEPTS=DEPTS.map((d,i)=>({id:'BP'+String(i+1).padStart(3,'0'),code:deptCode(i),name:d,note:''}));
 const UNITS=['Cái','Gói','Thùng','Kg','Tấn','Lít','m3','KW','Cuộn','Bộ','Túi','Hộp','Chai','Lọ','Bao'];
+const UI_FONT_FAMILY_OPTIONS=[
+  {value:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",label:'Segoe UI'},
+  {value:"Calibri,'Segoe UI',sans-serif",label:'Calibri'},
+  {value:"Arial,sans-serif",label:'Arial'},
+  {value:"Tahoma,sans-serif",label:'Tahoma'},
+  {value:"Verdana,sans-serif",label:'Verdana'},
+  {value:"'Trebuchet MS',sans-serif",label:'Trebuchet MS'},
+  {value:"Georgia,serif",label:'Georgia'},
+  {value:"'Times New Roman',serif",label:'Times New Roman'},
+];
+const UI_FONT_MODE_OPTIONS=[
+  {value:'normal',label:'Bình thường',weight:'400',style:'normal'},
+  {value:'bold',label:'Đậm',weight:'700',style:'normal'},
+  {value:'italic',label:'In nghiêng',weight:'400',style:'italic'},
+  {value:'boldItalic',label:'Đậm nghiêng',weight:'700',style:'italic'},
+];
+const UI_FONT_SCOPE_OPTIONS=[
+  {key:'base',label:'Nội dung chung',note:'Chữ mô tả, thông tin và số liệu chung trên các trang.',sample:'Nội dung hiển thị chung trên màn hình'},
+  {key:'form',label:'Ô nhập liệu',note:'Bộ lọc, ô nhập, chọn ngày, chọn danh sách và vùng ghi chú.',sample:'Ô nhập liệu / Bộ lọc / Ghi chú'},
+  {key:'menu',label:'Menu điều hướng',note:'Menu trên cùng, thông tin đầu trang và các mục điều hướng.',sample:'Menu / Bán hàng / Cài đặt'},
+  {key:'button',label:'Nút chức năng',note:'Nút tạo mới, lưu, cập nhật, xuất hoặc nhập dữ liệu.',sample:'Lưu cài đặt'},
+  {key:'table',label:'Nội dung bảng',note:'Dữ liệu trong danh sách đơn hàng, báo cáo và bảng chi tiết.',sample:'LOTTE-HOTEL / 127 / 08:00'},
+  {key:'header',label:'Tiêu đề bảng',note:'Tên cột của bảng và các tiêu đề hàng dữ liệu.',sample:'Địa điểm giao / Ngày / Giờ'},
+  {key:'badge',label:'Nhãn trạng thái',note:'Badge, số lượng, trạng thái và chip phân quyền.',sample:'Đang hoạt động / Admin'},
+];
+const DEF_UI_SETTINGS={
+  fontFamily:UI_FONT_FAMILY_OPTIONS[0].value,
+  scopes:{
+    base:{size:14,mode:'normal'},
+    form:{size:14,mode:'normal'},
+    menu:{size:12,mode:'bold'},
+    button:{size:13,mode:'bold'},
+    table:{size:13,mode:'normal'},
+    header:{size:12,mode:'bold'},
+    badge:{size:11,mode:'bold'}
+  }
+};
+function fontModeMeta(mode){return UI_FONT_MODE_OPTIONS.find(x=>x.value===mode)||UI_FONT_MODE_OPTIONS[0];}
+function fontFamilyLabel(value){return(UI_FONT_FAMILY_OPTIONS.find(x=>x.value===value)||UI_FONT_FAMILY_OPTIONS[0]).label;}
+function normalizeUiSettings(raw){
+  const src=raw||{};
+  const next={fontFamily:src.fontFamily||DEF_UI_SETTINGS.fontFamily,scopes:{}};
+  if(!UI_FONT_FAMILY_OPTIONS.some(x=>x.value===next.fontFamily)) next.fontFamily=DEF_UI_SETTINGS.fontFamily;
+  UI_FONT_SCOPE_OPTIONS.forEach(scope=>{
+    const base=DEF_UI_SETTINGS.scopes[scope.key]||{size:14,mode:'normal'};
+    const cur=(src.scopes&&src.scopes[scope.key])||{};
+    const size=Math.max(10,Math.min(28,Number(cur.size)||base.size));
+    const mode=UI_FONT_MODE_OPTIONS.some(x=>x.value===cur.mode)?cur.mode:base.mode;
+    next.scopes[scope.key]={size,mode};
+  });
+  return next;
+}
+function uiSettingsToCssVars(raw){
+  const ui=normalizeUiSettings(raw);
+  const vars={'--ui-font-family':ui.fontFamily};
+  UI_FONT_SCOPE_OPTIONS.forEach(scope=>{
+    const cur=ui.scopes[scope.key];
+    const meta=fontModeMeta(cur.mode);
+    vars['--ui-'+scope.key+'-size']=cur.size+'px';
+    vars['--ui-'+scope.key+'-weight']=meta.weight;
+    vars['--ui-'+scope.key+'-style']=meta.style;
+  });
+  return vars;
+}
 
 /* ─── UI base ─── */
 function F({label,children}){return h('div',{className:'fl'},h('label',null,label),children)}
@@ -2420,6 +2492,123 @@ function CompanySettings({company,setCompany}){
     )
   );
 }
+function AppearanceSettingsTab({uiSettings,setUiSettings}){
+  const[f,sf]=useState(()=>normalizeUiSettings(uiSettings));
+  useEffect(()=>{sf(normalizeUiSettings(uiSettings));},[uiSettings]);
+  const sizeOptions=Array.from({length:19},(_,i)=>10+i);
+  const setScope=(key,patch)=>sf(prev=>({...(prev||{}),scopes:{...(prev?.scopes||{}),[key]:{...((prev?.scopes||{})[key]||{}),...patch}}}));
+  const previewStyle=key=>{
+    const safe=normalizeUiSettings(f);
+    const cur=safe.scopes[key];
+    const meta=fontModeMeta(cur.mode);
+    return {fontFamily:safe.fontFamily,fontSize:cur.size,fontWeight:meta.weight,fontStyle:meta.style};
+  };
+  const save=()=>{
+    setUiSettings(normalizeUiSettings(f));
+    window.showToast('Đã lưu cài đặt giao diện!','success');
+  };
+  const resetDraft=()=>sf(normalizeUiSettings(uiSettings));
+  const restoreDefault=()=>sf(normalizeUiSettings(DEF_UI_SETTINGS));
+  return h('div',null,
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap',marginBottom:14}},
+        h('div',null,
+          h('div',{style:{fontSize:16,fontWeight:700,color:'var(--pri3)',marginBottom:4}},'Cài đặt giao diện'),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',maxWidth:720}},
+            'Quy định loại chữ, cỡ chữ và kiểu chữ dùng chung cho các vùng hiển thị trong app. Khi lưu, toàn bộ các trang sẽ dùng theo cấu hình này.',
+            h('span',{style:{display:'block',marginTop:4}},'Lưu ý: các mẫu in giữ font riêng để không lệch khổ giấy.')
+          )
+        ),
+        h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+          h('button',{onClick:resetDraft,style:{padding:'6px 12px'}},h('i',{className:'ti ti-rotate',style:{fontSize:14}}),'Hoàn tác'),
+          h('button',{onClick:restoreDefault,style:{padding:'6px 12px'}},h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Mặc định'),
+          h('button',{className:'bp',onClick:save,style:{padding:'7px 16px'}},h('i',{className:'ti ti-device-floppy',style:{fontSize:14}}),'Lưu cài đặt')
+        )
+      ),
+      h('div',{className:'g2',style:{alignItems:'start'}},
+        h(F,{label:'Loại chữ dùng chung'},
+          h('select',{value:f.fontFamily,onChange:e=>sf(prev=>({...prev,fontFamily:e.target.value}))},
+            UI_FONT_FAMILY_OPTIONS.map(opt=>h('option',{key:opt.value,value:opt.value},opt.label))
+          )
+        ),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 14px'}} ,
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:6}},'Xem nhanh'),
+          h('div',{style:{...previewStyle('base'),marginBottom:5}},'Mẫu nội dung với font ',fontFamilyLabel(f.fontFamily)),
+          h('div',{style:{...previewStyle('menu'),marginBottom:5}},'Menu / Cài đặt / Cài đặt giao diện'),
+          h('div',{style:{...previewStyle('badge'),display:'inline-flex',padding:'4px 10px',background:'#fff',borderRadius:999,border:'1px solid var(--bd)'}},'Đang hoạt động')
+        )
+      )
+    ),
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{fontWeight:600,color:'var(--pri3)',marginBottom:10}},'Danh sách vùng chữ có thể thay đổi'),
+      h('div',{className:'tw'},
+        h('table',null,
+          h('thead',null,h('tr',null,
+            h('th',null,'Vùng hiển thị'),
+            h('th',{style:{width:110}},'Cỡ chữ'),
+            h('th',{style:{width:170}},'Kiểu chữ'),
+            h('th',null,'Xem nhanh')
+          )),
+          h('tbody',null,
+            UI_FONT_SCOPE_OPTIONS.map(scope=>h('tr',{key:scope.key},
+              h('td',null,
+                h('div',{style:{fontWeight:600}},scope.label),
+                h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:3}},scope.note)
+              ),
+              h('td',null,
+                h('select',{value:f.scopes[scope.key].size,onChange:e=>setScope(scope.key,{size:Number(e.target.value)})},
+                  sizeOptions.map(sz=>h('option',{key:sz,value:sz},sz+' px'))
+                )
+              ),
+              h('td',null,
+                h('select',{value:f.scopes[scope.key].mode,onChange:e=>setScope(scope.key,{mode:e.target.value})},
+                  UI_FONT_MODE_OPTIONS.map(opt=>h('option',{key:opt.value,value:opt.value},opt.label))
+                )
+              ),
+              h('td',null,
+                h('div',{style:{...previewStyle(scope.key),padding:'6px 0'}},scope.sample)
+              )
+            ))
+          )
+        )
+      )
+    ),
+    h('div',{className:'card'},
+      h('div',{style:{fontWeight:600,color:'var(--pri3)',marginBottom:10}},'Mô phỏng sau khi lưu'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16}},
+        h('div',{style:{border:'1px solid var(--bd)',borderRadius:'var(--r)',overflow:'hidden',background:'#fff'}},
+          h('div',{style:{padding:'10px 12px',background:'var(--pri3)',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}},
+            h('span',{style:previewStyle('menu')},'Cài đặt'),
+            h('span',{style:previewStyle('badge')},'Admin')
+          ),
+          h('div',{style:{padding:12}},
+            h('div',{style:{...previewStyle('button'),display:'inline-flex',padding:'7px 14px',background:'var(--pri)',color:'#fff',borderRadius:'var(--r)',marginBottom:12}},'Lưu cài đặt'),
+            h('div',{className:'tw'},
+              h('table',null,
+                h('thead',null,h('tr',null,
+                  h('th',{style:previewStyle('header')},'Địa điểm'),
+                  h('th',{style:previewStyle('header')},'Giờ'),
+                  h('th',{style:previewStyle('header')},'Ca giao')
+                )),
+                h('tbody',null,h('tr',null,
+                  h('td',{style:previewStyle('table')},'LOTTE-HOTEL'),
+                  h('td',{style:previewStyle('table')},'16:00'),
+                  h('td',{style:previewStyle('table')},'KV')
+                ))
+              )
+            )
+          )
+        ),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 14px'}},
+          h('div',{style:{...previewStyle('base'),marginBottom:8}},'Nội dung chung của trang sẽ hiển thị theo cấu hình bạn chọn.'),
+          h('div',{style:{...previewStyle('form'),marginBottom:8}},'Ô nhập liệu, bộ lọc và ghi chú cũng dùng theo thiết lập mới.'),
+          h('div',{style:{...previewStyle('badge'),display:'inline-flex',padding:'4px 10px',background:'#fff',borderRadius:999,border:'1px solid var(--bd)',marginBottom:8}},'Tự động'),
+          h('div',{style:{fontSize:11,color:'var(--tx2)'}},'Bạn có thể chỉnh từng vùng rồi nhấn Lưu cài đặt để áp dụng cho toàn app.')
+        )
+      )
+    )
+  );
+}
 function PasswordField({value,onChange,placeholder}){
   const[show,setShow]=useState(false);
   return h('div',{style:{position:'relative'}},
@@ -2478,7 +2667,7 @@ function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
       h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:8,background:'var(--bg2)',padding:'6px 10px',borderRadius:'var(--r)'}},'Không truy cập = ẩn menu | Chỉ xem = không có nút Thêm/Sửa/Xóa | Xem+Sửa = có nút Thêm/Sửa | Đầy đủ = có tất cả'),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 2rem'}},
         [
-          {sec:'Cai dat', pages:[{k:'company',l:'Thong tin cong ty'},{k:'employees',l:'Nhan vien'},{k:'attendance',l:'Cham cong'},{k:'advances',l:'Ung luong'},{k:'rewards',l:'Thuong phat'},{k:'leaves',l:'Xin nghi'},{k:'backup',l:'Backup'}]},
+          {sec:'Cai dat', pages:[{k:'company',l:'Thong tin cong ty'},{k:'appearance',l:'Cai dat giao dien'},{k:'employees',l:'Nhan vien'},{k:'attendance',l:'Cham cong'},{k:'advances',l:'Ung luong'},{k:'rewards',l:'Thuong phat'},{k:'leaves',l:'Xin nghi'},{k:'backup',l:'Backup'}]},
           {sec:'Danh muc', pages:[{k:'materials',l:'Vat tu'},{k:'depts',l:'Bo phan'},{k:'products',l:'San pham'},{k:'customers',l:'Khach hang'},{k:'workcats',l:'DM Cong viec'},{k:'shifts',l:'Ca giao hang'}]},
           {sec:'Ban hang', pages:[{k:'quotes',l:'Bao gia'},{k:'delivery',l:'Don giao hang'},{k:'orderdetail',l:'Chi tiet don hang'},{k:'trips',l:'Chuyen giao hang'},{k:'salesreport',l:'Bao cao BH'},{k:'marketsales',l:'Ban hang cho'},{k:'powdersales',l:'Ban bot bun'}]},
           {sec:'Mua hang', pages:[{k:'nccs',l:'Nha cung cap'},{k:'purchaseorders',l:'Don mua hang'},{k:'fuelpurchases',l:'Don mua xang dau'},{k:'purchasereport',l:'Bao cao MH'},{k:'materialusage',l:'Bao cao NVL ton va tieu dung'},{k:'purchase',l:'Mua hang'}]},
@@ -2634,9 +2823,20 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
     cpw&&h(CpwModal,{emp:cpw,cu,onSave:pw=>savePw(cpw.id,pw),onClose:()=>scp(null)})
   );
 }
-function BackupTab({employees,materials,assets,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,depts,prodShiftRules}){
+function BackupTab({employees,materials,assets,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,depts,prodShiftRules,uiSettings}){
   function exp(rows,cols,name){const data=rows.map(r=>Object.fromEntries(cols.map(([k,l])=>[l,r[k]??''])));const ws=XLSX.utils.json_to_sheet(data);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name);XLSX.writeFile(wb,name+'_'+fmtDate().replace(/\//g,'-')+'.xlsx');}
   const purchaseRows=(purchases||[]).flatMap(p=>(p.lines&&p.lines.length?p.lines:[{}]).map(l=>({...p,itemName:l.name||'',itemUnit:l.unit||'',itemQty:l.qty||0,itemPrice:l.price||0,itemTotal:(l.qty||0)*(l.price||0),lineNote:l.note||''})));
+  const safeUi=normalizeUiSettings(uiSettings);
+  const uiBackupRows=[{
+    fontFamily:fontFamilyLabel(safeUi.fontFamily),
+    base:safeUi.scopes.base.size+'px - '+fontModeMeta(safeUi.scopes.base.mode).label,
+    form:safeUi.scopes.form.size+'px - '+fontModeMeta(safeUi.scopes.form.mode).label,
+    menu:safeUi.scopes.menu.size+'px - '+fontModeMeta(safeUi.scopes.menu.mode).label,
+    button:safeUi.scopes.button.size+'px - '+fontModeMeta(safeUi.scopes.button.mode).label,
+    table:safeUi.scopes.table.size+'px - '+fontModeMeta(safeUi.scopes.table.mode).label,
+    header:safeUi.scopes.header.size+'px - '+fontModeMeta(safeUi.scopes.header.mode).label,
+    badge:safeUi.scopes.badge.size+'px - '+fontModeMeta(safeUi.scopes.badge.mode).label
+  }];
   const tables=[
     {name:'Nhân viên',rows:employees,cols:[['id','Mã NV'],['name','Tên'],['birthday','Ngày sinh'],['dept','Bộ phận'],['role','Quyền'],['username','Đăng nhập'],['phone','SĐT'],['email','Email']]},
     {name:'Bộ phận',rows:(depts||[]).map((d,i)=>({...d,code:d.code||deptCode(i)})),cols:[['code','Mã BP'],['name','Tên bộ phận'],['note','Ghi chú']]},
@@ -2649,6 +2849,7 @@ function BackupTab({employees,materials,assets,prodCats,products,customers,workc
     {name:'Ứng lương',rows:advances||[],cols:[['id','Mã phiếu'],['date','Ngày'],['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['amount','Số tiền đề nghị'],['approvedAmount','Số tiền duyệt'],['reason','Lý do'],['note','Ghi chú phiếu'],['status','Trạng thái'],['reviewNote','Ghi chú duyệt'],['approvedBy','Người duyệt']]},
     {name:'Thưởng phạt',rows:rewards||[],cols:[['id','Mã phiếu'],['date','Ngày'],['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['kind','Loại'],['amount','Số tiền đề nghị'],['approvedAmount','Số tiền duyệt'],['reason','Nội dung'],['note','Ghi chú phiếu'],['status','Trạng thái'],['reviewNote','Ghi chú duyệt'],['approvedBy','Người duyệt']]},
     {name:'Xin nghỉ',rows:leaves||[],cols:[['id','Mã đơn'],['fromDate','Từ ngày'],['toDate','Đến ngày'],['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['type','Hình thức'],['days','Số ngày đề nghị'],['approvedDays','Số ngày duyệt'],['reason','Lý do'],['note','Ghi chú đơn'],['status','Trạng thái'],['reviewNote','Ghi chú duyệt'],['approvedBy','Người duyệt']]},
+    {name:'Giao diện',rows:uiBackupRows,cols:[['fontFamily','Loại chữ'],['base','Nội dung chung'],['form','Ô nhập liệu'],['menu','Menu điều hướng'],['button','Nút chức năng'],['table','Nội dung bảng'],['header','Tiêu đề bảng'],['badge','Nhãn trạng thái']]},
     {name:'Ca SX nhỏ',rows:prodShiftRules||[],cols:[['name','Tên ca'],['group','Ca lớn'],['start','Từ giờ'],['end','Đến giờ'],['active','Hoạt động']]},
     {name:'Nhà cung cấp',rows:nccs||[],cols:[['code','Mã NCC'],['name','Tên NCC'],['taxCode','MST'],['phone','Điện thoại'],['email','Email'],['contact','Người LH'],['address','Địa chỉ'],['note','Ghi chú']]},
     {name:'Đơn mua hàng',rows:purchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
@@ -5377,6 +5578,7 @@ const NAV=[
   {key:'welcome',icon:'ti-layout-dashboard',label:'Tổng quan'},
   {sec:'Cài đặt'},
   {key:'company',icon:'ti-building',label:'Thông tin công ty'},
+  {key:'appearance',icon:'ti-typography',label:'Cài đặt giao diện'},
   {key:'employees',icon:'ti-id-badge',label:'Nhân viên'},
   {key:'backup',icon:'ti-database-export',label:'Backup dữ liệu'},
   {key:'prodshifts',icon:'ti-clock-play',label:'Cài đặt ca SX + ca GH tự động'},
@@ -9050,6 +9252,7 @@ class ErrorBoundary extends React.Component {
 const PAGE_ACCESS = {
   welcome:      ['admin','manager','staff','driver'],
   company:      ['admin','manager'],
+  appearance:   ['admin','manager'],
   employees:    ['admin','manager'],
   attendance:   ['admin','manager','staff','driver'],
   advances:     ['admin','manager','staff','driver'],
@@ -9117,7 +9320,7 @@ function canWrite(role, page, lvls) { const l=getLvl(role,page,lvls); return l==
 function canDel(role, page, lvls)   { return getLvl(role,page,lvls)==='rwd'; }
 
 const PTITLES = {
-  welcome:'Tổng quan', company:'Thông tin công ty', employees:'Nhân viên', attendance:'Chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động',
+  welcome:'Tổng quan', company:'Thông tin công ty', appearance:'Cài đặt giao diện', employees:'Nhân viên', attendance:'Chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động',
   backup:'Backup dữ liệu', materials:'Nguyên vật liệu', assets:'Danh mục tài sản', products:'Sản phẩm', depts:'Bộ phận',
   customers:'Khách hàng', workcats:'Danh mục công việc', tasks:'Giao việc', shifts:'Ca giao hàng',
   workreport_vp:'CÔNG KẾ TOÁN', workreport_sx:'CÔNG SẢN XUẤT', workreport_lx:'CÔNG LÁI XE', workreport_total:'TỔNG CÔNG',
@@ -9131,7 +9334,7 @@ const PTITLES = {
 
 const PICONS = {
   purchase:'ti-shopping-cart', tasks:'ti-clipboard-check', prodsummary:'ti-clipboard-list',
-  prodorders:'ti-building-factory', stock:'ti-package', attendance:'ti-face-id', advances:'ti-cash-banknote', rewards:'ti-scale', leaves:'ti-calendar-minus', assets:'ti-building-warehouse',
+  prodorders:'ti-building-factory', stock:'ti-package', attendance:'ti-face-id', advances:'ti-cash-banknote', rewards:'ti-scale', leaves:'ti-calendar-minus', assets:'ti-building-warehouse', appearance:'ti-typography',
   workreport_vp:'ti-building', workreport_sx:'ti-building-factory', workreport_lx:'ti-steering-wheel', workreport_total:'ti-report-analytics',
   process_accounting:'ti-file-invoice', process_bun:'ti-tools-kitchen-2', process_pho:'ti-bowl', process_banhcuon:'ti-cookie',
   marketsales:'ti-building-store', powdersales:'ti-bowl',
@@ -9169,6 +9372,7 @@ function App(){
   const[advances,_sadv]=useState([]);
   const[rewards,_srw]=useState([]);
   const[leaves,_slv]=useState([]);
+  const[uiSettings,_sui]=useState(DEF_UI_SETTINGS);
   window.__SCF_CUSTOMERS=customers||[];
   const setEmployees=mkSet('scf_employees',_se);
   const setCompany=mkSet('scf_company',_sc);
@@ -9197,13 +9401,14 @@ function App(){
   const setAdvances=mkSet('scf_advances',_sadv);
   const setRewards=mkSet('scf_rewards',_srw);
   const setLeaves=mkSet('scf_leaves',_slv);
+  const setUiSettings=mkSet('scf_ui_settings',_sui);
   const[loading,setLoading]=useState(true);
   const[col,setCol]=useState(false);
   const[page,setPage]=useState('welcome');
   useEffect(()=>{
     (async()=>{
       try{
-        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,pu,q,fp,mo,o,t,a,adv,rw,lv,dp]=await Promise.all([
+        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,pu,q,fp,mo,o,t,a,adv,rw,lv,dp,ui]=await Promise.all([
           dbGet('scf_employees',DEF_EMPS),dbGet('scf_company',DEF_COMPANY),
           dbGet('scf_materials',DEF_MATERIALS),dbGet('scf_assets',[]),dbGet('scf_prodcats',DEF_PRODCATS),
           dbGet('scf_products',DEF_PRODUCTS),dbGet('scf_customers',DEF_CUSTOMERS),
@@ -9212,12 +9417,16 @@ function App(){
           dbGet('scf_fuelpurchases',[]),
           dbGet('scf_material_month_openings',[]),
           dbGet('scf_orders',[]),dbGet('scf_trips',[]),dbGet('scf_attendance',[]),
-          dbGet('scf_advances',[]),dbGet('scf_rewards',[]),dbGet('scf_leaves',[]),dbGet('scf_depts',DEF_DEPTS),
+          dbGet('scf_advances',[]),dbGet('scf_rewards',[]),dbGet('scf_leaves',[]),dbGet('scf_depts',DEF_DEPTS),dbGet('scf_ui_settings',DEF_UI_SETTINGS),
         ]);
-        _se(e);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(p);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_spu(pu);_sfp(fp);_smo(mo);const shData=await dbGet('scf_shifts',D_SHIFTS);_ssh(shData);_sq(q);_so(o);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);const psData=await dbGet('scf_prod_shifts',DEF_PROD_SHIFTS);_sps(psData);const psrData=await dbGet('scf_prod_shift_rules',DEF_PROD_SHIFT_RULES);_spr(psrData);
+        _se(e);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(p);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_spu(pu);_sfp(fp);_smo(mo);const shData=await dbGet('scf_shifts',D_SHIFTS);_ssh(shData);_sq(q);_so(o);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));const psData=await dbGet('scf_prod_shifts',DEF_PROD_SHIFTS);_sps(psData);const psrData=await dbGet('scf_prod_shift_rules',DEF_PROD_SHIFT_RULES);_spr(psrData);
       }catch(err){console.warn(err);}finally{setLoading(false);}
     })();
   },[]);
+  useEffect(()=>{
+    const vars=uiSettingsToCssVars(uiSettings);
+    Object.entries(vars).forEach(([key,val])=>document.documentElement.style.setProperty(key,val));
+  },[uiSettings]);
 
   useEffect(()=>{
     if(loading||!sb)return;
@@ -9290,7 +9499,7 @@ function App(){
             h('div',{className:'topbar-title'},
               h('div',{className:'topbar-company'},company?.name||'SCF'),
               h('div',{className:'topbar-meta'},
-                h('span',null,PTITLES[page]||page),
+                h('span',null,'Menu'),
                 sb&&h('span',{style:{width:7,height:7,borderRadius:'50%',background:'#52b788',display:'inline-block'},title:'Đã kết nối Supabase'})
               )
             )
@@ -9321,12 +9530,13 @@ function App(){
         ),
         canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,company}),
         canAccess(cu.role,'company',cu.permissions)&&page==='company'&&h(CompanySettings,{company,setCompany}),
+        canAccess(cu.role,'appearance',cu.permissions)&&page==='appearance'&&h(AppearanceSettingsTab,{uiSettings,setUiSettings}),
         canAccess(cu.role,'employees',cu.permissions)&&page==='employees'&&h(EmployeeTab,{employees,setEmployees,cu,depts}),
         canAccess(cu.role,'attendance',cu.permissions)&&page==='attendance'&&h(AttendanceTab,{attendance,setAttendance,employees,setEmployees,currentUser:cu,company}),
         canAccess(cu.role,'advances',cu.permissions)&&page==='advances'&&h(MoneyTab,{mode:'advance',records:advances,setRecords:setAdvances,employees,currentUser:cu}),
         canAccess(cu.role,'rewards',cu.permissions)&&page==='rewards'&&h(MoneyTab,{mode:'reward',records:rewards,setRecords:setRewards,employees,currentUser:cu}),
         canAccess(cu.role,'leaves',cu.permissions)&&page==='leaves'&&h(LeaveTab,{leaves,setLeaves,employees,currentUser:cu}),
-        canAccess(cu.role,'backup',cu.permissions)&&page==='backup'&&h(BackupTab,{employees,materials,assets,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,depts,prodShiftRules}),
+        canAccess(cu.role,'backup',cu.permissions)&&page==='backup'&&h(BackupTab,{employees,materials,assets,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,depts,prodShiftRules,uiSettings}),
         canAccess(cu.role,'materials',cu.permissions)&&page==='materials'&&h(MaterialsTab,{materials,setMaterials,purchases}),
         canAccess(cu.role,'assets',cu.permissions)&&page==='assets'&&h(AssetsTab,{assets,setAssets}),
         canAccess(cu.role,'depts',cu.permissions)&&page==='depts'&&h(DeptsTab,{depts,setDepts,employees,workcats}),
