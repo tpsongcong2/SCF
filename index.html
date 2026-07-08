@@ -21,6 +21,8 @@ body.modal-open{overflow:hidden}
 input,select,textarea,button{font-family:inherit}
 input,select,textarea{background:#fff;border:.5px solid var(--bd2);border-radius:var(--r);padding:8px 10px;outline:none;transition:border-color .15s;width:100%}
 input:focus,select:focus,textarea:focus{border-color:var(--pri)}
+input[type="date"]{cursor:pointer}
+input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer}
 button{cursor:pointer;border:.5px solid var(--bd2);border-radius:var(--r);background:#fff;padding:7px 14px;color:var(--tx);transition:.15s;display:inline-flex;align-items:center;gap:5px}
 button:hover{background:var(--bg2)}
 .bp{background:var(--pri)!important;color:#fff!important;border:none!important;font-weight:500}.bp:hover{background:var(--pri3)!important}
@@ -410,6 +412,26 @@ function useLS(key,init){
   useEffect(()=>{try{localStorage.setItem(key,JSON.stringify(v))}catch{}},[key,v]);
   return[v,sv];
 }
+function openNativeDatePicker(el){
+  if(!el||el.type!=='date'||el.disabled||el.readOnly||el.dataset.noAutoPicker==='1') return;
+  try{ if(typeof el.showPicker==='function') el.showPicker(); }catch{}
+}
+document.addEventListener('focusin',e=>{
+  const el=e.target;
+  if(el&&el.matches&&el.matches('input[type="date"]')) openNativeDatePicker(el);
+},true);
+document.addEventListener('click',e=>{
+  const el=e.target;
+  if(el&&el.matches&&el.matches('input[type="date"]')) openNativeDatePicker(el);
+},true);
+document.addEventListener('keydown',e=>{
+  const el=e.target;
+  if(!el||!el.matches||!el.matches('input[type="date"]')) return;
+  if(e.key==='Enter'||e.key==='ArrowDown'||e.key===' '){
+    e.preventDefault();
+    openNativeDatePicker(el);
+  }
+},true);
 async function dbGet(key,def){
   // Khi online thì ưu tiên dữ liệu mới từ Supabase để các máy đồng bộ với nhau.
   if(sb)try{const{data}=await sb.from('kv_store').select('value').eq('key',key).maybeSingle();if(data?.value){try{localStorage.setItem('scf_'+key.replace('scf_',''),JSON.stringify(data.value));}catch{}return data.value;}}catch(e){console.warn('dbGet Supabase:',e.message);}
