@@ -3154,34 +3154,75 @@ function parseVNDateKey(v){
 
 function PowderSalesTab({customers,trips,employees,setPage}){
   const storageKey='scf_powdersales';
+  const makeForm=overrides=>({
+    date:fmtDate(),
+    customer:'',
+    qtyQua:'',
+    qtyText:'',
+    weight:'',
+    price:'',
+    amount:'',
+    invoice:'',
+    invoiceImage:'',
+    invoiceImageName:'',
+    driverId:'',
+    driverName:'',
+    status:'unpaid',
+    ...(overrides||{})
+  });
   const [rows,setRows]=useLS(storageKey,[
-    {id:'PB001',date:'01/05/2026',customer:'ANH NAM PY',qtyQua:10,qtyText:'81+75+86+78+88+89+89+90+...',weight:'846',price:'11.000',amount:'9.306.000',invoice:'',driverId:'',driverName:'ANH NAM PY-2.026-5-0',status:'unpaid'},
+    {id:'PB001',date:'01/05/2026',customer:'ANH NAM PY',qtyQua:10,qtyText:'81+75+86+78+88+89+89+90+...',weight:'846',price:'11.000',amount:'9.306.000',invoice:'',invoiceImage:'',invoiceImageName:'',driverId:'',driverName:'ANH NAM PY-2.026-5-0',status:'unpaid'},
   ]);
   const [modal,sm]=useState(null);
   const [edit,se]=useState(null);
   const [q,sq]=useState('');
-  const [form,setForm]=useState({date:'',customer:'',qtyQua:'',qtyText:'',weight:'',price:'',amount:'',invoice:'',driverId:'',driverName:'',status:'unpaid'});
+  const [uploading,setUploading]=useState(false);
+  const [form,setForm]=useState(makeForm({date:''}));
   const customerOptions=[...new Set((customers||[]).map(c=>c.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
   const driverOptions=(employees||[]).filter(e=>e.role==='driver'||e.dept==='Lái xe').map(e=>({id:e.id,label:(e.id||'')+' - '+(e.name||'')})).sort((a,b)=>a.label.localeCompare(b.label,'vi'));
   const normalizeMoney=v=>String(v||'').replace(/[^\d]/g,'');
+  const isInvoiceImage=v=>/^(data:image\/|blob:|https?:\/\/)/i.test(String(v||'').trim());
+  const invoiceExportValue=r=>r.invoiceImage||r.invoice||'';
   const fmtMoney=v=>{
     const n=Number(String(v||'').replace(/[^\d.-]/g,''))||0;
     return n?n.toLocaleString('vi-VN'):'';
   };
-  const openAdd=()=>{se(null);setForm({date:fmtDate(),customer:'',qtyQua:'',qtyText:'',weight:'',price:'',amount:'',invoice:'',driverId:'',driverName:'',status:'unpaid'});sm('f');};
-  const openEdit=r=>{se(r);setForm({...r});sm('f');};
+  const openAdd=()=>{se(null);setUploading(false);setForm(makeForm());sm('f');};
+  const openEdit=r=>{se(r);setUploading(false);setForm(makeForm(r||{}));sm('f');};
   const save=()=>{
     if(!form.date||!form.customer){window.showToast('Nhập ngày và khách hàng.','warn');return;}
     const weight=computeWeightFromText(form.qtyText,form.qtyQua);
     const price=normalizeMoney(form.price);
     const amount=weight&&price?String(weight*Number(price)):normalizeMoney(form.amount);
-    const row={...form,status:form.status||'unpaid',weight:String(weight),price:fmtMoney(price),amount:fmtMoney(amount),id:edit?.id||('PB'+uid())};
+    const row={...makeForm(),...form,status:form.status||'unpaid',weight:String(weight),price:fmtMoney(price),amount:fmtMoney(amount),id:edit?.id||('PB'+uid())};
     setRows(prev=>edit?prev.map(x=>x.id===edit.id?row:x):[row,...prev]);
     sm(null);se(null);window.showToast('Đã lưu bột bán','success');
   };
   const del=id=>window.scfConfirm('Bạn có chắc muốn xóa dòng bột bán này?','Xóa bột bán',true).then(ok=>{if(ok){setRows(p=>p.filter(x=>x.id!==id));window.showToast('Đã xóa dòng','success');}});
+  const pickInvoiceImage=async file=>{
+    if(!file)return;
+    try{
+      setUploading(true);
+      const url=await uploadPhoto(file,'powder-sales-invoices/'+(edit?.id||'new'));
+      setForm(p=>({...p,invoiceImage:url,invoiceImageName:file.name||'hoa-don.jpg'}));
+      window.showToast('Đã tải ảnh hóa đơn lên','success');
+    }catch(e){
+      window.showToast('Chưa tải được ảnh hóa đơn.','error');
+    }finally{
+      setUploading(false);
+    }
+  };
+  const clearInvoiceImage=()=>setForm(p=>({...p,invoiceImage:'',invoiceImageName:''}));
+  const renderInvoiceInfo=r=>r.invoiceImage
+    ? h('div',{style:{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}},
+        h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(r.invoiceImage,'_blank')},h('i',{className:'ti ti-photo',style:{fontSize:15,color:'var(--pri)'}})),
+        h('span',{style:{fontSize:12,color:'var(--tx2)'}},r.invoiceImageName||'Đã có ảnh hóa đơn')
+      )
+    : (r.invoice
+        ? h('span',{className:'badge',style:{background:'#FFF3CD',color:'#8A5A00',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.invoice)
+        : '—');
   const filtered=rows
-    .filter(r=>!q||[r.date,r.customer,r.qtyText,r.weight,r.price,r.amount,r.invoice,r.driverName||r.tripId].join(' ').toLowerCase().includes(q.toLowerCase()))
+    .filter(r=>!q||[r.date,r.customer,r.qtyText,r.weight,r.price,r.amount,r.invoice,r.invoiceImageName,r.driverName||r.tripId].join(' ').toLowerCase().includes(q.toLowerCase()))
     .slice()
     .sort((a,b)=>parseVNDateKey(b.date)-parseVNDateKey(a.date));
   const importRows=items=>{
@@ -3191,6 +3232,8 @@ function PowderSalesTab({customers,trips,employees,setPage}){
       const weight=computeWeightFromText(qtyText,qtyQua);
       const price=r['Đơn giá']||r['gia']||'';
       const amount=r['Thành Tiền']||r['thanh_tien']||'';
+      const invoiceRaw=String(r['Hóa đơn']||r['update']||'').trim();
+      const importedInvoiceImage=isInvoiceImage(invoiceRaw)?invoiceRaw:'';
       return {
         id:'PB'+uid(),
         date:r['Ngày']||r['ngay_ban']||r['Ngày bán']||'',
@@ -3200,7 +3243,9 @@ function PowderSalesTab({customers,trips,employees,setPage}){
         weight:String(weight),
         price:fmtMoney(price),
         amount:fmtMoney(amount),
-        invoice:r['Hóa đơn']||r['update']||'',
+        invoice:importedInvoiceImage?'':invoiceRaw,
+        invoiceImage:importedInvoiceImage,
+        invoiceImageName:'',
         driverId:r['Lái xe']||r['driverId']||'',
         driverName:r['Lái xe']||r['driverName']||r['nguoi_gh']||'',
         status:(String(r['Tình trạng']||r['tinh_trang']||'').toLowerCase().includes('đã')||String(r['Tình trạng']||r['tinh_trang']||'').toLowerCase().includes('paid'))?'paid':'unpaid'
@@ -3217,7 +3262,7 @@ function PowderSalesTab({customers,trips,employees,setPage}){
       h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
         h('button',{onClick:()=>setPage('powderdebtreport'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-report-money',style:{fontSize:14}}),'Báo cáo công nợ'),
         h(ImportBtn,{onFile:importRows}),
-        h(ExportBtn,{onClick:()=>xlsxExport(filtered,[['date','Ngày'],['customer','Khách hàng'],['qtyQua','Số quả'],['qtyText','Số lượng text'],['weight','Khối lượng'],['price','Đơn giá'],['amount','Thành Tiền'],['status','Tình trạng'],['invoice','Hóa đơn'],['driverName','Lái xe']],'Bot_ban')}),
+        h(ExportBtn,{onClick:()=>xlsxExport(filtered.map(r=>({...r,invoice:invoiceExportValue(r)})),[['date','Ngày'],['customer','Khách hàng'],['qtyQua','Số quả'],['qtyText','Số lượng text'],['weight','Khối lượng'],['price','Đơn giá'],['amount','Thành Tiền'],['status','Tình trạng'],['invoice','Hóa đơn'],['driverName','Lái xe']],'Bot_ban')}),
         h(AddBtn,{onClick:openAdd,label:'Thêm bột bán'})
       )
     ),
@@ -3245,7 +3290,10 @@ function PowderSalesTab({customers,trips,employees,setPage}){
         ),
         h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}},
           h('span',{className:'badge',style:{background:r.status==='paid'?'#EAF3DE':'#F1EFE8',color:r.status==='paid'?'#3B6D11':'#5F5E5A'}},r.status==='paid'?'Đã thanh toán':'Chưa thanh toán'),
-          h('span',{className:'mobile-data-sub'},'Hóa đơn: '+(r.invoice||'—'))
+          h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
+            r.invoiceImage&&h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(r.invoiceImage,'_blank')},h('i',{className:'ti ti-photo',style:{fontSize:15,color:'var(--pri)'}})),
+            h('span',{className:'mobile-data-sub'},r.invoiceImage?(r.invoiceImageName||'Đã có ảnh hóa đơn'):('Hóa đơn: '+(r.invoice||'—')))
+          )
         ),
         h('div',{className:'mobile-data-actions'},
           h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
@@ -3265,7 +3313,7 @@ function PowderSalesTab({customers,trips,employees,setPage}){
           h('td',null,r.price||'—'),
           h('td',null,r.amount||'—'),
           h('td',null,h('span',{className:'badge',style:{background:r.status==='paid'?'#EAF3DE':'#F1EFE8',color:r.status==='paid'?'#3B6D11':'#5F5E5A'}},r.status==='paid'?'Đã thanh toán':'Chưa thanh toán')),
-          h('td',null,r.invoice||'—'),
+          h('td',null,renderInvoiceInfo(r)),
           h('td',null,r.driverName||'—'),
           h('td',null,h('div',{style:{display:'flex',gap:2}},
             h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
@@ -3294,7 +3342,22 @@ function PowderSalesTab({customers,trips,employees,setPage}){
       ),
       h('div',{className:'g2'},
         h(F,{label:'Thành Tiền'},h('input',{value:fmtMoney(computeWeightFromText(form.qtyText,form.qtyQua)*Number(normalizeMoney(form.price)||0)),readOnly:true,tabIndex:-1,style:{background:'var(--bg2)',cursor:'default'},placeholder:'Tự tính từ khối lượng × đơn giá'})),
-        h(F,{label:'Hóa đơn'},h('input',{value:form.invoice,onChange:e=>setForm(p=>({...p,invoice:e.target.value})),placeholder:'Số hóa đơn / ghi chú'}))
+        h(F,{label:'Hóa đơn'},
+          h('div',{style:{display:'grid',gap:10}},
+            h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+              form.invoiceImage&&h('button',{type:'button',onClick:()=>window.open(form.invoiceImage,'_blank'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-photo',style:{fontSize:14}}),'Xem ảnh'),
+              h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:uploading?'wait':'pointer',background:'#fff'}},
+                h('i',{className:'ti '+(uploading?'ti-loader-2 spin':'ti-camera-plus'),style:{fontSize:14}}),
+                uploading?'Đang tải ảnh...':'Chụp / tải ảnh',
+                h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},disabled:uploading,onChange:e=>pickInvoiceImage(e.target.files?.[0])})
+              ),
+              form.invoiceImage&&h('button',{type:'button',onClick:clearInvoiceImage,style:{fontSize:12,padding:'6px 12px',background:'#fff4f4',color:'#A32D2D',border:'1px solid #f0c9c9'}},h('i',{className:'ti ti-trash',style:{fontSize:14}}),'Xóa ảnh')
+            ),
+            form.invoiceImageName&&h('span',{style:{fontSize:12,color:'var(--tx2)'}},form.invoiceImageName),
+            form.invoiceImage&&h('img',{src:form.invoiceImage,alt:'Ảnh hóa đơn',style:{width:'100%',maxWidth:220,height:'auto',borderRadius:'var(--r)',border:'1px solid var(--bd)'}}),
+            !form.invoiceImage&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},form.invoice?'Dữ liệu hóa đơn cũ: '+form.invoice:'Có thể tải ảnh từ máy hoặc chụp trực tiếp bằng camera.')
+          )
+        )
       ),
       h(F,{label:'Tình trạng'},h('select',{value:form.status||'unpaid',onChange:e=>setForm(p=>({...p,status:e.target.value}))},
         h('option',{value:'unpaid'},'Chưa thanh toán'),
@@ -3666,8 +3729,9 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
   const [dt,sdt]=useState('');
   const [buyerFilter,setBuyerFilter]=useState('');
   const [vehicleFilter,setVehicleFilter]=useState('');
-  const [uploading,setUploading]=useState(false);
+  const [uploading,setUploading]=useState('');
   const normalizeText=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const normalizeVehicleKey=s=>String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
   const deptKey=normalizeText(currentUser?.dept);
   const isAccounting=deptKey==='ke toan';
   const canManage=currentUser?.role==='admin'||currentUser?.role==='manager'||isAccounting;
@@ -3678,15 +3742,18 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
     .map(e=>({id:e.id,name:e.name||e.id,label:(e.name||e.id)+(e.id?' - '+e.id:'')}))
     .sort((a,b)=>a.label.localeCompare(b.label,'vi'));
   const buyerOptions=(selfOption?[selfOption,...driverOptions.filter(d=>d.id!==selfOption.id)]:driverOptions);
-  const vehicleOptions=[...new Set((assets||[])
-    .map(a=>String(a.name||a.code||a.id||'').trim())
-    .filter(Boolean)
-    .filter(name=>{
-      const t=normalizeText(name);
-      const looksLikeVehicle=/^\d{4,6}$/.test(name)||t.includes('xe')||/\b\d{2}[a-z]-?\d{3,5}\b/i.test(name);
-      const looksLikeMachine=t.startsWith('may ')||t.includes('máy')||t.includes('may')||t.includes('bom')||t.includes('bơm')||t.includes('inox');
-      return looksLikeVehicle&&!looksLikeMachine;
-    }))].sort((a,b)=>a.localeCompare(b,'vi'));
+  const vehicleOptions=[...new Set([
+    ...(assets||[])
+      .map(a=>String(a.name||a.code||a.id||'').trim())
+      .filter(Boolean)
+      .filter(name=>{
+        const t=normalizeText(name);
+        const looksLikeVehicle=/^\d{4,6}$/.test(name)||t.includes('xe')||/\b\d{2}[a-z]-?\d{3,5}\b/i.test(name);
+        const looksLikeMachine=t.startsWith('may ')||t.includes('máy')||t.includes('may')||t.includes('bom')||t.includes('bơm')||t.includes('inox');
+        return looksLikeVehicle&&!looksLikeMachine;
+      }),
+    ...((rows||[]).map(r=>String(r.vehicle||'').trim()).filter(Boolean))
+  ])].sort((a,b)=>a.localeCompare(b,'vi'));
   const blankForm=buyerId=>{
     const d=buyerOptions.find(x=>x.id===buyerId);
     return {
@@ -3697,6 +3764,10 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       liters:0,
       price:0,
       amount:0,
+      plateImage:'',
+      plateImageName:'',
+      meterImage:'',
+      meterImageName:'',
       image:'',
       imageName:'',
       note:''
@@ -3724,6 +3795,10 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       liters:numFmt(row.liters||0),
       price:numFmt(row.price||0),
       amount:numFmt(row.amount||0),
+      plateImage:row.plateImage||'',
+      plateImageName:row.plateImageName||'',
+      meterImage:row.meterImage||row.image||'',
+      meterImageName:row.meterImageName||row.imageName||'',
       image:row.image||'',
       imageName:row.imageName||'',
       note:row.note||''
@@ -3732,6 +3807,83 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
   };
   const isOwn=row=>!isDriver||row.buyerId===currentUser.id||String(row.buyerName||'').trim().toLowerCase()===String(currentUser.name||'').trim().toLowerCase();
   const canFix=row=>canManage||(isDriver&&isOwn(row)&&String(row.note||'').trim());
+  const busyPlate=uploading==='plate';
+  const busyMeter=uploading==='meter';
+  const countImages=row=>((row.plateImage?1:0)+(row.meterImage?1:0)+((!row.plateImage&&!row.meterImage&&row.image)?1:0));
+  const renderImageActions=row=>{
+    const items=[];
+    if(row.plateImage)items.push(h('button',{key:'plate',className:'bi',title:'Xem ảnh biển số',onClick:()=>window.open(row.plateImage,'_blank')},h('i',{className:'ti ti-id',style:{fontSize:15,color:'var(--pri)'}})));
+    if(row.meterImage)items.push(h('button',{key:'meter',className:'bi',title:'Xem ảnh cây xăng',onClick:()=>window.open(row.meterImage,'_blank')},h('i',{className:'ti ti-gas-station',style:{fontSize:15,color:'var(--pri)'}})));
+    if(!items.length&&row.image)items.push(h('button',{key:'legacy',className:'bi',title:'Xem ảnh',onClick:()=>window.open(row.image,'_blank')},h('i',{className:'ti ti-photo',style:{fontSize:15,color:'var(--pri)'}})));
+    return items.length?h('div',{style:{display:'flex',gap:4,flexWrap:'wrap'}},items):'—';
+  };
+  const formatPlateCandidate=raw=>{
+    const clean=normalizeVehicleKey(raw);
+    const m1=clean.match(/^(\d{2})([A-Z]{1,2})(\d{3})(\d{2,3})$/);
+    if(m1)return `${m1[1]}${m1[2]}-${m1[3]}.${m1[4]}`;
+    const m2=clean.match(/^(\d{2})([A-Z]{1,2})(\d{4,5})$/);
+    if(m2)return `${m2[1]}${m2[2]}-${m2[3]}`;
+    return clean;
+  };
+  const extractPlateFromText=text=>{
+    const source=String(text||'').toUpperCase().replace(/[–—]/g,'-');
+    const compact=normalizeVehicleKey(source);
+    const exactVehicle=[...vehicleOptions]
+      .sort((a,b)=>normalizeVehicleKey(b).length-normalizeVehicleKey(a).length)
+      .find(v=>compact.includes(normalizeVehicleKey(v)));
+    if(exactVehicle)return exactVehicle;
+    const rawCandidates=[
+      ...(source.match(/\d{2}[A-Z]{1,2}-?\d{3}\.?\d{2,3}/g)||[]),
+      ...(source.match(/\d{2}[A-Z]{1,2}-?\d{4,5}/g)||[]),
+      ...(compact.match(/\d{2}[A-Z]{1,2}\d{4,6}/g)||[])
+    ].map(formatPlateCandidate).filter(Boolean);
+    return [...new Set(rawCandidates)].sort((a,b)=>normalizeVehicleKey(b).length-normalizeVehicleKey(a).length)[0]||'';
+  };
+  const parseOcrVolume=token=>{
+    const cleaned=String(token||'').replace(/[^\d.,]/g,'');
+    if(!cleaned)return 0;
+    const lastSep=Math.max(cleaned.lastIndexOf('.'),cleaned.lastIndexOf(','));
+    if(lastSep>=0){
+      const before=cleaned.slice(0,lastSep).replace(/[.,]/g,'');
+      const after=cleaned.slice(lastSep+1).replace(/[.,]/g,'');
+      if(after.length>0&&after.length<=3&&before.length<=3)return Number(`${before}.${after}`)||0;
+    }
+    return Number(cleaned.replace(/[.,]/g,''))||0;
+  };
+  const parseOcrMoney=token=>Number(String(token||'').replace(/\D/g,''))||0;
+  const extractFuelDataFromText=text=>{
+    const lines=String(text||'').split(/\n+/).map(raw=>({raw:String(raw||'').trim(),norm:normalizeText(raw)})).filter(x=>x.raw);
+    let liters=0, price=0, amount=0;
+    lines.forEach(line=>{
+      const tokens=line.raw.match(/\d[\d.,]*/g)||[];
+      if(!tokens.length)return;
+      const volumeVals=tokens.map(parseOcrVolume).filter(v=>v>0&&v<300);
+      const moneyVals=tokens.map(parseOcrMoney).filter(v=>v>=1000);
+      if(!liters&&/(so lit|so l|lit|litre|xang)/.test(line.norm)&&volumeVals.length)liters=volumeVals.find(v=>/[.,]/.test(tokens[volumeVals.indexOf(v)]))||volumeVals[0];
+      if(!price&&/(don gia|dg|gia\/l|vnd\/l|gia tien|price)/.test(line.norm)&&moneyVals.length)price=moneyVals.sort((a,b)=>a-b)[0];
+      if(!amount&&/(thanh tien|tong tien|so tien|phai tra|amount|total)/.test(line.norm)&&moneyVals.length)amount=moneyVals.sort((a,b)=>b-a)[0];
+    });
+    const allTokens=String(text||'').match(/\d[\d.,]*/g)||[];
+    const fallbackVolumes=allTokens.map(token=>({raw:token,val:parseOcrVolume(token)})).filter(x=>x.val>0&&x.val<300).sort((a,b)=>a.val-b.val);
+    const fallbackMoney=allTokens.map(parseOcrMoney).filter(v=>v>=1000).sort((a,b)=>a-b);
+    if(!liters&&fallbackVolumes.length)liters=(fallbackVolumes.find(x=>/[.,]/.test(x.raw))||fallbackVolumes[0]).val;
+    if(!price&&fallbackMoney.length)price=fallbackMoney[0];
+    if(!amount&&fallbackMoney.length>1)amount=fallbackMoney[fallbackMoney.length-1];
+    if(liters&&amount&&!price)price=Math.round(amount/liters);
+    if(price&&amount&&!liters)liters=Math.round((amount/price)*100)/100;
+    if(liters&&price&&!amount)amount=Math.round(liters*price);
+    return {
+      liters:liters?Math.round(liters*100)/100:0,
+      price:price||0,
+      amount:amount||0
+    };
+  };
+  const recognizeTextFromImage=async file=>{
+    if(!window.Tesseract)throw new Error('Chưa tải được thư viện OCR. Kiểm tra mạng.');
+    const img=await resizeImageFile(file,1800,.9);
+    const res=await Tesseract.recognize(img.dataUrl,'vie+eng');
+    return String(res?.data?.text||'');
+  };
   const inRange=dateValue=>{
     const d=parseAnyDate(dateValue);
     if(!d) return !df&&!dt;
@@ -3746,7 +3898,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       && inRange(r.date||r.createdAt||r.updatedAt)
       && (!buyerFilter||String(r.buyerId||'')===String(buyerFilter))
       && (!vehicleFilter||String(r.vehicle||'')===String(vehicleFilter))
-      && (!q||[r.date,r.vehicle,r.buyerName,r.note,r.imageName].join(' ').toLowerCase().includes(q.toLowerCase())))
+      && (!q||[r.date,r.vehicle,r.buyerName,r.note,r.imageName,r.plateImageName,r.meterImageName].join(' ').toLowerCase().includes(q.toLowerCase())))
     .slice()
     .sort((a,b)=>{
       const da=parseAnyDate(a.date||a.createdAt||a.updatedAt);
@@ -3757,19 +3909,22 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       return String(b.id||'').localeCompare(String(a.id||''),'vi',{numeric:true});
     });
   const save=()=>{
-    if(!form.buyerId||!form.date||!form.vehicle||numFmt(form.liters)<=0||numFmt(form.price)<=0){
-      window.showToast('Nhập người mua, ngày mua, xe, số lít và giá tiền.','warn');
+    if(!form.date||!form.vehicle||numFmt(form.liters)<=0||numFmt(form.price)<=0){
+      window.showToast('Nhập ngày mua, xe, số lít và giá tiền.','warn');
       return;
     }
-    const buyer=buyerOptions.find(x=>x.id===form.buyerId);
+    const buyerId=edit?.buyerId||currentUser.id||form.buyerId||'';
+    const buyerName=edit?.buyerName||currentUser.name||form.buyerName||'';
     const data={
       ...form,
-      buyerId:form.buyerId,
-      buyerName:buyer?.name||form.buyerName||'',
+      buyerId,
+      buyerName,
       date:toIsoDate(form.date)||isoDate(),
       liters:numFmt(form.liters||0),
       price:numFmt(form.price||0),
       amount:numFmt(form.liters||0)*numFmt(form.price||0),
+      image:form.meterImage||form.plateImage||form.image||'',
+      imageName:form.meterImageName||form.plateImageName||form.imageName||'',
       updatedAt:fmtDT(),
       updatedBy:currentUser.name
     };
@@ -3796,25 +3951,112 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       }
     });
   };
-  const pickImage=async file=>{
-    if(!file) return;
+  const pickPlateImage=async file=>{
+    if(!file)return;
     try{
-      setUploading(true);
-      const url=await uploadPhoto(file,'fuel-purchases/'+(edit?.id||'new'));
-      setForm(p=>({...p,image:url,imageName:file.name||'anh-xang-dau.jpg'}));
-      window.showToast('Đã tải ảnh lên','success');
+      setUploading('plate');
+      const url=await uploadPhoto(file,'fuel-purchases/plates/'+(edit?.id||'new'));
+      setForm(p=>({...p,plateImage:url,plateImageName:file.name||'anh-bien-so.jpg'}));
+      try{
+        const text=await recognizeTextFromImage(file);
+        const vehicle=extractPlateFromText(text);
+        if(vehicle){
+          setForm(p=>({...p,plateImage:url,plateImageName:file.name||'anh-bien-so.jpg',vehicle}));
+          window.showToast('Đã nhận diện biển số xe: '+vehicle,'success');
+        }else{
+          window.showToast('Đã lưu ảnh biển số nhưng chưa đọc rõ biển số. Có thể nhập tay nếu cần.','warn');
+        }
+      }catch(e){
+        window.showToast(e.message||'Đã lưu ảnh biển số nhưng chưa đọc được chữ trong ảnh.','warn');
+      }
     }catch(e){
-      window.showToast('Chưa tải được ảnh.','error');
+      window.showToast('Chưa tải được ảnh biển số.','error');
     }finally{
-      setUploading(false);
+      setUploading('');
     }
+  };
+  const pickMeterImage=async file=>{
+    if(!file)return;
+    try{
+      setUploading('meter');
+      const url=await uploadPhoto(file,'fuel-purchases/meters/'+(edit?.id||'new'));
+      setForm(p=>({...p,meterImage:url,meterImageName:file.name||'anh-cay-xang.jpg',image:url,imageName:file.name||'anh-cay-xang.jpg'}));
+      try{
+        const text=await recognizeTextFromImage(file);
+        const parsed=extractFuelDataFromText(text);
+        const filled=[];
+        setForm(p=>{
+          const next={...p,meterImage:url,meterImageName:file.name||'anh-cay-xang.jpg',image:url,imageName:file.name||'anh-cay-xang.jpg'};
+          let liters=parsed.liters||numFmt(next.liters||0);
+          let price=parsed.price||numFmt(next.price||0);
+          let amount=parsed.amount||numFmt(next.amount||0);
+          if(liters&&amount&&!price)price=Math.round(amount/liters);
+          if(price&&amount&&!liters)liters=Math.round((amount/price)*100)/100;
+          if(liters){next.liters=liters;filled.push('số lít');}
+          if(price){next.price=price;filled.push('giá tiền');}
+          next.amount=amount||Math.round((numFmt(next.liters||0)||0)*(numFmt(next.price||0)||0));
+          if(next.amount)filled.push('thành tiền');
+          return next;
+        });
+        if(filled.length)window.showToast('Đã đọc ảnh cây xăng và điền '+[...new Set(filled)].join(', ')+'.','success');
+        else window.showToast('Đã lưu ảnh cây xăng nhưng chưa đọc rõ số liệu. Có thể nhập tay nếu cần.','warn');
+      }catch(e){
+        window.showToast(e.message||'Đã lưu ảnh cây xăng nhưng chưa OCR được số liệu.','warn');
+      }
+    }catch(e){
+      window.showToast('Chưa tải được ảnh cây xăng.','error');
+    }finally{
+      setUploading('');
+    }
+  };
+  const captureBothFuelImages=()=>{
+    if(uploading)return;
+    const makeInput=()=>{
+      const input=document.createElement('input');
+      input.type='file';
+      input.accept='image/*';
+      input.setAttribute('capture','environment');
+      input.style.display='none';
+      document.body.appendChild(input);
+      return input;
+    };
+    const plateInput=makeInput();
+    const meterInput=makeInput();
+    let done=false;
+    let plateFile=null;
+    const cleanup=()=>{
+      if(done)return;
+      done=true;
+      setTimeout(()=>{
+        plateInput.remove();
+        meterInput.remove();
+      },0);
+    };
+    const processCapturedFiles=async meterFile=>{
+      cleanup();
+      if(plateFile)await pickPlateImage(plateFile);
+      if(meterFile)await pickMeterImage(meterFile);
+      else if(plateFile)window.showToast('Đã lưu ảnh biển số. Có thể chụp ảnh cây xăng sau nếu cần.','warn');
+    };
+    plateInput.addEventListener('change',()=>{
+      plateFile=plateInput.files?.[0]||null;
+      if(!plateFile){
+        cleanup();
+        return;
+      }
+      meterInput.click();
+    },{once:true});
+    plateInput.addEventListener('cancel',cleanup,{once:true});
+    meterInput.addEventListener('change',()=>{processCapturedFiles(meterInput.files?.[0]||null);},{once:true});
+    meterInput.addEventListener('cancel',()=>{processCapturedFiles(null);},{once:true});
+    plateInput.click();
   };
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-gas-station',style:{fontSize:20}}),'Đơn mua xăng dầu'),
     h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8}},
-      h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Lọc theo ngày, người mua và xe để xem nhanh trên điện thoại.'),
+      h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Lọc theo ngày, người đổ và xe để xem nhanh trên điện thoại.'),
       h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
-        h(ExportBtn,{onClick:()=>xlsxExport(visible,[['date','Ngày mua'],['buyerName','Người mua'],['vehicle','Xe'],['liters','Số lít'],['price','Giá tiền'],['amount','Thành tiền'],['note','Chú ý'],['image','Ảnh']],'Don_mua_xang_dau')}),
+        h(ExportBtn,{onClick:()=>xlsxExport(visible.map(r=>({...r,image:r.meterImage||r.plateImage||r.image||''})),[['date','Ngày mua'],['buyerName','Người đổ'],['vehicle','Xe'],['liters','Số lít'],['price','Giá tiền'],['amount','Thành tiền'],['note','Chú ý'],['plateImage','Ảnh biển số'],['meterImage','Ảnh cây xăng'],['image','Ảnh chính']],'Don_mua_xang_dau')}),
         h(AddBtn,{onClick:openAdd,label:'Thêm đơn mua xăng dầu'})
       )
     ),
@@ -3829,7 +4071,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
         h(F,{label:'Đến ngày'},
           h('input',{type:'date',value:dt,onChange:e=>sdt(e.target.value)})
         ),
-        h(F,{label:'Người mua'},
+        h(F,{label:'Người đổ'},
           h('select',{value:buyerFilter,onChange:e=>setBuyerFilter(e.target.value)},
             h('option',{value:''},'Tất cả'),
             ...buyerOptions.map(b=>h('option',{key:b.id,value:b.id},b.name||b.label))
@@ -3862,18 +4104,18 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
           h('div',{className:'fuel-mobile-meta-item'},h('b',null,'Số lít'),h('span',null,numFmt(r.liters||0)||'—')),
           h('div',{className:'fuel-mobile-meta-item'},h('b',null,'Giá tiền'),h('span',null,numFmt(r.price||0)?Number(r.price).toLocaleString('vi-VN'):'—')),
           h('div',{className:'fuel-mobile-meta-item'},h('b',null,'Thành tiền'),h('span',null,numFmt(r.amount||0)?Number(r.amount).toLocaleString('vi-VN'):'—')),
-          h('div',{className:'fuel-mobile-meta-item'},h('b',null,'Ảnh'),h('span',null,r.image?'Đã có ảnh':'Chưa có ảnh'))
+          h('div',{className:'fuel-mobile-meta-item'},h('b',null,'Ảnh'),h('span',null,countImages(r)?(countImages(r)+' ảnh'):'Chưa có ảnh'))
         ),
         r.note&&h('div',{className:'fuel-mobile-note'},r.note),
         h('div',{className:'fuel-mobile-actions'},
-          r.image&&h('button',{className:'bi',title:'Xem ảnh',onClick:()=>window.open(r.image,'_blank')},h('i',{className:'ti ti-photo',style:{fontSize:15,color:'var(--pri)'}})),
+          (()=>{const imgs=renderImageActions(r);return imgs==='—'?null:imgs;})(),
           canFix(r)&&h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
           canFix(r)&&h('button',{className:'bi',onClick:()=>del(r.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
         )
       )):h('div',{className:'card',style:{textAlign:'center',color:'var(--tx2)'}},'Chưa có đơn mua xăng dầu nào.')
     ),
     h('div',{className:'tw desktop-only'},h('table',null,
-      h('thead',null,h('tr',null,...['Ngày mua','Người mua','Xe','Số lít','Giá tiền','Thành tiền','Ảnh','Chú ý',''].map(c=>h('th',{key:c},c)))),
+      h('thead',null,h('tr',null,...['Ngày mua','Người đổ','Xe','Số lít','Giá tiền','Thành tiền','Ảnh','Chú ý',''].map(c=>h('th',{key:c},c)))),
       h('tbody',null,visible.length?visible.map(r=>h('tr',{key:r.id},
         h('td',null,fmtAnyDate(r.date)||'—'),
         h('td',null,h('div',{style:{fontWeight:600}},r.buyerName||'—')),
@@ -3881,7 +4123,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
         h('td',null,numFmt(r.liters||0)||'—'),
         h('td',null,numFmt(r.price||0)?Number(r.price).toLocaleString('vi-VN'):'—'),
         h('td',null,h('span',{style:{fontWeight:600,color:'var(--pri)'}},numFmt(r.amount||0)?Number(r.amount).toLocaleString('vi-VN'):'—')),
-        h('td',null,r.image?h('button',{className:'bi',title:'Xem ảnh',onClick:()=>window.open(r.image,'_blank')},h('i',{className:'ti ti-photo',style:{fontSize:15,color:'var(--pri)'}})):'—'),
+        h('td',null,renderImageActions(r)),
         h('td',null,r.note?h('span',{className:'badge',style:{background:'#FFF3CD',color:'#8A5A00',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.note):'—'),
         h('td',null,h('div',{style:{display:'flex',gap:2}},
           canFix(r)&&h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
@@ -3891,33 +4133,51 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
     )),
     modal&&h(Modal,{title:edit?'Sửa đơn mua xăng dầu':'Thêm đơn mua xăng dầu',onClose:()=>{setModal(false);setEdit(null);}},
       h('div',{className:'g2'},
-        h(F,{label:'Người mua *'},
-          canManage
-            ? h('select',{value:form.buyerId,onChange:e=>{const d=buyerOptions.find(x=>x.id===e.target.value);setForm(p=>({...p,buyerId:e.target.value,buyerName:d?.name||'',amount:numFmt(p.liters||0)*numFmt(p.price||0)}));}},
-                h('option',{value:''},'— Chọn người mua —'),
-                buyerOptions.map(d=>h('option',{key:d.id,value:d.id},d.label))
-              )
-            : h('input',{value:currentUser.name||'',readOnly:true,style:{background:'var(--bg2)'}})
-        ),
+        h(F,{label:'Người đổ *'},h('input',{value:edit?(form.buyerName||currentUser.name||''):(currentUser.name||''),readOnly:true,style:{background:'var(--bg2)'}})),
         h(F,{label:'Ngày mua *'},h('input',{type:'date',value:toIsoDate(form.date),onChange:e=>setF('date',e.target.value)}))
       ),
       h('div',{className:'g2'},
         h(F,{label:'Xe / biển số *'},
-          h('select',{value:form.vehicle,onChange:e=>setF('vehicle',e.target.value)},
-            h('option',{value:''},'— Chọn xe —'),
-            vehicleOptions.map(v=>h('option',{key:v,value:v},v))
+          h('div',null,
+            h('input',{value:form.vehicle,onChange:e=>setF('vehicle',e.target.value.toUpperCase()),list:'fuel-vehicle-options',placeholder:'Nhập hoặc OCR biển số xe...',style:{fontSize:13}}),
+            h('datalist',{id:'fuel-vehicle-options'},vehicleOptions.map(v=>h('option',{key:v,value:v},v)))
           )
         ),
-        h(F,{label:'Ảnh'},
-          h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
-            form.image&&h('button',{type:'button',onClick:()=>window.open(form.image,'_blank'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-photo',style:{fontSize:14}}),'Xem ảnh'),
-            h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:uploading?'wait':'pointer',background:'#fff'}},
-              h('i',{className:'ti '+(uploading?'ti-loader-2 spin':'ti-camera-plus'),style:{fontSize:14}}),
-              uploading?'Đang tải ảnh...':'Chọn ảnh',
-              h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},disabled:uploading,onChange:e=>pickImage(e.target.files?.[0])})
+        h(F,{label:'Ảnh biển số'},
+          h('div',{style:{display:'grid',gap:8}},
+            h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+              form.plateImage&&h('button',{type:'button',onClick:()=>window.open(form.plateImage,'_blank'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-photo',style:{fontSize:14}}),'Xem ảnh'),
+              h('button',{type:'button',disabled:!!uploading,onClick:captureBothFuelImages,style:{fontSize:12,padding:'6px 12px'}},
+                h('i',{className:'ti '+(uploading?'ti-loader-2 spin':'ti-camera-plus'),style:{fontSize:14}}),
+                uploading?'Đang xử lý ảnh...':'Chụp nhanh cả 2 ảnh'
+              ),
+              h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:busyPlate?'wait':'pointer',background:'#fff'}},
+                h('i',{className:'ti '+(busyPlate?'ti-loader-2 spin':'ti-id'),style:{fontSize:14}}),
+                busyPlate?'Đang đọc biển số...':'Chụp biển số',
+                h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},disabled:!!uploading,onChange:e=>pickPlateImage(e.target.files?.[0])})
+              )
             ),
-            form.imageName&&h('span',{style:{fontSize:12,color:'var(--tx2)'}},form.imageName)
+            form.plateImageName&&h('span',{style:{fontSize:12,color:'var(--tx2)'}},form.plateImageName)
           )
+        )
+      ),
+      h(F,{label:'Ảnh cây xăng'},
+        h('div',{style:{display:'grid',gap:8}},
+          h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+            (form.meterImage||form.image)&&h('button',{type:'button',onClick:()=>window.open(form.meterImage||form.image,'_blank'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-photo',style:{fontSize:14}}),'Xem ảnh'),
+            h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:busyMeter?'wait':'pointer',background:'#fff'}},
+              h('i',{className:'ti '+(busyMeter?'ti-loader-2 spin':'ti-gas-station'),style:{fontSize:14}}),
+              busyMeter?'Đang đọc cây xăng...':'Chụp cây xăng',
+              h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},disabled:!!uploading,onChange:e=>pickMeterImage(e.target.files?.[0])})
+            ),
+            h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:busyMeter?'wait':'pointer',background:'#fff'}},
+              h('i',{className:'ti '+(busyMeter?'ti-loader-2 spin':'ti-camera-plus'),style:{fontSize:14}}),
+              busyMeter?'Đang tải ảnh...':'Chọn ảnh cũ',
+              h('input',{type:'file',accept:'image/*',style:{display:'none'},disabled:!!uploading,onChange:e=>pickMeterImage(e.target.files?.[0])})
+            )
+          ),
+          (form.meterImageName||form.imageName)&&h('span',{style:{fontSize:12,color:'var(--tx2)'}},form.meterImageName||form.imageName),
+          h('div',{style:{fontSize:12,color:'var(--tx2)'}},'App sẽ cố gắng tự đọc số lít, giá tiền và thành tiền từ ảnh cây xăng.')
         )
       ),
       h('div',{className:'g2'},
@@ -5766,8 +6026,30 @@ function CameraBox({onCapture,preview,setPreview,template,setTemplate}) {
   };
   useEffect(()=>()=>stop(),[]);
   useEffect(()=>{if(started)bindStream();},[started]);
-  const start=async()=>{try{stop();const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});streamRef.current=st;setPreview('');setStarted(true);setMsg('');}catch(e){setMsg('Không mở được camera. Hãy cấp quyền camera cho trình duyệt.');}};
+  const start=async()=>{
+    if(!navigator.mediaDevices?.getUserMedia){
+      const warn=!window.isSecureContext
+        ? 'Camera có thể bị chặn khi app đang mở ở dạng file cục bộ. Hãy thử mở qua HTTPS/GitHub Pages hoặc kiểm tra lại quyền camera.'
+        : 'Thiết bị hoặc trình duyệt này chưa hỗ trợ mở camera.';
+      setMsg(warn);
+      window.showToast(warn,'warn');
+      return;
+    }
+    try{
+      stop();
+      const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+      streamRef.current=st;
+      setPreview('');
+      setStarted(true);
+      setMsg('');
+    }catch(e){
+      const warn='Không mở được camera. Hãy cấp quyền camera cho trình duyệt rồi thử lại.';
+      setMsg(warn);
+      window.showToast(warn,'error');
+    }
+  };
   const snap=()=>{const v=videoRef.current;if(!v||!v.videoWidth||!v.videoHeight){setMsg('Camera chưa sẵn sàng.');return;}const c=document.createElement('canvas');c.width=320;c.height=240;const ctx=c.getContext('2d');ctx.drawImage(v,0,0,c.width,c.height);const img=c.toDataURL('image/jpeg',.72);const small=document.createElement('canvas');small.width=8;small.height=8;const sctx=small.getContext('2d');sctx.drawImage(v,0,0,8,8);const data=[...sctx.getImageData(0,0,8,8).data];const fp=[];for(let i=0;i<data.length;i+=4)fp.push(Math.round((data[i]+data[i+1]+data[i+2])/3));setPreview(img);onCapture&&onCapture({image:img,faceHash:fp});setMsg('Đã chụp khuôn mặt. Nếu cần chụp lại, bấm Mở camera.');stop();};
+  const resetTemplate=()=>{setTemplate&&setTemplate(null);setPreview('');setMsg('Đã xóa mẫu mặt cũ. Hãy chụp lại khuôn mặt mới.');window.showToast('Đã xóa mẫu mặt cũ.','success');};
   return h('div',null,
     h('div',{className:'att-camera'},
       started?h('video',{ref:videoRef,autoPlay:true,playsInline:true,muted:true})
@@ -5778,7 +6060,7 @@ function CameraBox({onCapture,preview,setPreview,template,setTemplate}) {
     h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}},
       h('button',{className:'bp',onClick:started?snap:start},h('i',{className:'ti '+(started?'ti-camera-check':'ti-camera'),style:{fontSize:15}}),started?'Chụp khuôn mặt':'Mở camera'),
       started&&h('button',{onClick:stop},h('i',{className:'ti ti-player-stop',style:{fontSize:14}}),'Tắt'),
-      template&&h('button',{onClick:()=>{setTemplate(null);setPreview('');}},h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Đăng ký lại')
+      template&&h('button',{onClick:resetTemplate},h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Đăng ký lại')
     )
   );
 }
@@ -5789,6 +6071,8 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
   const[zaloWebhook,setZaloWebhook]=useLS('scf_zalo_webhook','');
   const[cap,setCap]=useState(null);const[preview,setPreview]=useState('');
   const[pos,setPos]=useState(null);const[gpsMsg,setGpsMsg]=useState('');
+  const[gpsBusy,setGpsBusy]=useState(false);
+  const[punchBusy,setPunchBusy]=useState(false);
   const[empId,setEmpId]=useState(currentUser.role==='admin'||currentUser.role==='manager'?'':currentUser.id);
   const[q,setQ]=useState('');const[day,setDay]=useState(isoDate());
   const canManage=currentUser.role==='admin'||currentUser.role==='manager';
@@ -5806,10 +6090,37 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
   const myToday=scopedAttendance.filter(a=>a.date===isoDate()&&a.empId===selectedEmpId).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   const last=myToday[myToday.length-1];
   const nextType=!last||last.type==='out'?'in':'out';
+  const needEmp=()=>canManage&&!empId;
   const gs=gpsStatus(pos,settings);
   const tpl=emp.faceTemplate;
   const score=faceScore(cap&&cap.faceHash,tpl&&tpl.hash);
   const faceOk=!!tpl&&!!cap&&score>=65;
+  const faceState=!tpl?'Chưa có mẫu mặt':!cap?'Chưa chụp mặt':faceOk?'Mặt hợp lệ':'Mặt chưa khớp';
+  const faceStateStyle=faceOk
+    ? {background:'#EAF3DE',color:'#3B6D11'}
+    : (!tpl||!cap)
+      ? {background:'#F1EFE8',color:'#6B6B67'}
+      : {background:'#FCEBEB',color:'#A32D2D'};
+  const gpsState=!pos?'Chưa có GPS':gs.ok?'GPS hợp lệ':'GPS ngoài vùng';
+  const gpsStateStyle=pos&&gs.ok
+    ? {background:'#EAF3DE',color:'#3B6D11'}
+    : !pos
+      ? {background:'#F1EFE8',color:'#6B6B67'}
+      : {background:'#FCEBEB',color:'#A32D2D'};
+  const readyPunch=!needEmp()&&!!tpl&&!!cap&&faceOk&&!!pos&&gs.ok&&!punchBusy;
+  const readyReasons=[
+    needEmp()?'chưa chọn nhân viên':null,
+    !tpl?'chưa có mẫu mặt':null,
+    tpl&&!cap?'chưa chụp mặt':null,
+    tpl&&cap&&!faceOk?'mặt chưa khớp':null,
+    !pos?'chưa có GPS':null,
+    pos&&!gs.ok?'GPS ngoài vùng':null
+  ].filter(Boolean);
+  const readyDetail=readyPunch?'Sẵn sàng lưu giờ vào ca.':'Thiếu: '+readyReasons.join(' • ');
+  const readyLabel=readyPunch?'Đủ điều kiện vào ca':'Chưa đủ điều kiện';
+  const readyStyle=readyPunch
+    ? {background:'#0F6E56',color:'#fff',fontWeight:700,boxShadow:'0 0 0 1px rgba(15,110,86,.15) inset'}
+    : {background:'#FAEEDA',color:'#854F0B',fontWeight:700};
   const timeToMin=t=>{const p=String(t||'').split(':').map(x=>parseInt(x,10)||0);return p[0]*60+p[1];};
   const timeStatus=(type,t)=>{
     if(type==='in'&&settings.start&&timeToMin(t)>timeToMin(settings.start))return 'Đi muộn';
@@ -5825,8 +6136,48 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
     return notes.join(' • ');
   };
   const recentSame=myToday.find(r=>r.type===nextType&&Math.abs(timeToMin(timeNow())-timeToMin(r.time))<2);
-  const getGps=()=>{setGpsMsg('Đang lấy vị trí...');navigator.geolocation.getCurrentPosition(p=>{setPos({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy||0)});setGpsMsg('Đã lấy GPS lúc '+timeNow());},e=>setGpsMsg('Không lấy được GPS. Hãy cấp quyền vị trí cho trình duyệt.'),{enableHighAccuracy:true,timeout:12000,maximumAge:0});};
-  const needEmp=()=>canManage&&!empId;
+  const requestGps=async(target='attendance',opts={})=>{
+    if(!navigator.geolocation){
+      const warn=!window.isSecureContext
+        ? 'GPS có thể bị chặn vì app đang mở ở dạng file cục bộ. Hãy thử mở qua HTTPS/GitHub Pages hoặc cấp lại quyền vị trí.'
+        : 'Thiết bị hoặc trình duyệt này chưa hỗ trợ GPS.';
+      setGpsMsg(warn);
+      if(!opts.silentError)window.showToast(warn,'warn');
+      return null;
+    }
+    return await new Promise(resolve=>{
+      setGpsBusy(true);
+      setGpsMsg(target==='settings'?'Đang lấy vị trí để cập nhật vùng chấm công...':'Đang lấy vị trí...');
+      navigator.geolocation.getCurrentPosition(
+        p=>{
+          const nextPos={lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy||0)};
+          setPos(nextPos);
+          setGpsBusy(false);
+          setGpsMsg('Đã lấy GPS lúc '+timeNow());
+          if(target==='settings'){
+            setSettings(prev=>({...prev,lat:+nextPos.lat.toFixed(6),lon:+nextPos.lon.toFixed(6)}));
+            window.showToast('Đã cập nhật tọa độ vùng chấm công từ GPS hiện tại.','success');
+          }else if(!opts.silentSuccess){
+            window.showToast('Đã lấy GPS thành công.','success');
+          }
+          resolve(nextPos);
+        },
+        e=>{
+          setGpsBusy(false);
+          const warn=e&&e.code===1
+            ? 'Bạn đã từ chối quyền vị trí. Hãy bật lại quyền GPS cho trình duyệt.'
+            : !window.isSecureContext
+              ? 'Không lấy được GPS. Khi mở app ở dạng file cục bộ, trình duyệt có thể chặn vị trí.'
+              : 'Không lấy được GPS. Hãy cấp quyền vị trí cho trình duyệt rồi thử lại.';
+          setGpsMsg(warn);
+          if(!opts.silentError)window.showToast(warn,'error');
+          resolve(null);
+        },
+        {enableHighAccuracy:true,timeout:12000,maximumAge:0}
+      );
+    });
+  };
+  const getGps=(target='attendance')=>{void requestGps(target);};
   const ensureSelfAttendance=()=>{
     if(canManage)return true;
     if(selectedEmpId===currentUser.id)return true;
@@ -5836,8 +6187,95 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
     window.showToast('Nhân viên chỉ được chấm công cho chính mình.','warn');
     return false;
   };
-  const saveTemplate=()=>{if(!ensureSelfAttendance())return;if(needEmp()){window.showToast('Hãy chọn nhân viên trước.','warn');return;}if(!cap){window.showToast('Hãy chụp khuôn mặt trước.','warn');return;}setEmployees(list=>list.map(e=>e.id===emp.id?{...e,faceTemplate:{hash:cap.faceHash,image:cap.image,updatedAt:fmtDT(),updatedBy:currentUser.name}}:e));window.showToast('Đã lưu khuôn mặt mẫu cho '+emp.name,'success');};
-  const punch=()=>{if(!ensureSelfAttendance())return;if(needEmp()){window.showToast('Hãy chọn nhân viên cần chấm công.','info');return;}if(recentSame&&!confirm('Nhân viên vừa có bản ghi '+(nextType==='in'?'vào ca':'ra ca')+' gần đây. Vẫn lưu tiếp?'))return;if(!cap){window.showToast('Hãy chụp khuôn mặt khi chấm công.','warn');return;}if(!tpl){window.showToast('Nhân viên chưa đăng ký khuôn mặt mẫu.','warn');return;}if(!faceOk&&!confirm('Điểm khớp khuôn mặt thấp ('+score+'%). Vẫn lưu bản ghi cần duyệt?'))return;if(!pos){window.showToast('Hãy lấy GPS trước.','warn');return;}const now=timeNow();const g=gpsStatus(pos,settings);const tStatus=timeStatus(nextType,now);const rec={id:'CC'+uid(),empId:emp.id,empName:emp.name,dept:emp.dept||'',date:isoDate(),time:now,type:nextType,timeStatus:tStatus,faceScore:score,faceOk,lat:pos.lat,lon:pos.lon,accuracy:pos.acc,distance:g.distance,gpsOk:g.ok,photo:cap.image,status:faceOk&&g.ok?'valid':'review',note:buildNote(tStatus,faceOk,g),createdBy:currentUser.name,createdAt:fmtDT()};setAttendance(p=>[rec,...p]);setPreview('');setCap(null);window.showToast((nextType==='in'?'Vào ca':'Ra ca')+' thành công'+(tStatus==='Đúng giờ'?'':' - '+tStatus),'success');};
+  const buildFaceTemplate=()=>cap?{hash:[...(cap.faceHash||[])],image:cap.image||'',updatedAt:fmtDT(),updatedBy:currentUser.name}:null;
+  const persistFaceTemplate=template=>{
+    if(!template)return;
+    setEmployees(list=>list.map(e=>e.id===emp.id?{...e,faceTemplate:template}:e));
+  };
+  const clearFaceTemplate=()=>{
+    if(!ensureSelfAttendance())return;
+    if(needEmp()){window.showToast('Hãy chọn nhân viên trước.','warn');return;}
+    setEmployees(list=>list.map(e=>e.id===emp.id?{...e,faceTemplate:null}:e));
+    setPreview('');
+    setCap(null);
+  };
+  const saveTemplate=()=>{
+    if(!ensureSelfAttendance())return;
+    if(needEmp()){window.showToast('Hãy chọn nhân viên trước.','warn');return;}
+    if(!cap){window.showToast('Hãy chụp khuôn mặt trước.','warn');return;}
+    const template=buildFaceTemplate();
+    persistFaceTemplate(template);
+    window.showToast('Đã lưu khuôn mặt mẫu cho '+emp.name,'success');
+  };
+  const punch=async()=>{
+    if(punchBusy)return;
+    if(!ensureSelfAttendance())return;
+    if(needEmp()){window.showToast('Hãy chọn nhân viên cần chấm công.','info');return;}
+    if(!emp||!emp.id){window.showToast('Chưa xác định được nhân viên chấm công.','error');return;}
+    if(!cap){window.showToast('Hãy chụp khuôn mặt khi chấm công.','warn');return;}
+    setPunchBusy(true);
+    try{
+      if(recentSame){
+        const ok=await window.scfConfirm('Nhân viên vừa có bản ghi '+(nextType==='in'?'vào ca':'ra ca')+' gần đây. Vẫn lưu tiếp?','Bản ghi gần trùng');
+        if(!ok)return;
+      }
+      let workingTemplate=tpl;
+      if(!workingTemplate){
+        workingTemplate=buildFaceTemplate();
+        persistFaceTemplate(workingTemplate);
+        window.showToast('Đã tự lưu mặt mẫu lần đầu cho '+emp.name+'.','success');
+      }
+      const workingScore=faceScore(cap&&cap.faceHash,workingTemplate&&workingTemplate.hash);
+      const workingFaceOk=!!workingTemplate&&!!cap&&workingScore>=65;
+      if(!workingFaceOk){
+        window.showToast('Ảnh khuôn mặt chưa khớp ('+workingScore+'%). Chưa lưu giờ '+(nextType==='in'?'vào ca':'ra ca')+'.','error',4500);
+        return;
+      }
+      let workingPos=pos;
+      if(!workingPos){
+        workingPos=await requestGps('attendance',{silentSuccess:true});
+        if(!workingPos){
+          window.showToast('Chưa lấy được GPS nên chưa thể chấm công.','warn');
+          return;
+        }
+      }
+      const now=timeNow();
+      const g=gpsStatus(workingPos,settings);
+      if(!g.ok){
+        window.showToast('GPS chưa đúng vị trí công ty ('+(g.distance??'—')+'m). Chưa lưu giờ '+(nextType==='in'?'vào ca':'ra ca')+'.','error',4500);
+        return;
+      }
+      const tStatus=timeStatus(nextType,now);
+      const rec={
+        id:'CC'+uid(),
+        empId:emp.id,
+        empName:emp.name,
+        dept:emp.dept||'',
+        date:isoDate(),
+        time:now,
+        type:nextType,
+        timeStatus:tStatus,
+        faceScore:workingScore,
+        faceOk:workingFaceOk,
+        lat:workingPos.lat,
+        lon:workingPos.lon,
+        accuracy:workingPos.acc,
+        distance:g.distance,
+        gpsOk:g.ok,
+        photo:cap.image,
+        status:'valid',
+        note:buildNote(tStatus,workingFaceOk,g),
+        createdBy:currentUser.name,
+        createdAt:fmtDT()
+      };
+      setAttendance(p=>[rec,...p]);
+      setPreview('');
+      setCap(null);
+      window.showToast('Đã lưu giờ '+(nextType==='in'?'vào ca':'ra ca')+' lúc '+shortTime(now)+(tStatus==='Đúng giờ'?'':' - '+tStatus),'success');
+    }finally{
+      setPunchBusy(false);
+    }
+  };
   const filtered=scopedAttendance.filter(r=>(!day||r.date===day)&&(!q||[r.empId,r.empName,r.dept,r.status,r.type==='in'?'vào ca':'ra ca',r.timeStatus||timeStatus(r.type,r.time),r.note,r.createdBy].some(x=>String(x||'').toLowerCase().includes(q.toLowerCase()))));
   const stat={in:todayRecords.filter(r=>r.type==='in').length,out:todayRecords.filter(r=>r.type==='out').length,valid:todayRecords.filter(r=>r.status==='valid').length,review:todayRecords.filter(r=>r.status!=='valid').length,late:todayRecords.filter(r=>(r.timeStatus||timeStatus(r.type,r.time))==='Đi muộn').length,early:todayRecords.filter(r=>(r.timeStatus||timeStatus(r.type,r.time))==='Về sớm').length};
   const exportRows=filtered.map(r=>({date:r.date,time:r.time,empId:r.empId,empName:r.empName,dept:r.dept,type:r.type==='in'?'Vào ca':'Ra ca',timeStatus:r.timeStatus||timeStatus(r.type,r.time),faceScore:r.faceScore,gps:r.gpsOk?'Hợp lệ':'Ngoài vùng',distance:r.distance,status:r.status,note:r.note||''}));
@@ -5850,6 +6288,22 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
   const copyZalo=async()=>{const txt=zaloText();try{await navigator.clipboard.writeText(txt);window.showToast('Đã sao chép. Mở Zalo và dán vào nhóm.','success');}catch(e){prompt('Sao chép nội dung này để gửi Zalo:',txt);}};
   const shareZalo=async()=>{const txt=zaloText();if(navigator.share){try{await navigator.share({title:'Báo cáo chấm công SCF',text:txt});}catch(e){}}else copyZalo();};
   const sendWebhook=async()=>{if(!zaloWebhook){window.showToast('Chưa nhập webhook Zalo/server trung gian.','warn');return;}try{await fetch(zaloWebhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:zaloText(),date:day,records:filtered})});window.showToast('Đã gửi dữ liệu sang webhook.','success');}catch(e){window.showToast('Không gửi được webhook. Kiểm tra đường dẫn hoặc CORS.','error');}};
+  const applyGpsToSettings=()=>{
+    if(pos){
+      setSettings(prev=>({...prev,lat:+pos.lat.toFixed(6),lon:+pos.lon.toFixed(6)}));
+      window.showToast('Đã cập nhật tọa độ vùng chấm công từ GPS hiện tại.','success');
+      return;
+    }
+    getGps('settings');
+  };
+  const resetGpsSettings=()=>{
+    setSettings(prev=>({...prev,lat:W_LAT,lon:W_LON,radius:300}));
+    window.showToast('Đã đưa vùng chấm công về mặc định Sông Công.','success');
+  };
+  const approveAttendanceRecord=id=>{
+    setAttendance(p=>p.map(x=>x.id===id?{...x,status:'valid',approvedBy:currentUser.name,approvedAt:fmtDT()}:x));
+    window.showToast('Đã duyệt bản ghi chấm công.','success');
+  };
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-face-id',style:{fontSize:20}}),'Chấm công khuôn mặt + GPS'),
     h('div',{className:'att-stat'},
@@ -5858,20 +6312,30 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
     h('div',{className:'att-grid'},
       h('div',{className:'card'},
         canManage&&h(F,{label:'Nhân viên chấm công'},h('select',{value:empId,onChange:e=>{setEmpId(e.target.value);setPreview('');setCap(null);}},h('option',{value:''},'-- Chọn nhân viên --'),employees.map(e=>h('option',{key:e.id,value:e.id},e.id+' - '+e.name)))),
-        h(CameraBox,{preview,setPreview,template:tpl,setTemplate:()=>setEmployees(list=>list.map(e=>e.id===emp.id?{...e,faceTemplate:null}:e)),onCapture:setCap}),
+        h(CameraBox,{preview,setPreview,template:tpl,setTemplate:clearFaceTemplate,onCapture:setCap}),
         h('div',{className:'sc',style:{marginTop:10}},
           h('div',{style:{display:'grid',gridTemplateColumns:'1fr auto',gap:8,alignItems:'center'}},
             h('div',null,h('div',{style:{fontWeight:600}},emp.name),h('div',{style:{fontSize:12,color:'var(--tx2)'}},emp.id+' • '+(emp.dept||''))),
             h('span',{className:'badge',style:{background:tpl?'#EAF3DE':'#FAEEDA',color:tpl?'#3B6D11':'#854F0B'}},tpl?'Đã có mẫu mặt':'Chưa có mẫu')
           ),
-          h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:8}},'Điểm khớp: ',h('b',{style:{color:faceOk?'#2d6a4f':'#A32D2D'}},cap&&tpl?score+'%':'—'),' • Lần tiếp theo: ',h('b',null,nextType==='in'?'Vào ca':'Ra ca'))
+        h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:8}},'Điểm khớp: ',h('b',{style:{color:faceOk?'#2d6a4f':'#A32D2D'}},cap&&tpl?score+'%':'—'),' • Lần tiếp theo: ',h('b',null,nextType==='in'?'Vào ca':'Ra ca'))
         ),
         h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}},
-          h('button',{onClick:getGps},h('i',{className:'ti ti-map-pin',style:{fontSize:14}}),'Lấy GPS'),
-          h('button',{onClick:saveTemplate},h('i',{className:'ti ti-id',style:{fontSize:14}}),'Lưu mặt mẫu'),
-          h('button',{className:'bp',onClick:punch,disabled:needEmp()},h('i',{className:'ti '+(nextType==='in'?'ti-login-2':'ti-logout-2'),style:{fontSize:15}}),nextType==='in'?'Vào ca':'Ra ca')
+          h('span',{className:'badge',style:faceStateStyle},faceState),
+          h('span',{className:'badge',style:gpsStateStyle},gpsState),
+          h('span',{className:'badge',style:readyStyle},readyLabel)
+        ),
+        h('div',{style:{fontSize:12,color:readyPunch?'#0F6E56':'#854F0B',marginTop:6,fontWeight:readyPunch?600:500}},readyDetail),
+        h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}},
+          h('button',{onClick:()=>getGps('attendance'),disabled:gpsBusy},h('i',{className:'ti '+(gpsBusy?'ti-loader-2 spin':'ti-map-pin'),style:{fontSize:14}}),gpsBusy?'Đang lấy GPS...':'Lấy GPS'),
+          h('button',{onClick:saveTemplate,disabled:needEmp()},h('i',{className:'ti ti-id',style:{fontSize:14}}),'Lưu mặt mẫu'),
+          h('button',{className:'bp',onClick:punch,disabled:needEmp()||punchBusy||!readyPunch},
+            h('i',{className:'ti '+(punchBusy?'ti-loader-2 spin':(nextType==='in'?'ti-login-2':'ti-logout-2')),style:{fontSize:15}}),
+            punchBusy?'Đang chấm công...':(nextType==='in'?'Vào ca':'Ra ca')
+          )
         ),
         h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:8}},gpsMsg),
+        h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:6}},'Nút ',h('b',null,nextType==='in'?'Vào ca':'Ra ca'),' chỉ mở khi đã có mẫu mặt, chụp mặt khớp và GPS nằm đúng vùng công ty.'),
         h('div',{className:'sc',style:{marginTop:10,fontSize:12,lineHeight:1.8}},
           h('div',null,h('span',{className:'att-dot '+(pos?(gs.ok?'ok':'bad'):'warn')}),' GPS: ',pos?(gs.label+' • '+gs.distance+'m • sai số '+pos.acc+'m'):'Chưa lấy vị trí'),
           h('div',null,'Tọa độ công ty: ',settings.lat,', ',settings.lon,' • Bán kính ',settings.radius,'m'),
@@ -5892,8 +6356,8 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
             h(F,{label:'Ca chuẩn'},h('input',{value:(settings.start||'--:--')+' - '+(settings.end||'--:--'),readOnly:true}))
           ),
           h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
-            h('button',{onClick:()=>pos&&setSettings({...settings,lat:+pos.lat.toFixed(6),lon:+pos.lon.toFixed(6)})},h('i',{className:'ti ti-current-location',style:{fontSize:14}}),'Dùng GPS hiện tại'),
-            h('button',{onClick:()=>setSettings({...settings,lat:W_LAT,lon:W_LON,radius:300})},'Mặc định Sông Công')
+            h('button',{onClick:applyGpsToSettings,disabled:gpsBusy},h('i',{className:'ti '+(gpsBusy?'ti-loader-2 spin':'ti-current-location'),style:{fontSize:14}}),'Dùng GPS hiện tại'),
+            h('button',{onClick:resetGpsSettings},'Mặc định Sông Công')
           )
         ),
         canManage&&h('div',{className:'card',style:{marginBottom:'1rem'}},
@@ -5927,7 +6391,7 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
                 h('td',null,h('span',{className:'badge',style:{background:r.status==='valid'?'#EAF3DE':'#FAEEDA',color:r.status==='valid'?'#3B6D11':'#854F0B'}},r.status==='valid'?'Hợp lệ':'Cần duyệt')),
                 h('td',null,h('div',{style:{fontSize:12,color:r.note?'var(--tx)':'var(--tx2)',maxWidth:240,lineHeight:1.45}},r.note||'—')),
                 h('td',null,canManage&&h('div',{style:{display:'flex',gap:4}},
-                  r.status!=='valid'&&h('button',{style:{fontSize:11,padding:'4px 8px'},onClick:()=>setAttendance(p=>p.map(x=>x.id===r.id?{...x,status:'valid',approvedBy:currentUser.name,approvedAt:fmtDT()}:x))},'Duyệt'),
+                  r.status!=='valid'&&h('button',{style:{fontSize:11,padding:'4px 8px'},onClick:()=>approveAttendanceRecord(r.id)},'Duyệt'),
                   h('button',{className:'bdel',onClick:()=>window.scfConfirm('Bạn có chắc muốn xóa bản ghi chấm công này?','Xóa bản ghi',true).then(ok=>{if(ok){setAttendance(p=>p.filter(x=>x.id!==r.id));window.showToast('Đã xóa bản ghi','success');}})},'Xóa')
                 ))
               )):h('tr',null,h('td',{colSpan:10,className:'empty-st'},'Chưa có bản ghi chấm công')))
