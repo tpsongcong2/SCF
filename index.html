@@ -573,6 +573,17 @@ const fmtAnyDate=s=>{
   if(!d) return '—';
   return pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+'/'+d.getFullYear();
 };
+const normalizePlainText=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const normalizeGenderValue=(gender,femaleFallback)=>{
+  if(gender===true||gender===false) return gender?'female':'male';
+  const raw=normalizePlainText(gender);
+  if(['female','nu','nữ','nu gioi','nữ giới','f','woman','girl'].includes(raw)) return 'female';
+  if(['male','nam','m','man','boy'].includes(raw)) return 'male';
+  if(femaleFallback===true||femaleFallback===false) return femaleFallback?'female':'male';
+  return 'male';
+};
+const isFemaleGender=(gender,femaleFallback)=>normalizeGenderValue(gender,femaleFallback)==='female';
+const genderLabel=(gender,femaleFallback)=>isFemaleGender(gender,femaleFallback)?'Nữ':'Nam';
 const timeNow=()=>{const d=new Date();return pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())};
 const shortTime=s=>(s||'').slice(0,5)||'—';
 const vnDateFromISO=s=>{if(!s)return'—';const p=String(s).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;};
@@ -587,7 +598,7 @@ function wInfo(c){return WC[c]||WC[Math.floor(c/10)*10]||WC[0];}
 
 /* ─── Default data ─── */
 const DEF_COMPANY={name:'Công ty SCF',intro:'',phone:'',email:'',address:'',website:''};
-const DEF_EMPS=[{id:'NV001',name:'Administrator',birthday:'',female:false,dept:'Ban Giám Đốc',role:'admin',username:'admin',password:'@Scf2024!',phone:'',email:'',note:'',updatedBy:'system',updatedAt:'',mustChangePw:true}];
+const DEF_EMPS=[{id:'NV001',name:'Administrator',birthday:'',gender:'male',female:false,dept:'Ban Giám Đốc',role:'admin',username:'admin',password:'@Scf2024!',phone:'',email:'',note:'',updatedBy:'system',updatedAt:'',mustChangePw:true}];
 const DEF_MATERIALS=[
   {id:'VT001',code:'VT001',name:'Thùng carton',group:'',unit:'Cái',price:0,note:''},
   {id:'VT002',code:'VT002',name:'Màng PE bọc',group:'',unit:'Cuộn',price:0,note:''},
@@ -1887,13 +1898,18 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
 function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
   const[showNew,setShowNew]=useState(false);
   const[newAreaTxt,setNewAreaTxt]=useState('');
+  const normalizeAreaValue=v=>{
+    const raw=String(v??'').trim();
+    return /^_+custom_+$/i.test(raw)?'':raw;
+  };
   // Select uncontrolled - defaultValue set 1 lần khi mount
   // key={pt.id} ở cha giữ nguyên → DOM không bị tạo lại khi list re-render
   const selRef=React.useRef(null);
   // Khi pt.area thay đổi từ bên ngoài (vd sau khi lưu), cập nhật DOM trực tiếp
   React.useEffect(()=>{
-    if(selRef.current && selRef.current.value!==pt.area){
-      selRef.current.value=pt.area||'';
+    const nextArea=normalizeAreaValue(pt.area);
+    if(selRef.current && selRef.current.value!==nextArea){
+      selRef.current.value=nextArea||'';
     }
   },[pt.area]);
   const commitNew=()=>{
@@ -1902,7 +1918,13 @@ function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
     if(selRef.current)selRef.current.value=v;
     setShowNew(false);setNewAreaTxt('');
   };
-  const curArea=pt.area||'';
+  const cancelNew=()=>{
+    onAreaChange(pt.id,curArea);
+    if(selRef.current)selRef.current.value=curArea||'';
+    setShowNew(false);
+    setNewAreaTxt('');
+  };
+  const curArea=normalizeAreaValue(pt.area);
   const isKnown=allAreas.includes(curArea)||curArea==='';
   return h('div',{className:'ptrow',style:{flexDirection:'column',alignItems:'stretch',gap:4}},
     h('div',{style:{display:'flex',alignItems:'center',gap:8}},
@@ -1912,20 +1934,30 @@ function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
       showNew
         ? h('div',{style:{display:'flex',gap:4,width:200}},
             h('input',{value:newAreaTxt,autoFocus:true,placeholder:'Tên khu vực mới...',
-              onChange:e=>setNewAreaTxt(e.target.value),
+              onChange:e=>{
+                const next=e.target.value;
+                setNewAreaTxt(next);
+                onAreaChange(pt.id,next.trim());
+              },
               onKeyDown:e=>{if(e.key==='Enter')commitNew();if(e.key==='Escape'){setShowNew(false);setNewAreaTxt('');}},
               style:{flex:1,padding:'3px 6px',borderRadius:'var(--r)',border:'1px solid var(--pri)',fontSize:12}}),
             h('button',{className:'bp',onClick:commitNew,style:{padding:'2px 8px',fontSize:12}},
               h('i',{className:'ti ti-check',style:{fontSize:13}})),
-            h('button',{onClick:()=>{setShowNew(false);setNewAreaTxt('');},style:{padding:'2px 6px',fontSize:12}},
+            h('button',{onClick:cancelNew,style:{padding:'2px 6px',fontSize:12}},
               h('i',{className:'ti ti-x',style:{fontSize:13}}))
           )
         : h('select',{
             ref:selRef,
-            defaultValue:isKnown?curArea:'__custom__',
+            defaultValue:curArea||'',
             onChange:e=>{
               const v=e.target.value;
-              if(v==='__new__'){setShowNew(true);if(selRef.current)selRef.current.value=curArea;return;}
+              if(v==='__new__'){
+                setNewAreaTxt(isKnown?'':curArea);
+                if(!isKnown&&curArea) onAreaChange(pt.id,curArea);
+                setShowNew(true);
+                if(selRef.current)selRef.current.value=curArea||'';
+                return;
+              }
               // Gọi onAreaChange để cập nhật pendingAreas ref ở cha (không re-render)
               onAreaChange(pt.id,v);
             },
@@ -1933,7 +1965,7 @@ function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
           },
             h('option',{value:''},'— Khu vực —'),
             allAreas.map(a=>h('option',{key:a,value:a},a)),
-            !isKnown&&curArea&&h('option',{value:'__custom__'},curArea),
+            !isKnown&&curArea&&h('option',{value:curArea},curArea),
             h('option',{value:'__new__',style:{color:'var(--pri)',fontStyle:'italic'}},'+ Thêm khu vực mới...')
           ),
       h('button',{className:'bi',onClick:()=>onDelete(pt.id,pt),style:{color:'#A32D2D',flexShrink:0}},
@@ -1945,6 +1977,10 @@ function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
 }
 function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
   const normalize=s=>(s||'').trim().toUpperCase().replace(/\s+/g,' ').replace(/[^A-Z0-9\u00C0-\u024F\u1E00-\u1EFF ]/g,'');
+  const normalizeAreaValue=v=>{
+    const raw=String(v??'').trim();
+    return /^_+custom_+$/i.test(raw)?'':raw;
+  };
   const dedup=pts=>{
     const map=new Map();
     (pts||[]).forEach(p=>{
@@ -1960,13 +1996,13 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
     return [...map.values()];
   };
   // Dedup theo tên khi load - dọn sạch dữ liệu trùng từ lần trước
-  const initPoints=dedup(cust?.points||[])
+  const initPoints=dedup((cust?.points||[]).map(pt=>({...pt,area:normalizeAreaValue(pt.area)})))
     .sort((a,b)=>{const ac=(a.area||'zzz').localeCompare(b.area||'zzz','vi');return ac!==0?ac:(a.name||'').localeCompare(b.name||'','vi');});
   const[f,sf]=useState(cust?{...cust,points:initPoints}:{id:'',code:'',name:'',group:'',taxCode:'',address:'',note:'',points:[]});
   const[np,snp]=useState({name:'',address:'',contact:'',phone:'',area:'',newAreaText:''});
   const[saved,setSaved]=useState(false);
   // pendingAreas: lưu thay đổi khu vực mà KHÔNG trigger re-render
-  const pendingAreas=React.useRef(Object.fromEntries(initPoints.map(p=>[p.id,p.area||''])));
+  const pendingAreas=React.useRef(Object.fromEntries(initPoints.map(p=>[p.id,normalizeAreaValue(p.area)||''])));
   const set=(k,v)=>sf(p=>({...p,[k]:v}));
   const addPt=()=>{
     if(!np.name){window.showToast('Nhập tên địa điểm!','warn');return;}
@@ -1978,13 +2014,13 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
       return;
     }
     const newId='PT'+uid();
-    const areaVal=np.area==='__new__'?(np.newAreaText||'').trim():(np.area||'');
+    const areaVal=normalizeAreaValue(np.area==='__new__'?(np.newAreaText||'').trim():(np.area||''));
     pendingAreas.current[newId]=areaVal;
     sf(p=>({...p,points:[...p.points,{...np,id:newId,area:areaVal}]}));
     snp({name:'',address:'',contact:'',phone:'',area:'',newAreaText:''});
   };
   // onAreaChange: chỉ cập nhật ref, KHÔNG re-render
-  const onAreaChange=(id,v)=>{pendingAreas.current[id]=v;};
+  const onAreaChange=(id,v)=>{pendingAreas.current[id]=normalizeAreaValue(v);};
   const doSave=(close)=>{
     if(!f.name){window.showToast('Nhập tên khách hàng!','warn');return;}
     const code=(f.code||'').trim().toUpperCase()||'KH'+String(Date.now()).slice(-6);
@@ -1993,7 +2029,7 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
     // Merge pendingAreas + dedup + sort theo khu vực → tên
     const seen=new Set();
     const finalPoints=f.points
-      .map(pt=>({...pt,area:pendingAreas.current[pt.id]!==undefined?pendingAreas.current[pt.id]:pt.area}))
+      .map(pt=>({...pt,area:normalizeAreaValue(pendingAreas.current[pt.id]!==undefined?pendingAreas.current[pt.id]:pt.area)}))
       .filter(pt=>{const k=pt.id+'|'+(pt.name||'').trim().toUpperCase();if(seen.has(k))return false;seen.add(k);return true;})
       .sort((a,b)=>{const ac=(a.area||'zzz').localeCompare(b.area||'zzz','vi');return ac!==0?ac:(a.name||'').localeCompare(b.name||'','vi');});
     // Cập nhật state để UI hiện đúng (khi giữ mở)
@@ -3969,13 +4005,17 @@ function PasswordField({value,onChange,placeholder}){
 }
 function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
   const deptNames=(depts&&depts.length?depts.map(d=>d.name):DEPTS);
-  const[f,sf]=useState(emp?{...emp,female:!!emp?.female}:{id:'NV'+String(Date.now()).slice(-4),name:'',birthday:'',female:false,dept:deptNames[0],role:'staff',username:'',password:'',phone:'',email:'',note:'',startDate:'',bhxh:false});
+  const[f,sf]=useState(emp
+    ?{...emp,gender:normalizeGenderValue(emp?.gender,emp?.female),female:isFemaleGender(emp?.gender,emp?.female)}
+    :{id:'NV'+String(Date.now()).slice(-4),name:'',birthday:'',gender:'male',female:false,dept:deptNames[0],role:'staff',username:'',password:'',phone:'',email:'',note:'',startDate:'',bhxh:false}
+  );
   const s=(k,v)=>sf(p=>({...p,[k]:v}));
   const submit=()=>{
     if(!f.name||!f.username){window.showToast('Nhập tên và tên đăng nhập!','warn');return;}
     if(!emp&&employees.some(e=>e.username===f.username)){window.showToast('Tên đăng nhập đã tồn tại!','error');return;}
     if(!emp&&!f.password){window.showToast('Nhập mật khẩu!','warn');return;}
-    onSave({...f,female:!!f.female,updatedBy:cu.name,updatedAt:fmtDT()});
+    const gender=normalizeGenderValue(f.gender,f.female);
+    onSave({...f,gender,female:gender==='female',updatedBy:cu.name,updatedAt:fmtDT()});
   };
   return h(Modal,{title:emp?'Sửa nhân viên':'Thêm nhân viên',onClose,lg:true},
     h('div',{className:'g3'},
@@ -3988,11 +4028,19 @@ function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
       h(F,{label:'Phân quyền'},h('select',{value:f.role,onChange:e=>s('role',e.target.value)},Object.entries(ROLES).map(([v,l])=>h('option',{key:v,value:v},l)))),
       h(F,{label:'Ngày vào làm (DD/MM/YYYY)'},h('input',{value:f.startDate||'',onChange:e=>s('startDate',e.target.value),placeholder:'01/01/2024'})),
     ),
-    h('div',{style:{display:'flex',alignItems:'center',gap:16,marginBottom:8,flexWrap:'wrap'}},
-      h('label',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'8px 14px',border:'1px solid '+(f.female?'#d18cab':'var(--bd)'),borderRadius:'var(--r)',background:f.female?'#fff0f6':'#fff',transition:'all .15s'}},
-        h('input',{type:'checkbox',checked:!!f.female,onChange:e=>s('female',e.target.checked),style:{cursor:'pointer',accentColor:'#c2548d',width:15,height:15}}),
-        h('span',{style:{fontSize:13,fontWeight:500,color:f.female?'#9d174d':'var(--tx2)'}},'Nữ giới'),
-        f.female&&h('i',{className:'ti ti-user-heart',style:{fontSize:14,color:'#c2548d'}})
+    h('div',{style:{display:'flex',alignItems:'flex-end',gap:16,marginBottom:8,flexWrap:'wrap'}},
+      h(F,{label:'Giới tính'},
+        h('select',{
+          value:normalizeGenderValue(f.gender,f.female),
+          onChange:e=>{
+            const nextGender=e.target.value==='female'?'female':'male';
+            sf(p=>({...p,gender:nextGender,female:nextGender==='female'}));
+          },
+          style:{minWidth:146}
+        },
+          h('option',{value:'male'},'Nam'),
+          h('option',{value:'female'},'Nữ')
+        )
       ),
       h('label',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'8px 14px',border:'1px solid '+(f.bhxh?'var(--pri)':'var(--bd)'),borderRadius:'var(--r)',background:f.bhxh?'#f0faf0':'#fff',transition:'all .15s'}},
         h('input',{type:'checkbox',checked:!!f.bhxh,onChange:e=>s('bhxh',e.target.checked),style:{cursor:'pointer',accentColor:'var(--pri)',width:15,height:15}}),
@@ -4022,8 +4070,9 @@ function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
         [
           {sec:'Cai dat', pages:[{k:'company',l:'Thong tin cong ty'},{k:'appearance',l:'Cai dat giao dien'},{k:'printtemplates',l:'Mau in Excel va mapping'},{k:'employees',l:'Nhan vien'},{k:'attendance',l:'Cham cong'},{k:'advances',l:'Ung luong'},{k:'rewards',l:'Thuong phat'},{k:'leaves',l:'Xin nghi'},{k:'backup',l:'Backup'}]},
           {sec:'Danh muc', pages:[{k:'materials',l:'Vat tu'},{k:'depts',l:'Bo phan'},{k:'products',l:'San pham'},{k:'customers',l:'Khach hang'},{k:'workcats',l:'DM Cong viec'},{k:'shifts',l:'Ca giao hang'}]},
-          {sec:'Ban hang', pages:[{k:'quotes',l:'Bao gia'},{k:'delivery',l:'Don giao hang'},{k:'orderdetail',l:'Chi tiet don hang'},{k:'trips',l:'Chuyen giao hang'},{k:'salesreport',l:'Bao cao BH'},{k:'marketsales',l:'Ban hang cho'},{k:'powdersales',l:'Ban bot bun'}]},
+          {sec:'Ban hang', pages:[{k:'quotes',l:'Bao gia'},{k:'delivery',l:'Don giao hang'},{k:'intem',l:'Intem'},{k:'orderdetail',l:'Chi tiet don hang'},{k:'trips',l:'Chuyen giao hang'},{k:'salesreport',l:'Bao cao BH'},{k:'marketsales',l:'Ban hang cho'},{k:'powdersales',l:'Ban bot bun'}]},
           {sec:'Mua hang', pages:[{k:'nccs',l:'Nha cung cap'},{k:'purchaseorders',l:'Don mua hang'},{k:'fuelpurchases',l:'Don mua xang dau'},{k:'purchasereport',l:'Bao cao MH'},{k:'materialusage',l:'Bao cao NVL ton va tieu dung'},{k:'purchase',l:'Mua hang'}]},
+          {sec:'Bao cao', pages:[{k:'fuelreport',l:'Bao cao xang dau'},{k:'maintreport',l:'Bao cao sua chua'}]},
           {sec:'San xuat', pages:[{k:'prodsummary',l:'Tong hop SX'},{k:'prodorders',l:'Don san xuat'},{k:'stock',l:'Ton kho'}]},
         ].map(sec=>h('div',{key:sec.sec,style:{marginBottom:10}},
           h('div',{style:{fontSize:11,fontWeight:600,color:'var(--tx2)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:5}},sec.sec),
@@ -4054,7 +4103,14 @@ function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
           })
         ))
       )
-    ),    h(Row,null,h('button',{onClick:onClose},'Hủy'),h('button',{className:'bp',onClick:submit,style:{padding:'8px 20px'}},h('i',{className:'ti ti-device-floppy',style:{fontSize:14}}),'Lưu nhân viên'))
+    ),
+    h(Row,null,
+      h('button',{onClick:onClose},'Hủy'),
+      h('button',{className:'bp',onClick:submit,style:{padding:'8px 20px'}},
+        h('i',{className:'ti ti-device-floppy',style:{fontSize:14}}),
+        'Lưu nhân viên'
+      )
+    )
   );
 }
 function CpwModal({emp,cu,onSave,onClose}){
@@ -4074,10 +4130,11 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
   const[fDept,setFDept]=useState('');
   const canEdit=cu.role==='admin'||cu.role==='manager';
   const ROLE_ORDER={admin:0,manager:1,staff:2,driver:3};
-  const fmtFemale=v=>v?'Có':'—';
-  const parseFemaleValue=v=>{
-    const s=String(v??'').trim().toLowerCase();
-    return ['1','true','yes','y','co','có','nu','nữ','female','x'].includes(s);
+  const fmtGender=v=>genderLabel(v?.gender,v?.female);
+  const parseGenderValue=v=>{
+    const legacyFemale=String(v??'').trim().toLowerCase();
+    const femaleFlag=['1','true','yes','y','co','có','nu','nữ','female','x'].includes(legacyFemale);
+    return normalizeGenderValue(v,femaleFlag);
   };
   const save=d=>{if(edit)setEmployees(p=>p.map(e=>e.id===edit.id?{...e,...d,...(!d.password?{password:edit.password}:{})}:e));else setEmployees(p=>[...p,d]);sm(null);se(null);};
   const del=id=>{if(id===cu.id){window.showToast('Không thể xóa tài khoản đang đăng nhập!','error');return;}window.scfConfirm('Bạn có chắc muốn xóa nhân viên này?','Xóa nhân viên',true).then(ok=>{if(ok){setEmployees(p=>p.filter(e=>e.id!==id));window.showToast('Đã xóa nhân viên','success');}});};
@@ -4116,8 +4173,8 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
       ),
       h('div',{style:{display:'flex',gap:6}},
         h(ExportBtn,{onClick:()=>{
-          const cols=[['id','Mã NV'],['name','Họ tên'],['birthday','Ngày sinh'],['female','Nữ giới'],['dept','Bộ phận'],['role','Phân quyền'],['username','Đăng nhập'],['phone','SĐT'],['email','Email'],['note','Ghi chú']];
-          const data=employees.map(e=>Object.fromEntries(cols.map(([k,l])=>[l,k==='female'?fmtFemale(!!e.female):(e[k]||'')])));
+          const cols=[['id','Mã NV'],['name','Họ tên'],['birthday','Ngày sinh'],['gender','Giới tính'],['dept','Bộ phận'],['role','Phân quyền'],['username','Đăng nhập'],['phone','SĐT'],['email','Email'],['note','Ghi chú']];
+          const data=employees.map(e=>Object.fromEntries(cols.map(([k,l])=>[l,k==='gender'?fmtGender(e):(e[k]||'')])));
           const ws=XLSX.utils.json_to_sheet(data);const wb=XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb,ws,'Nhan vien');
           XLSX.writeFile(wb,'Nhan_vien_'+fmtDate().split('/').join('-')+'.xlsx');
@@ -4128,7 +4185,8 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
             id:(r['Mã NV']||'NV'+uid()).toString().trim(),
             name:r['Họ tên']||'',
             birthday:r['Ngày sinh']||'',
-            female:parseFemaleValue(r['Nữ giới']),
+            gender:parseGenderValue(r['Giới tính']||r['Nữ giới']),
+            female:isFemaleGender(parseGenderValue(r['Giới tính']||r['Nữ giới'])),
             dept:r['Bộ phận']||(depts&&depts.length?depts[0].name:DEPTS[0]),
             role:ROLE_MAP[r['Phân quyền']]||'staff',
             username:(r['Đăng nhập']||'').toString().trim(),
@@ -4150,20 +4208,26 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
     ),
     h('div',{className:'tw'},
       h('table',null,
-        h('thead',null,h('tr',null,...['Mã NV','Nhân viên','Ngày sinh','Nữ giới','Ngày vào làm','Bộ phận','Phân quyền','BHXH','Đăng nhập','Cập nhật',''].map(c=>h('th',{key:c},c)))),
+        h('thead',null,h('tr',null,...['Mã NV','Nhân viên','Ngày sinh','Giới tính','Ngày vào làm','Bộ phận','Phân quyền','BHXH','Đăng nhập','Cập nhật',''].map(c=>h('th',{key:c},c)))),
         h('tbody',null,list.length?list.map(e=>{
           const bd=isBirthday(e.birthday);
+          const isFemale=isFemaleGender(e?.gender,e?.female);
+          const genderStyle=isFemale
+            ?{background:'#FCE7F3',color:'#9D174D'}
+            :{background:'#E6F1FB',color:'#185FA5'};
           return h('tr',{key:e.id,style:{background:bd?'rgba(248,195,15,.05)':''}},
             h('td',null,h('span',{style:{color:'var(--pri)',fontWeight:500}},e.id)),
-            h('td',null,h('div',{style:{display:'flex',alignItems:'center',gap:8}},
-              h('div',{style:{width:30,height:30,borderRadius:'50%',background:'var(--bg2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'var(--pri)',flexShrink:0}},initials(e.name)),
-              h('div',null,h('div',{style:{fontWeight:500}},e.name+(bd?' 🎂':'')),h('div',{style:{fontSize:11,color:'var(--tx2)'}},e.phone||e.email||''))
-            )),
-            h('td',null,e.birthday||'—'),
-            h('td',null,e.female
-              ?h('span',{className:'badge',style:{background:'#FCE7F3',color:'#9D174D'}},'Có')
-              :h('span',{style:{color:'var(--tx2)',fontSize:12}},'—')
+            h('td',null,
+              h('div',{style:{display:'flex',alignItems:'center',gap:8}},
+                h('div',{style:{width:30,height:30,borderRadius:'50%',background:'var(--bg2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'var(--pri)',flexShrink:0}},initials(e.name)),
+                h('div',null,
+                  h('div',{style:{fontWeight:500}},e.name+(bd?' 🎂':'')),
+                  h('div',{style:{fontSize:11,color:'var(--tx2)'}},e.phone||e.email||'')
+                )
+              )
             ),
+            h('td',null,e.birthday||'—'),
+            h('td',null,h('span',{className:'badge',style:genderStyle},isFemale?'Nữ':'Nam')),
             h('td',null,e.startDate||'—'),
             h('td',null,e.dept),
             h('td',null,h('span',{className:'badge '+(RCLS[e.role]||'chip-staff')},ROLES[e.role]||e.role)),
@@ -4172,12 +4236,17 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
               :h('span',{style:{color:'var(--tx2)',fontSize:12}},'—')
             ),
             h('td',null,h('span',{style:{fontFamily:'monospace',fontSize:12}},e.username)),
-            h('td',null,h('div',{style:{fontSize:11,color:'var(--tx2)'}},e.updatedBy||''),h('div',{style:{fontSize:11,color:'var(--tx2)'}},e.updatedAt||'')),
-            h('td',null,h('div',{style:{display:'flex',gap:2}},
-              (canEdit||e.id===cu.id)&&h('button',{className:'bi',onClick:()=>scp(e),title:'Đổi MK'},h('i',{className:'ti ti-key',style:{fontSize:14}})),
-              canEdit&&h('button',{className:'bi',onClick:()=>{se(e);sm('f')}},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
-              canEdit&&e.id!==cu.id&&h('button',{className:'bi',onClick:()=>del(e.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
-            ))
+            h('td',null,
+              h('div',{style:{fontSize:11,color:'var(--tx2)'}},e.updatedBy||''),
+              h('div',{style:{fontSize:11,color:'var(--tx2)'}},e.updatedAt||'')
+            ),
+            h('td',null,
+              h('div',{style:{display:'flex',gap:2}},
+                (canEdit||e.id===cu.id)&&h('button',{className:'bi',onClick:()=>scp(e),title:'Đổi MK'},h('i',{className:'ti ti-key',style:{fontSize:14}})),
+                canEdit&&h('button',{className:'bi',onClick:()=>{se(e);sm('f')}},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
+                canEdit&&e.id!==cu.id&&h('button',{className:'bi',onClick:()=>del(e.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
+              )
+            )
           );
         }):h('tr',null,h('td',{colSpan:11,className:'empty-st'},'Chưa có nhân viên nào.')))
       )
@@ -4219,7 +4288,7 @@ function BackupTab({employees,materials,assets,prodCats,products,customers,workc
     uploadedAt:t.uploadedAt||''
   }))];
   const tables=[
-    {name:'Nhân viên',rows:(employees||[]).map(e=>({...e,female:e?.female?'Có':'—'})),cols:[['id','Mã NV'],['name','Tên'],['birthday','Ngày sinh'],['female','Nữ giới'],['dept','Bộ phận'],['role','Quyền'],['username','Đăng nhập'],['phone','SĐT'],['email','Email']]},
+    {name:'Nhân viên',rows:(employees||[]).map(e=>({...e,gender:genderLabel(e?.gender,e?.female)})),cols:[['id','Mã NV'],['name','Tên'],['birthday','Ngày sinh'],['gender','Giới tính'],['dept','Bộ phận'],['role','Quyền'],['username','Đăng nhập'],['phone','SĐT'],['email','Email']]},
     {name:'Bộ phận',rows:(depts||[]).map((d,i)=>({...d,code:d.code||deptCode(i)})),cols:[['code','Mã BP'],['name','Tên bộ phận'],['note','Ghi chú']]},
     {name:'Nguyên vật liệu',rows:materials,cols:[['code','Mã NVL'],['name','Tên nguyên vật liệu'],['group','Nhóm NVL'],['unit','ĐVT'],['price','Đơn giá'],['note','Ghi chú']]},
     {name:'Tài sản',rows:(assets||[]).map((a,i)=>({...a,stt:i+1})),cols:[['stt','Số TT'],['name','Tên tài sản'],['purchaseValue','Giá trị mua'],['currentValue','Giá trị hiện tại'],['replacementMaterial','Vật tư thay thế']]},
@@ -4302,7 +4371,7 @@ function PlaceholderTab({title,icon}){
 function MaintenanceTab({title,icon,assets,employees}){
   const storageKey='scf_'+(title==='Bảo dưỡng xe'?'maint_vehicle':'maint_machine');
   const isVehicle=title==='Bảo dưỡng xe';
-  const normalizeText=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const normalizeText=s=>normalizePlainText(s);
   const makeEmptyForm=()=>({month:'',date:'',vehicle:'',service:'',km:'',garage:'',repairerIds:[],repairerNames:[],repairerText:'',amount:'',invoice:'',invoiceImage:'',invoiceImageName:'',repairImage:'',repairImageName:'',repairImages:[]});
   const toIsoDate=v=>{
     const s=String(v||'').trim();
@@ -4348,7 +4417,7 @@ function MaintenanceTab({title,icon,assets,employees}){
       if(isVehicle) return true;
       const role=String(emp?.role||'').trim().toLowerCase();
       const dept=normalizeText(emp?.dept);
-      return role==='staff' && dept.includes('san xuat') && !emp?.female;
+      return role==='staff' && dept.includes('san xuat') && !isFemaleGender(emp?.gender,emp?.female);
     })
     .map(emp=>{
       const id=String(emp?.id||emp?.code||emp?.username||emp?.name||'').trim();
@@ -5812,6 +5881,402 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
         h('button',{onClick:()=>{setModal(false);setEdit(null);}},'Hủy'),
         h('button',{className:'bp',onClick:save,style:{padding:'8px 20px'}},h('i',{className:'ti ti-device-floppy',style:{fontSize:14}}),'Lưu đơn')
       )
+    )
+  );
+}
+
+function FuelPurchaseReportTab({rows}){
+  const todayText=fmtDate();
+  const todayIso=todayText.split('/').reverse().join('-');
+  const [df,sdf]=useState(todayIso);
+  const [dt,sdt]=useState(todayIso);
+  const [monthFilter,setMonthFilter]=useState(todayIso.slice(0,7));
+  const [buyerFilter,setBuyerFilter]=useState('');
+  const [vehicleFilter,setVehicleFilter]=useState('');
+  const pad2=n=>String(n).padStart(2,'0');
+  useEffect(()=>{
+    if(!monthFilter) return;
+    const parts=String(monthFilter).split('-');
+    if(parts.length!==2) return;
+    const y=Number(parts[0]);
+    const m=Number(parts[1]);
+    if(!y||!m) return;
+    const lastDay=new Date(y,m,0).getDate();
+    sdf(`${y}-${pad2(m)}-01`);
+    sdt(`${y}-${pad2(m)}-${pad2(lastDay)}`);
+  },[monthFilter]);
+  const monthKey=v=>{
+    const d=parseAnyDate(v);
+    return d?(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')):'';
+  };
+  const monthLabel=ym=>{
+    if(!ym) return 'Chưa rõ tháng';
+    const [y,m]=String(ym).split('-');
+    return 'Tháng '+Number(m)+'/'+y;
+  };
+  const inRange=v=>{
+    const d=parseAnyDate(v);
+    if(!d) return false;
+    const from=df?parseAnyDate(df):null;
+    const to=dt?parseAnyDate(dt):null;
+    if(from&&d<from) return false;
+    if(to&&d>to) return false;
+    return true;
+  };
+  const buyerOptions=[...new Map((rows||[]).filter(r=>r.buyerId||r.buyerName).map(r=>[
+    String(r.buyerId||r.buyerName||''),
+    {id:String(r.buyerId||r.buyerName||''),name:r.buyerName||r.buyerId||'Chưa rõ'}
+  ])).values()].sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  const vehicleOptions=[...new Set((rows||[]).map(r=>String(r.vehicle||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
+  const filtered=(rows||[]).filter(r=>
+    inRange(r.date||r.createdAt||r.updatedAt)
+    && (!buyerFilter||String(r.buyerId||r.buyerName||'')===String(buyerFilter))
+    && (!vehicleFilter||String(r.vehicle||'')===String(vehicleFilter))
+  );
+  const totalLiters=filtered.reduce((s,r)=>s+(numFmt(r.liters)||0),0);
+  const totalAmount=filtered.reduce((s,r)=>s+(numFmt(r.amount)||0),0);
+  const totalCount=filtered.length;
+  const addGroup=(map,key,seed)=>{
+    if(!map[key]) map[key]=seed;
+    return map[key];
+  };
+  const byMonth={};
+  const byVehicle={};
+  const byBuyer={};
+  filtered.forEach(r=>{
+    const liters=numFmt(r.liters)||0;
+    const amount=numFmt(r.amount)||0;
+    const mk=monthKey(r.date||r.createdAt||r.updatedAt)||'unknown';
+    const monthItem=addGroup(byMonth,mk,{key:mk,label:monthLabel(mk),count:0,liters:0,amount:0});
+    monthItem.count++; monthItem.liters+=liters; monthItem.amount+=amount;
+    const vk=String(r.vehicle||'Chưa rõ xe');
+    const vehicleItem=addGroup(byVehicle,vk,{key:vk,label:vk,count:0,liters:0,amount:0});
+    vehicleItem.count++; vehicleItem.liters+=liters; vehicleItem.amount+=amount;
+    const bk=String(r.buyerName||r.buyerId||'Chưa rõ người đổ');
+    const buyerItem=addGroup(byBuyer,bk,{key:bk,label:bk,count:0,liters:0,amount:0});
+    buyerItem.count++; buyerItem.liters+=liters; buyerItem.amount+=amount;
+  });
+  const sortGroups=list=>list.sort((a,b)=>{
+    if(b.amount!==a.amount) return b.amount-a.amount;
+    return String(a.label||'').localeCompare(String(b.label||''),'vi');
+  });
+  const monthRows=sortGroups(Object.values(byMonth));
+  const vehicleRows=sortGroups(Object.values(byVehicle));
+  const buyerRows=sortGroups(Object.values(byBuyer));
+  const exportRows=filtered.map(r=>({
+    date:fmtAnyDate(r.date)||'',
+    buyerName:r.buyerName||'',
+    vehicle:r.vehicle||'',
+    liters:numFmt(r.liters)||0,
+    price:numFmt(r.price)||0,
+    amount:numFmt(r.amount)||0,
+    note:r.note||''
+  }));
+  const renderGroupTable=(title,items,cols,emptyText)=>h('div',{className:'tw'},
+    h('table',null,
+      h('thead',null,h('tr',null,cols.map(c=>h('th',{key:c.key||c.label},c.label)))),
+      h('tbody',null,
+        items.length?items.map(row=>h('tr',{key:row.key},
+          cols.map(c=>h('td',{key:c.key||c.label},
+            c.render?c.render(row):row[c.key]
+          ))
+        )):h('tr',null,h('td',{colSpan:cols.length,className:'empty-st'},emptyText||('Chưa có dữ liệu '+title.toLowerCase()+'.')))
+      )
+    )
+  );
+  return h('div',null,
+    h('div',{className:'ptitle'},h('i',{className:'ti ti-gas-station',style:{fontSize:20}}),'Báo cáo mua xăng dầu'),
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'0 1rem'}},
+        h(F,{label:'Tháng nhanh'},
+          h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+            h('input',{type:'month',value:monthFilter,onChange:e=>setMonthFilter(e.target.value)}),
+            h('button',{type:'button',onClick:()=>setMonthFilter(''),style:{whiteSpace:'nowrap',padding:'8px 12px'}},'Bỏ tháng')
+          )
+        ),
+        h(F,{label:'Từ ngày'},h('input',{type:'date',value:df,onChange:e=>{setMonthFilter('');sdf(e.target.value);}})),
+        h(F,{label:'Đến ngày'},h('input',{type:'date',value:dt,onChange:e=>{setMonthFilter('');sdt(e.target.value);}})),
+        h(F,{label:'Người đổ'},
+          h('select',{value:buyerFilter,onChange:e=>setBuyerFilter(e.target.value)},
+            h('option',{value:''},'Tất cả'),
+            buyerOptions.map(x=>h('option',{key:x.id,value:x.id},x.name))
+          )
+        ),
+        h(F,{label:'Xe'},
+          h('select',{value:vehicleFilter,onChange:e=>setVehicleFilter(e.target.value)},
+            h('option',{value:''},'Tất cả'),
+            vehicleOptions.map(x=>h('option',{key:x,value:x},x))
+          )
+        )
+      ),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'1rem',marginTop:4}},
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Số lần đổ'),h('div',{style:{fontSize:24,fontWeight:700,color:'var(--pri)'}},totalCount)),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tổng số lít'),h('div',{style:{fontSize:24,fontWeight:700,color:'var(--pri)'}},totalLiters.toLocaleString('vi-VN'))),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tổng tiền'),h('div',{style:{fontSize:24,fontWeight:700,color:'var(--pri)'}},totalAmount.toLocaleString('vi-VN')+'đ'))
+      ),
+      h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:10}},
+        h(ExportBtn,{onClick:()=>xlsxExport(exportRows,[['date','Ngày mua'],['buyerName','Người đổ'],['vehicle','Xe'],['liters','Số lít'],['price','Đơn giá'],['amount','Thành tiền'],['note','Ghi chú']],'Bao_cao_xang_dau')})
+      )
+    ),
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:'1rem',marginBottom:'1rem'}},
+      h('div',null,
+        h('div',{style:{fontWeight:700,color:'var(--pri3)',margin:'0 0 8px 2px'}},'Theo tháng'),
+        renderGroupTable('Theo tháng',monthRows,[
+          {key:'label',label:'Tháng'},
+          {key:'count',label:'Số lần'},
+          {key:'liters',label:'Số lít',render:r=>r.liters.toLocaleString('vi-VN')},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu theo tháng.')
+      ),
+      h('div',null,
+        h('div',{style:{fontWeight:700,color:'var(--pri3)',margin:'0 0 8px 2px'}},'Theo xe'),
+        renderGroupTable('Theo xe',vehicleRows,[
+          {key:'label',label:'Xe'},
+          {key:'count',label:'Số lần'},
+          {key:'liters',label:'Số lít',render:r=>r.liters.toLocaleString('vi-VN')},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu theo xe.')
+      ),
+      h('div',null,
+        h('div',{style:{fontWeight:700,color:'var(--pri3)',margin:'0 0 8px 2px'}},'Theo người đổ'),
+        renderGroupTable('Theo người đổ',buyerRows,[
+          {key:'label',label:'Người đổ'},
+          {key:'count',label:'Số lần'},
+          {key:'liters',label:'Số lít',render:r=>r.liters.toLocaleString('vi-VN')},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu theo người đổ.')
+      )
+    ),
+    h('div',{className:'tw'},h('table',null,
+      h('thead',null,h('tr',null,...['Ngày mua','Người đổ','Xe','Số lít','Thành tiền','Ghi chú'].map(c=>h('th',{key:c},c)))),
+      h('tbody',null,
+        filtered.length?filtered.map(r=>h('tr',{key:r.id},
+          h('td',null,fmtAnyDate(r.date)||'—'),
+          h('td',null,r.buyerName||'—'),
+          h('td',null,r.vehicle||'—'),
+          h('td',null,(numFmt(r.liters)||0).toLocaleString('vi-VN')),
+          h('td',null,(numFmt(r.amount)||0).toLocaleString('vi-VN')+'đ'),
+          h('td',null,r.note||'—')
+        )):h('tr',null,h('td',{colSpan:6,className:'empty-st'},'Chưa có dữ liệu mua xăng dầu theo bộ lọc.'))
+      )
+    ))
+  );
+}
+
+function MaintenanceReportTab(){
+  const todayText=fmtDate();
+  const todayIso=todayText.split('/').reverse().join('-');
+  const [df,sdf]=useState(todayIso);
+  const [dt,sdt]=useState(todayIso);
+  const [vehicleRows,setVehicleRows]=useState([]);
+  const [machineRows,setMachineRows]=useState([]);
+  useEffect(()=>{
+    let off=false;
+    (async()=>{
+      try{
+        const [vehicles,machines]=await Promise.all([
+          dbGet('scf_maint_vehicle',[]),
+          dbGet('scf_maint_machine',[])
+        ]);
+        if(off) return;
+        setVehicleRows(Array.isArray(vehicles)?vehicles:[]);
+        setMachineRows(Array.isArray(machines)?machines:[]);
+      }catch(e){
+        if(off) return;
+        try{
+          const vehicles=JSON.parse(localStorage.getItem('scf_maint_vehicle')||'[]');
+          const machines=JSON.parse(localStorage.getItem('scf_maint_machine')||'[]');
+          setVehicleRows(Array.isArray(vehicles)?vehicles:[]);
+          setMachineRows(Array.isArray(machines)?machines:[]);
+        }catch(_e){}
+      }
+    })();
+    return ()=>{off=true;};
+  },[]);
+  const monthKey=v=>{
+    const d=parseAnyDate(v);
+    return d?(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')):'';
+  };
+  const monthLabel=ym=>{
+    if(!ym) return 'Chưa rõ tháng';
+    const [y,m]=String(ym).split('-');
+    return 'Tháng '+Number(m)+'/'+y;
+  };
+  const inRange=v=>{
+    const d=parseAnyDate(v);
+    if(!d) return false;
+    const from=df?parseAnyDate(df):null;
+    const to=dt?parseAnyDate(dt):null;
+    if(from&&d<from) return false;
+    if(to&&d>to) return false;
+    return true;
+  };
+  const getRepairerNames=r=>{
+    const direct=Array.isArray(r?.repairerNames)?r.repairerNames.map(x=>String(x||'').trim()).filter(Boolean):[];
+    if(direct.length) return [...new Set(direct)];
+    return String(r?.repairerText||'').split(',').map(x=>x.trim()).filter(Boolean);
+  };
+  const filteredVehicle=(vehicleRows||[]).filter(r=>inRange(r.date||r.createdAt||r.updatedAt));
+  const filteredMachine=(machineRows||[]).filter(r=>inRange(r.date||r.createdAt||r.updatedAt));
+  const totalVehicleAmount=filteredVehicle.reduce((s,r)=>s+(numFmt(r.amount)||0),0);
+  const totalMachineAmount=filteredMachine.reduce((s,r)=>s+(numFmt(r.amount)||0),0);
+  const groupList=(source,keyGetter,labelGetter,amountGetter,countIncrement=1)=>{
+    const map={};
+    source.forEach(item=>{
+      const key=keyGetter(item)||'unknown';
+      if(!map[key]) map[key]={key,label:labelGetter(item,key),count:0,amount:0};
+      map[key].count+=countIncrement;
+      map[key].amount+=amountGetter(item)||0;
+    });
+    return Object.values(map).sort((a,b)=>{
+      if(b.amount!==a.amount) return b.amount-a.amount;
+      return String(a.label||'').localeCompare(String(b.label||''),'vi');
+    });
+  };
+  const vehicleByMonth=groupList(filteredVehicle,r=>monthKey(r.date||r.createdAt||r.updatedAt),(_,k)=>monthLabel(k),r=>numFmt(r.amount)||0);
+  const vehicleByAsset=groupList(filteredVehicle,r=>String(r.vehicle||'Chưa rõ xe'),r=>String(r.vehicle||'Chưa rõ xe'),r=>numFmt(r.amount)||0);
+  const vehicleByGarage=groupList(filteredVehicle,r=>String(r.garage||'Chưa rõ gara'),r=>String(r.garage||'Chưa rõ gara'),r=>numFmt(r.amount)||0);
+  const machineByMonth=groupList(filteredMachine,r=>monthKey(r.date||r.createdAt||r.updatedAt),(_,k)=>monthLabel(k),r=>numFmt(r.amount)||0);
+  const machineByAsset=groupList(filteredMachine,r=>String(r.vehicle||'Chưa rõ máy'),r=>String(r.vehicle||'Chưa rõ máy'),r=>numFmt(r.amount)||0);
+  const machineRepairerEntries=filteredMachine.flatMap(r=>{
+    const repairers=getRepairerNames(r);
+    const amount=numFmt(r.amount)||0;
+    return (repairers.length?repairers:['Chưa rõ người sửa']).map(name=>({name,amount,date:r.date||r.createdAt||r.updatedAt}));
+  });
+  const machineByRepairer=groupList(machineRepairerEntries,r=>String(r.name||'Chưa rõ người sửa'),r=>String(r.name||'Chưa rõ người sửa'),r=>numFmt(r.amount)||0);
+  const exportVehicleRows=filteredVehicle.map(r=>({
+    type:'Sửa xe',
+    month:monthLabel(monthKey(r.date||r.createdAt||r.updatedAt)),
+    date:fmtAnyDate(r.date)||'',
+    asset:r.vehicle||'',
+    service:r.service||'',
+    km:r.km||'',
+    garage:r.garage||'',
+    repairer:'',
+    amount:numFmt(r.amount)||0,
+    invoice:r.invoice||''
+  }));
+  const exportMachineRows=filteredMachine.map(r=>({
+    type:'Sửa máy',
+    month:monthLabel(monthKey(r.date||r.createdAt||r.updatedAt)),
+    date:fmtAnyDate(r.date)||'',
+    asset:r.vehicle||'',
+    service:r.service||'',
+    km:'',
+    garage:'',
+    repairer:getRepairerNames(r).join(', '),
+    amount:numFmt(r.amount)||0,
+    invoice:r.invoice||''
+  }));
+  const detailVehicleRows=filteredVehicle
+    .slice()
+    .sort((a,b)=>{
+      const da=parseAnyDate(a.date||a.createdAt||a.updatedAt);
+      const db=parseAnyDate(b.date||b.createdAt||b.updatedAt);
+      return (db?db.getTime():0)-(da?da.getTime():0);
+    });
+  const detailMachineRows=filteredMachine
+    .slice()
+    .sort((a,b)=>{
+      const da=parseAnyDate(a.date||a.createdAt||a.updatedAt);
+      const db=parseAnyDate(b.date||b.createdAt||b.updatedAt);
+      return (db?db.getTime():0)-(da?da.getTime():0);
+    });
+  const renderGroupTable=(title,rows,cols,empty)=>h('div',null,
+    h('div',{style:{fontWeight:700,color:'var(--pri3)',margin:'0 0 8px 2px'}},title),
+    h('div',{className:'tw'},
+      h('table',null,
+        h('thead',null,h('tr',null,cols.map(c=>h('th',{key:c.key||c.label},c.label)))),
+        h('tbody',null,
+          rows.length?rows.map(r=>h('tr',{key:r.key},
+            cols.map(c=>h('td',{key:c.key||c.label},c.render?c.render(r):r[c.key]))
+          )):h('tr',null,h('td',{colSpan:cols.length,className:'empty-st'},empty))
+        )
+      )
+    )
+  );
+  return h('div',null,
+    h('div',{className:'ptitle'},h('i',{className:'ti ti-tool',style:{fontSize:20}}),'Báo cáo sửa chữa'),
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'0 1rem'}},
+        h(F,{label:'Từ ngày'},h('input',{type:'date',value:df,onChange:e=>sdf(e.target.value)})),
+        h(F,{label:'Đến ngày'},h('input',{type:'date',value:dt,onChange:e=>sdt(e.target.value)}))
+      ),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'1rem',marginTop:4}},
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tiền sửa xe'),h('div',{style:{fontSize:24,fontWeight:700,color:'var(--pri)'}},totalVehicleAmount.toLocaleString('vi-VN')+'đ')),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tiền sửa máy'),h('div',{style:{fontSize:24,fontWeight:700,color:'var(--pri)'}},totalMachineAmount.toLocaleString('vi-VN')+'đ')),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tổng chi sửa chữa'),h('div',{style:{fontSize:24,fontWeight:700,color:'var(--pri)'}},(totalVehicleAmount+totalMachineAmount).toLocaleString('vi-VN')+'đ'))
+      ),
+      h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:10}},
+        h(ExportBtn,{onClick:()=>xlsxExport([...exportVehicleRows,...exportMachineRows],[['type','Loại'],['month','Tháng'],['date','Ngày'],['asset','Xe / máy'],['service','Dịch vụ'],['km','Tại KM'],['garage','Gara sửa'],['repairer','Người sửa'],['amount','Thành tiền'],['invoice','Hóa đơn']],'Bao_cao_sua_chua')})
+      )
+    ),
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{fontWeight:800,fontSize:16,color:'var(--pri3)',marginBottom:12}},'Sửa xe'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:'1rem'}},
+        renderGroupTable('Theo tháng',vehicleByMonth,[
+          {key:'label',label:'Tháng'},
+          {key:'count',label:'Lượt'},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu sửa xe theo tháng.'),
+        renderGroupTable('Theo xe',vehicleByAsset,[
+          {key:'label',label:'Xe'},
+          {key:'count',label:'Lượt'},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu sửa xe theo xe.'),
+        renderGroupTable('Theo gara sửa',vehicleByGarage,[
+          {key:'label',label:'Gara sửa'},
+          {key:'count',label:'Lượt'},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu theo gara sửa.')
+      ),
+      h('div',{className:'tw',style:{marginTop:14}},h('table',null,
+        h('thead',null,h('tr',null,...['Ngày','Xe','Dịch vụ','Tại KM','Gara sửa','Tiền','Hóa đơn'].map(c=>h('th',{key:c},c)))),
+        h('tbody',null,
+          detailVehicleRows.length?detailVehicleRows.map(r=>h('tr',{key:r.id||[r.date,r.vehicle,r.service].join('_')},
+            h('td',null,fmtAnyDate(r.date)||'—'),
+            h('td',null,r.vehicle||'—'),
+            h('td',null,r.service||'—'),
+            h('td',null,r.km||'—'),
+            h('td',null,r.garage||'—'),
+            h('td',null,(numFmt(r.amount)||0).toLocaleString('vi-VN')+'đ'),
+            h('td',null,r.invoice||'—')
+          )):h('tr',null,h('td',{colSpan:7,className:'empty-st'},'Chưa có chi tiết sửa xe.'))
+        )
+      ))
+    ),
+    h('div',{className:'card'},
+      h('div',{style:{fontWeight:800,fontSize:16,color:'var(--pri3)',marginBottom:12}},'Sửa máy'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:'1rem'}},
+        renderGroupTable('Theo tháng',machineByMonth,[
+          {key:'label',label:'Tháng'},
+          {key:'count',label:'Lượt'},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu sửa máy theo tháng.'),
+        renderGroupTable('Theo máy',machineByAsset,[
+          {key:'label',label:'Máy'},
+          {key:'count',label:'Lượt'},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu sửa máy theo máy.'),
+        renderGroupTable('Theo người sửa',machineByRepairer,[
+          {key:'label',label:'Người sửa'},
+          {key:'count',label:'Lượt'},
+          {key:'amount',label:'Tiền',render:r=>r.amount.toLocaleString('vi-VN')+'đ'}
+        ],'Chưa có dữ liệu theo người sửa.')
+      ),
+      h('div',{className:'tw',style:{marginTop:14}},h('table',null,
+        h('thead',null,h('tr',null,...['Ngày','Máy','Dịch vụ','Người sửa','Tiền','Hóa đơn'].map(c=>h('th',{key:c},c)))),
+        h('tbody',null,
+          detailMachineRows.length?detailMachineRows.map(r=>h('tr',{key:r.id||[r.date,r.vehicle,r.service].join('_')},
+            h('td',null,fmtAnyDate(r.date)||'—'),
+            h('td',null,r.vehicle||'—'),
+            h('td',null,r.service||'—'),
+            h('td',null,getRepairerNames(r).join(', ')||'—'),
+            h('td',null,(numFmt(r.amount)||0).toLocaleString('vi-VN')+'đ'),
+            h('td',null,r.invoice||'—')
+          )):h('tr',null,h('td',{colSpan:6,className:'empty-st'},'Chưa có chi tiết sửa máy.'))
+        )
+      ))
     )
   );
 }
@@ -7510,6 +7975,7 @@ const NAV=[
   {sec:'Bán hàng'},
   {key:'quotes',icon:'ti-file-invoice',label:'Báo giá'},
   {key:'delivery',icon:'ti-truck-delivery',label:'Đơn giao hàng'},
+  {key:'intem',icon:'ti-printer',label:'Intem'},
   {key:'orderdetail',icon:'ti-list-details',label:'Chi tiết đơn hàng'},
   {key:'trips',icon:'ti-steering-wheel',label:'Chuyến giao hàng'},
   {key:'marketsales',icon:'ti-building-store',label:'Bán hàng chợ'},
@@ -7520,7 +7986,9 @@ const NAV=[
   {key:'fuelpurchases',icon:'ti-gas-station',label:'Đơn mua xăng dầu'},
   {sec:'Báo cáo'},
   {key:'salesreport',icon:'ti-chart-line',label:'Báo cáo BH'},
+  {key:'fuelreport',icon:'ti-gas-station',label:'Báo cáo xăng dầu'},
   {key:'purchasereport',icon:'ti-chart-bar',label:'Báo cáo MH'},
+  {key:'maintreport',icon:'ti-tool',label:'Báo cáo sửa chữa'},
   {key:'materialusage',icon:'ti-chart-histogram',label:'Báo cáo NVL tồn và tiêu dùng'},
   {key:'dbusage',icon:'ti-database',label:'Dung lượng Supabase'},
   {sec:'Bảo dưỡng'},
@@ -9581,6 +10049,326 @@ function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
   );
 }
 
+function IntemTab({products,company}){
+  const printableProducts=(products||[]).filter(Boolean).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi'));
+  const [printerState,setPrinterState]=useLS('scf_420b_wifi_printer',{ip:'',foundIps:[],lastScanAt:'',status:''});
+  const [printerIp,setPrinterIp]=useState(printerState?.ip||'');
+  const [foundIps,setFoundIps]=useState(Array.isArray(printerState?.foundIps)?printerState.foundIps:[]);
+  const [scanMsg,setScanMsg]=useState(printerState?.status||'Chưa quét máy in');
+  const [scanLoading,setScanLoading]=useState(false);
+  const [productId,setProductId]=useState(printableProducts[0]?.id||'');
+  const [templateType,setTemplateType]=useState('58x40');
+  const [prodDate,setProdDate]=useState(isoDate());
+  const [prodTime,setProdTime]=useState(shortTime(timeNow()));
+  const [totalKg,setTotalKg]=useState('');
+  const [packQty,setPackQty]=useState(1);
+  const [packWeight,setPackWeight]=useState('');
+  useEffect(()=>{if(!productId&&printableProducts[0]?.id)setProductId(printableProducts[0].id);},[productId,printableProducts]);
+  const selectedProduct=printableProducts.find(p=>String(p.id||'')===String(productId||''))||null;
+  const productNeedsLabel=!!selectedProduct?.needsLabel;
+  const labelRule=resolveProductLabelPackRule(selectedProduct,selectedProduct?.name||'');
+  const defaultPackWeight=numFmt(selectedProduct?.weightPerUnit)||0;
+  useEffect(()=>{
+    if(templateType==='100x100'&&defaultPackWeight>0&&!numFmt(packWeight))setPackWeight(String(defaultPackWeight));
+  },[templateType,defaultPackWeight]);
+  const toVnDate=value=>vnDateFromISO(value)||fmtAnyDate(value)||value||'';
+  const scanCandidateIps=()=>{
+    const match=String(printerIp||'').trim().match(/^(\d+\.\d+\.\d+)\.(\d{1,3})$/);
+    const preferredPrefix=match?match[1]:'';
+    const preferredTail=match?Math.max(1,Math.min(254,Number(match[2])||1)):0;
+    const prefixes=[preferredPrefix,'192.168.1','192.168.0','192.168.31','10.0.0','10.0.1'].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+    const tails=preferredTail
+      ?[preferredTail,preferredTail-1,preferredTail+1,preferredTail-2,preferredTail+2,100,101,110,120,130,140,150,160,170,180,190,200,210,220,230]
+      :[10,20,30,40,50,60,70,80,90,100,101,110,120,130,140,150,160,170,180,190,200,210,220,230,240,250];
+    const list=[];
+    prefixes.forEach(prefix=>{
+      tails.forEach(tail=>{
+        const n=Number(tail);
+        if(n>=1&&n<=254)list.push(prefix+'.'+n);
+      });
+    });
+    return [...new Set(list)];
+  };
+  const probePrinterIp=ip=>new Promise(resolve=>{
+    const ctl=typeof AbortController!=='undefined'?new AbortController():null;
+    const timer=setTimeout(()=>{try{ctl&&ctl.abort();}catch{}resolve(false);},900);
+    fetch('http://'+ip+'/?_='+(Date.now()),{mode:'no-cors',cache:'no-store',signal:ctl?ctl.signal:undefined})
+      .then(()=>{clearTimeout(timer);resolve(true);})
+      .catch(()=>{clearTimeout(timer);resolve(false);});
+  });
+  const scanPrinterIps=async()=>{
+    setScanLoading(true);
+    setScanMsg('Đang quét mạng nội bộ để tìm máy in 420B...');
+    const candidates=scanCandidateIps();
+    const found=[];
+    for(let i=0;i<candidates.length;i+=6){
+      const batch=candidates.slice(i,i+6);
+      const result=await Promise.all(batch.map(async ip=>(await probePrinterIp(ip))?ip:null));
+      result.filter(Boolean).forEach(ip=>{if(!found.includes(ip))found.push(ip);});
+      if(found.length>=6)break;
+    }
+    const nextIp=found[0]||printerIp||'';
+    const status=found.length
+      ?('Đã tìm thấy '+found.length+' IP có phản hồi. Đang chọn '+nextIp)
+      :'Chưa tìm thấy IP phản hồi. Có thể máy in không bật web nội bộ. Hãy nhập IP tay nếu đã biết.';
+    setFoundIps(found);
+    setPrinterIp(nextIp);
+    setScanMsg(status);
+    setPrinterState(prev=>({...prev,ip:nextIp,foundIps:found,lastScanAt:fmtDT(),status}));
+    setScanLoading(false);
+  };
+  const savePrinterIp=()=>{
+    const ip=String(printerIp||'').trim();
+    if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)){window.showToast('Nhập đúng IP máy in, ví dụ 192.168.1.120','warn');return;}
+    const status='Đã lưu IP máy in 420B: '+ip;
+    setScanMsg(status);
+    setPrinterState(prev=>({...prev,ip,foundIps:[...new Set([ip,...(prev?.foundIps||[])])],lastScanAt:fmtDT(),status}));
+    setFoundIps(prev=>[...new Set([ip,...prev])]);
+    window.showToast('Đã lưu IP máy in','success');
+  };
+  const openPrinterPage=()=>{
+    const ip=String(printerIp||'').trim();
+    if(!ip){window.showToast('Chưa có IP máy in để mở','warn');return;}
+    window.open('http://'+ip,'_blank');
+  };
+  const splitClassicWeights=kg=>{
+    if(!productNeedsLabel)return [];
+    const total=Number(numFmt(kg)||0);
+    if(!(total>0))return [];
+    const pack=Number(labelRule.pack||10);
+    const full=Math.floor(total/pack);
+    const remain=Number((total-full*pack).toFixed(2));
+    const parts=Array.from({length:full},()=>pack);
+    if(remain>0){
+      if(labelRule.mergeSmallRemainder&&remain<2&&parts.length)parts[parts.length-1]=Number((parts[parts.length-1]+remain).toFixed(2));
+      else parts.push(remain);
+    }
+    return parts;
+  };
+  const buildPackWeights=()=>{
+    if(!productNeedsLabel)return [];
+    const count=Math.max(0,Math.round(numFmt(packQty)||0));
+    const each=Number(numFmt(packWeight)||defaultPackWeight||0);
+    if(!(count>0) || !(each>0))return [];
+    return Array.from({length:count},()=>each);
+  };
+  const labelWeights=templateType==='58x40'?splitClassicWeights(totalKg):buildPackWeights();
+  const formatKg=kg=>Number(numFmt(kg)||0).toLocaleString('vi-VN',{maximumFractionDigits:2});
+  const summaryLine=labelWeights.length
+    ?labelWeights.map((kg,idx)=>formatKg(kg)+'kg').join(' | ')
+    :'Chưa có tem để in';
+  const classicSvg=kg=>{
+    const product=String(selectedProduct?.name||'').trim()||'SẢN PHẨM';
+    const nsx=toVnDate(prodDate);
+    const gioSx=String(prodTime||'').trim().replace(':','H').replace(/H00$/,'H');
+    const directUse=product.toUpperCase().includes('BÚN LÁ')||product.toUpperCase().includes('BUN LA')||product.toUpperCase().includes('BÁNH CUỐN')||product.toUpperCase().includes('BANH CUON')||product.toUpperCase().includes('BÁNH PHỞ CUỐN')||product.toUpperCase().includes('BANH PHO CUON');
+    const hdsd=directUse?'Ăn trực tiếp':'Trần qua nước sôi trước khi ăn.';
+    return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"580\" height=\"400\" viewBox=\"0 0 580 400\">'
+      +'<rect width=\"580\" height=\"400\" fill=\"white\"/>'
+      +'<rect x=\"10\" y=\"10\" width=\"560\" height=\"380\" fill=\"white\" stroke=\"#111\" stroke-width=\"2\"/>'
+      +'<text x=\"160\" y=\"68\" font-family=\"Arial,sans-serif\" font-size=\"54\" font-weight=\"700\" text-anchor=\"middle\" lengthAdjust=\"spacingAndGlyphs\" textLength=\"270\">'+String(product).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'<text x=\"425\" y=\"68\" font-family=\"Arial,sans-serif\" font-size=\"52\" font-weight=\"700\" text-anchor=\"middle\">'+formatKg(kg)+'</text>'
+      +'<text x=\"520\" y=\"68\" font-family=\"Arial,sans-serif\" font-size=\"38\" font-weight=\"700\" text-anchor=\"middle\">KG</text>'
+      +'<text x=\"22\" y=\"112\" font-family=\"Arial,sans-serif\"><tspan font-size=\"22\">SP CỦA: C.TY TNHH </tspan><tspan font-size=\"23\" font-weight=\"700\">THỰC PHẨM SÔNG CÔNG</tspan></text>'
+      +'<text x=\"22\" y=\"154\" font-family=\"Arial,sans-serif\" font-size=\"23\">ĐC: Tổ 1. P.Mỏ Chè, Sông Công, T.Thái Nguyên</text>'
+      +'<text x=\"22\" y=\"196\" font-family=\"Arial,sans-serif\" font-size=\"23\" font-weight=\"700\">SĐT : 0969709878</text>'
+      +'<text x=\"258\" y=\"196\" font-family=\"Arial,sans-serif\" font-size=\"23\">THÀNH PHẦN: Bột gạo, nước</text>'
+      +'<text x=\"22\" y=\"238\" font-family=\"Arial,sans-serif\" font-size=\"23\">HDSD: '+hdsd.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'<text x=\"512\" y=\"238\" font-family=\"Arial,sans-serif\" font-size=\"25\" text-anchor=\"end\"><tspan font-weight=\"700\">PH</tspan> 5-8</text>'
+      +'<text x=\"22\" y=\"280\" font-family=\"Arial,sans-serif\" font-size=\"23\">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'
+      +'<text x=\"22\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">NSX:</text>'
+      +'<text x=\"132\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">'+nsx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'<text x=\"342\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">GIỜ SX</text>'
+      +'<text x=\"512\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\" text-anchor=\"end\">'+gioSx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'<text x=\"28\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\">HSD: 24H</text>'
+      +'<text x=\"170\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\">FORMOL: 0</text>'
+      +'<text x=\"302\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\">HÀN THE: 0</text>'
+      +'<text x=\"552\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\" text-anchor=\"end\">BQ: 0-10°C</text>'
+      +'</svg>';
+  };
+  const pacSvg=kg=>{
+    const product=String(selectedProduct?.name||'').trim().toUpperCase()||'SẢN PHẨM';
+    const nsx=toVnDate(prodDate);
+    const gioSx=String(prodTime||'').trim().replace(':','H').replace(/H00$/,'H');
+    return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1000\" height=\"1000\" viewBox=\"0 0 1000 1000\">'
+      +'<rect width=\"1000\" height=\"1000\" fill=\"white\"/>'
+      +'<rect x=\"56\" y=\"56\" width=\"888\" height=\"888\" fill=\"white\" stroke=\"#111\" stroke-width=\"5\"/>'
+      +'<line x1=\"86\" y1=\"152\" x2=\"914\" y2=\"152\" stroke=\"#111\" stroke-width=\"2\"/>'
+      +'<line x1=\"760\" y1=\"56\" x2=\"760\" y2=\"152\" stroke=\"#111\" stroke-width=\"2\"/>'
+      +'<line x1=\"844\" y1=\"56\" x2=\"844\" y2=\"152\" stroke=\"#111\" stroke-width=\"2\"/>'
+      +'<text x=\"414\" y=\"118\" font-family=\"Times New Roman,serif\" font-size=\"62\" font-weight=\"700\" text-anchor=\"middle\">'+product.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'<text x=\"802\" y=\"118\" font-family=\"Times New Roman,serif\" font-size=\"58\" font-weight=\"700\" text-anchor=\"middle\">'+formatKg(kg)+'</text>'
+      +'<text x=\"886\" y=\"118\" font-family=\"Times New Roman,serif\" font-size=\"46\" text-anchor=\"middle\">KG</text>'
+      +'<text x=\"88\" y=\"214\" font-family=\"Times New Roman,serif\" font-size=\"28\" font-weight=\"700\">SP CỦA: CÔNG TY TNHH THỰC PHẨM SÔNG CÔNG</text>'
+      +'<text x=\"88\" y=\"294\" font-family=\"Times New Roman,serif\" font-size=\"28\" font-weight=\"700\">ĐC: Tổ 1. P.Mỏ Chè, Sông Công, T.Thái Nguyên</text>'
+      +'<line x1=\"86\" y1=\"332\" x2=\"914\" y2=\"332\" stroke=\"#bbb\" stroke-width=\"1\"/>'
+      +'<line x1=\"352\" y1=\"332\" x2=\"352\" y2=\"408\" stroke=\"#bbb\" stroke-width=\"1\"/>'
+      +'<text x=\"88\" y=\"386\" font-family=\"Times New Roman,serif\" font-size=\"32\" font-weight=\"700\">SĐT : 0969709878</text>'
+      +'<text x=\"372\" y=\"386\" font-family=\"Times New Roman,serif\" font-size=\"32\" font-weight=\"700\">TP: Bột gạo, nước</text>'
+      +'<line x1=\"86\" y1=\"412\" x2=\"914\" y2=\"412\" stroke=\"#bbb\" stroke-width=\"1\"/>'
+      +'<text x=\"88\" y=\"500\" font-family=\"Times New Roman,serif\" font-size=\"30\" font-weight=\"700\">BQ : 15°C-20°C. Đóng gói hở. HSD 12h trần nước sôi trước khi dùng.</text>'
+      +'<line x1=\"86\" y1=\"526\" x2=\"914\" y2=\"526\" stroke=\"#ddd\" stroke-width=\"1\"/>'
+      +'<text x=\"88\" y=\"610\" font-family=\"Times New Roman,serif\" font-size=\"30\" font-weight=\"700\">BQ : 10°C-15°C. Đóng gói hở. HSD 24h trần nước sôi trước khi dùng.</text>'
+      +'<line x1=\"86\" y1=\"636\" x2=\"914\" y2=\"636\" stroke=\"#ddd\" stroke-width=\"1\"/>'
+      +'<text x=\"88\" y=\"720\" font-family=\"Times New Roman,serif\" font-size=\"30\" font-weight=\"700\">BQ : 5°C-10°C. Đóng gói hở. HSD 36h trần nước sôi trước khi dùng.</text>'
+      +'<line x1=\"86\" y1=\"746\" x2=\"914\" y2=\"746\" stroke=\"#ddd\" stroke-width=\"1\"/>'
+      +'<text x=\"88\" y=\"830\" font-family=\"Times New Roman,serif\" font-size=\"30\" font-weight=\"700\">BQ : 0°C-5°C. Đóng gói kín. HSD 72h trần nước sôi trước khi dùng.</text>'
+      +'<line x1=\"86\" y1=\"856\" x2=\"914\" y2=\"856\" stroke=\"#ddd\" stroke-width=\"1\"/>'
+      +'<text x=\"88\" y=\"904\" font-family=\"Times New Roman,serif\" font-size=\"28\" font-weight=\"700\">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'
+      +'<line x1=\"86\" y1=\"936\" x2=\"914\" y2=\"936\" stroke=\"#111\" stroke-width=\"2\"/>'
+      +'<line x1=\"260\" y1=\"936\" x2=\"260\" y2=\"986\" stroke=\"#111\" stroke-width=\"1\"/>'
+      +'<line x1=\"442\" y1=\"936\" x2=\"442\" y2=\"986\" stroke=\"#111\" stroke-width=\"1\"/>'
+      +'<line x1=\"608\" y1=\"936\" x2=\"608\" y2=\"986\" stroke=\"#111\" stroke-width=\"1\"/>'
+      +'<line x1=\"732\" y1=\"936\" x2=\"732\" y2=\"986\" stroke=\"#111\" stroke-width=\"1\"/>'
+      +'<line x1=\"816\" y1=\"936\" x2=\"816\" y2=\"986\" stroke=\"#111\" stroke-width=\"1\"/>'
+      +'<text x=\"110\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\">FORMOL</text>'
+      +'<text x=\"352\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">0</text>'
+      +'<text x=\"525\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">PH:5-8</text>'
+      +'<text x=\"670\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">HÀN THE</text>'
+      +'<text x=\"774\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">0</text>'
+      +'<text x=\"864\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">BQ</text>'
+      +'<text x=\"928\" y=\"973\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">0-10°C</text>'
+      +'<text x=\"120\" y=\"1018\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\">NSX:</text>'
+      +'<text x=\"360\" y=\"1018\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">'+nsx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'<text x=\"650\" y=\"1018\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\">GIỜ SX:</text>'
+      +'<text x=\"866\" y=\"1018\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">'+gioSx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
+      +'</svg>';
+  };
+  const openLabelWindow=()=>{
+    if(!selectedProduct){window.showToast('Chọn sản phẩm trước khi in tem','warn');return;}
+    if(!productNeedsLabel){window.showToast('Sản phẩm này đang để không in tem trong danh mục sản phẩm','warn');return;}
+    if(!labelWeights.length){
+      window.showToast(templateType==='58x40'?'Nhập tổng kg cần in để tách tem':'Nhập số gói/số tem và kg mỗi tem để in','warn');
+      return;
+    }
+    const isClassic58=templateType==='58x40';
+    const width=templateType==='100x100'?'100mm':'58mm';
+    const height=templateType==='100x100'?'100mm':'40mm';
+    const contentWidth=templateType==='100x100'?'100mm':'58mm';
+    const contentHeight=templateType==='100x100'?'100mm':'40mm';
+    const labels=labelWeights.map((kg,idx)=>{
+      const svg=templateType==='100x100'?pacSvg(kg):classicSvg(kg);
+      const src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+      return '<section class=\"label'+(isClassic58?' classic58':'')+'\"><img class=\"label-img'+(isClassic58?' classic58-img':'')+'\" alt=\"Tem '+(idx+1)+'\" src=\"'+src+'\"></section>';
+    }).join('');
+    const popup=window.open('','_blank','width=1200,height=850');
+    if(!popup){window.showToast('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.','warn');return;}
+    popup.document.write('<html><head><title>In tem '+String(selectedProduct.name||'')+'</title><style>'
+      +'@page{size:'+width+' '+height+';margin:0}'
+      +'html,body{margin:0;padding:0;font-family:Arial,sans-serif;background:#eef3f0}'
+      +'body{display:flex;min-height:100vh}'
+      +'.summary{width:320px;box-sizing:border-box;padding:18px;background:#f6fbf8;border-right:1px solid #d8e4dc}'
+      +'.summary h2{margin:0 0 10px;font-size:24px;color:#1f5134}'
+      +'.summary .meta{font-size:13px;line-height:1.6;color:#23402f}'
+      +'.summary .chips{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}'
+      +'.summary .chip{display:inline-flex;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid #c9dbcf;font-size:12px;font-weight:600;color:#23402f}'
+      +'.summary .note{margin-top:10px;font-size:12px;color:#56705f}'
+      +'.labels{flex:1;display:flex;flex-direction:column;gap:0;padding:0}'
+      +'.label{position:relative;display:block;width:'+width+';height:'+height+';overflow:hidden;break-after:page;page-break-after:always}'
+      +'.label:last-child{break-after:auto;page-break-after:auto}'
+      +'.label-img{display:block;width:'+width+';height:'+height+'}'
+      +'.label.classic58{width:58mm;height:40mm}'
+      +'.label-img.classic58-img{position:static;width:58mm;height:40mm;transform:none}'
+      +'@media print{body{display:block;background:#fff}.summary{display:none}.labels{display:block}.label.classic58{width:58mm;height:40mm}.label-img.classic58-img{position:static;width:'+contentWidth+';height:'+contentHeight+';transform:rotate(180deg);transform-origin:center center}}'
+      +'</style></head><body>'
+      +'<aside class=\"summary\"><h2>Intem 420B</h2>'
+      +'<div class=\"meta\"><b>Sản phẩm:</b> '+String(selectedProduct.name||'')+'<br><b>Mẫu tem:</b> '+templateType+'<br><b>Ngày SX:</b> '+toVnDate(prodDate)+'<br><b>Giờ SX:</b> '+String(prodTime||'—')+'<br><b>Tổng số tem:</b> '+labelWeights.length+'<br><b>IP máy in:</b> '+String(printerIp||'Chưa lưu')+'</div>'
+      +'<div class=\"chips\">'+labelWeights.map((kg,idx)=>'<span class=\"chip\">Tem '+(idx+1)+': '+formatKg(kg)+'kg</span>').join('')+'</div>'
+      +'<div class=\"note\">Trình duyệt sẽ mở hộp in. Nếu máy 420B đã cài trên Windows, chọn đúng máy in trong hộp in để in ra tem.</div>'
+      +'</aside><main class=\"labels\">'+labels+'</main></body></html>');
+    popup.document.close();
+    setTimeout(()=>popup.print(),350);
+  };
+  return h('div',null,
+    h('div',{className:'ptitle'},h('i',{className:'ti ti-printer',style:{fontSize:20}}),'Intem'),
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:14,flexWrap:'wrap',marginBottom:14}},
+        h('div',null,
+          h('div',{style:{fontSize:16,fontWeight:700,color:'var(--pri3)',marginBottom:4}},'Kết nối máy in nhiệt 420B qua Wi‑Fi'),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',maxWidth:760}},'App sẽ quét nhanh các IP nội bộ thường dùng để tìm máy in có phản hồi. Nếu máy in không mở web nội bộ thì có thể không quét thấy, khi đó mình nhập IP tay rồi lưu lại.')
+        ),
+        h('div',{style:{background:'var(--bg2)',padding:'10px 12px',borderRadius:'var(--r)',minWidth:220}},
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:4}},'Máy in đang chọn'),
+          h('div',{style:{fontWeight:700,color:'var(--pri3)'}},printerIp||'Chưa có IP'),
+          printerState?.lastScanAt&&h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:4}},'Lần quét: '+printerState.lastScanAt)
+        )
+      ),
+      h('div',{className:'g3'},
+        h(F,{label:'IP máy in 420B'},
+          h('input',{value:printerIp,onChange:e=>setPrinterIp(e.target.value),placeholder:'Ví dụ: 192.168.1.120'})
+        ),
+        h(F,{label:'IP tìm thấy'},
+          h('select',{value:printerIp,onChange:e=>setPrinterIp(e.target.value)},
+            h('option',{value:''},foundIps.length?'— Chọn IP đã quét —':'— Chưa có IP quét thấy —'),
+            foundIps.map(ip=>h('option',{key:ip,value:ip},ip))
+          )
+        ),
+        h(F,{label:'Trạng thái quét'},
+          h('div',{style:{minHeight:40,padding:'8px 10px',border:'1px solid var(--bd)',borderRadius:'var(--r)',background:'#fff',fontSize:12,color:'var(--tx2)',lineHeight:1.45}},scanMsg)
+        )
+      ),
+      h(Row,null,
+        h('button',{onClick:scanPrinterIps,disabled:scanLoading,style:{padding:'8px 14px'}},h('i',{className:'ti ti-wifi',style:{fontSize:14}}),scanLoading?'Đang quét...':'Quét IP máy in'),
+        h('button',{onClick:savePrinterIp,style:{padding:'8px 14px'}},h('i',{className:'ti ti-device-floppy',style:{fontSize:14}}),'Lưu IP'),
+        h('button',{onClick:openPrinterPage,disabled:!printerIp,style:{padding:'8px 14px'}},h('i',{className:'ti ti-world-www',style:{fontSize:14}}),'Mở trang máy in')
+      )
+    ),
+    h('div',{className:'card'},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:14,flexWrap:'wrap',marginBottom:14}},
+        h('div',null,
+          h('div',{style:{fontSize:16,fontWeight:700,color:'var(--pri3)',marginBottom:4}},'Tạo tem thủ công'),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',maxWidth:760}},'Chọn sản phẩm, nhập ngày SX, giờ SX và mẫu tem. Với tem 58x40, app sẽ tự tách số tem theo quy tắc của sản phẩm. Với tem 100x100, mình nhập số gói/số tem và kg mỗi tem.')
+        ),
+        h('div',{style:{background:'var(--bg2)',padding:'10px 12px',borderRadius:'var(--r)',minWidth:250}},
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:4}},'Tóm tắt nhanh'),
+          h('div',{style:{fontWeight:700,color:'var(--pri3)'}},selectedProduct?.name||'Chưa chọn sản phẩm'),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:4}},'Mẫu '+templateType+' · '+labelWeights.length+' tem')
+        )
+      ),
+      h('div',{className:'g2'},
+        h(F,{label:'Sản phẩm'},
+          h('select',{value:productId,onChange:e=>setProductId(e.target.value)},
+            h('option',{value:''},'— Chọn sản phẩm —'),
+            printableProducts.map(p=>h('option',{key:p.id,value:p.id},p.code?(p.code+' - '+p.name):p.name))
+          )
+        ),
+        h(F,{label:'Mẫu tem'},
+          h('select',{value:templateType,onChange:e=>setTemplateType(e.target.value)},
+            h('option',{value:'58x40'},'58 x 40 mm'),
+            h('option',{value:'100x100'},'100 x 100 mm')
+          )
+        )
+      ),
+      h('div',{className:'g2'},
+        h(F,{label:'Ngày sản xuất'},h('input',{type:'date',value:prodDate,onChange:e=>setProdDate(e.target.value)})),
+        h(F,{label:'Giờ sản xuất'},h('input',{type:'time',value:prodTime,onChange:e=>setProdTime(e.target.value)}))
+      ),
+      !productNeedsLabel&&selectedProduct&&h('div',{style:{background:'#fff7ed',padding:'10px 12px',borderRadius:'var(--r)',fontSize:12,color:'#9A3412',marginBottom:'1rem'}},'Sản phẩm này đang để trạng thái Không in tem trong danh mục sản phẩm. Nếu muốn in, cần bật lại cờ in tem ở danh mục sản phẩm.'),
+      templateType==='58x40'
+        ?h('div',{className:'g2'},
+          h(F,{label:'Tổng kg cần in'},h('input',{type:'number',min:0,step:'0.01',value:totalKg,onChange:e=>setTotalKg(e.target.value),disabled:!productNeedsLabel,placeholder:labelRule.pack?('Ví dụ: '+labelRule.pack*5+7):'Ví dụ: 57'})),
+          h(F,{label:'Quy tắc tem đang áp dụng'},
+            h('div',{style:{minHeight:40,padding:'8px 10px',border:'1px solid var(--bd)',borderRadius:'var(--r)',background:'#fff',fontSize:12,color:'var(--tx2)',lineHeight:1.45}},
+              productNeedsLabel?(labelRule.pack+'kg/tem'+(labelRule.mergeSmallRemainder?' · gộp phần lẻ nhỏ':' · tách riêng phần lẻ')):'Sản phẩm không in tem'
+            )
+          )
+        )
+        :h('div',{className:'g2'},
+          h(F,{label:'Số gói / số tem'},h('input',{type:'number',min:1,step:1,value:packQty,onChange:e=>setPackQty(e.target.value),disabled:!productNeedsLabel,placeholder:'Ví dụ: 14'})),
+          h(F,{label:'Kg mỗi gói / tem'},h('input',{type:'number',min:0,step:'0.01',value:packWeight,onChange:e=>setPackWeight(e.target.value),disabled:!productNeedsLabel,placeholder:defaultPackWeight?String(defaultPackWeight):'Ví dụ: 5'}))
+        ),
+      h('div',{style:{background:'var(--bg2)',padding:'10px 12px',borderRadius:'var(--r)',fontSize:12,color:'var(--tx2)',marginBottom:'1rem'}},
+        h('div',{style:{fontWeight:600,color:'var(--pri3)',marginBottom:6}},'Kết quả tách tem'),
+        h('div',null,summaryLine),
+        templateType==='100x100'&&defaultPackWeight>0&&h('div',{style:{marginTop:6}},'Khối lượng mặc định của sản phẩm: ',h('b',null,formatKg(defaultPackWeight)),'kg / ',selectedProduct?.unit||'gói')
+      ),
+      h(Row,null,
+        h('button',{className:'bp',onClick:openLabelWindow,style:{padding:'8px 20px'}},h('i',{className:'ti ti-printer',style:{fontSize:15}}),'Tạo tem và mở in')
+      )
+    )
+  );
+}
+
 function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,prodCats,quotes,employees,currentUser,trips,setTrips,company,prodShifts,prodShiftRules,shifts,menuHidden,setMenuHidden,printTemplateSettings}){
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[print,spr]=useState(null);const[invoiceView,setInvoiceView]=useState(null);const[q,sq]=useState('');const[filter,sf]=useState('all');const[sortMode,setSortMode]=useState('area');const _td0=fmtDate();const _ti0=_td0.split('/').reverse().join('-');const[fDate,sfDate]=useState(_ti0);const[fPoint,sfPoint]=useState('');const[fTime,sfTime]=useState('');const[fArea,sfArea]=useState('');let oSeq=orders.length+1;
   const deliveryTopScroll=useRef(null);
@@ -9768,7 +10556,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const nextCtx={...ctx,area:ctx.area||'',prodShiftId:autoShift.id};
       const autoTrip=autoTripForOrder(nextCtx);
       const nextTripId=autoTrip?.id||null;
-      let touched=o.prodShiftId!==autoShift.id||o.tripId!==nextTripId;
+      const nextStatus=nextTripId?'assigned':'pending';
+      let touched=o.prodShiftId!==autoShift.id||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
       const lines=(o.lines||[]).map(l=>{
         if(l.shiftOverride)return l;
         const next={...l,prodTime:autoProdTime,prodDate:autoProdDate,labelTime:autoLabelTime,labelDate:autoLabelDate};
@@ -9776,10 +10565,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         return next;
       });
       if(touched)changed++;
-      return touched?{...o,prodShiftId:autoShift.id,tripId:nextTripId,tripAssignMode:'auto',status:nextTripId?'assigned':'pending',lines,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:o;
+      return touched?{...o,prodShiftId:autoShift.id,tripId:nextTripId,tripAssignMode:'auto',status:nextStatus,lines,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:o;
     });
     applyOrdersAndTripSync(nextOrders);
-    window.showToast('Đã cập nhật giờ SX tự động cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':''),'success',6000);
+    window.showToast('Đã cập nhật tự động ca SX, ngày SX, giờ SX, ngày in tem, giờ in tem và chuyến xe cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':''),'success',7000);
   };
   const orderLineQty=l=>numFmt(l.qtyInvoice)||numFmt(l.qtyProd)||numFmt(l.qty)||numFmt(l.quantity)||0;
   const orderLineWeight=l=>{
@@ -10047,51 +10836,30 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return (
       '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">'+
         '<rect width="1000" height="1000" fill="white"/>'+
-        '<g transform="translate(78 72) scale(0.84)">'+
-        '<rect x="0" y="0" width="1000" height="1000" fill="white" stroke="#111" stroke-width="6"/>'+
-        '<line x1="58" y1="162" x2="942" y2="162" stroke="#111" stroke-width="2"/>'+
-        '<line x1="722" y1="58" x2="722" y2="162" stroke="#111" stroke-width="2"/>'+
-        '<line x1="818" y1="58" x2="818" y2="162" stroke="#111" stroke-width="2"/>'+
-        '<text x="392" y="122" font-family="Times New Roman,serif" font-size="68" font-weight="700" text-anchor="middle">'+esc(product)+'</text>'+
-        '<text x="770" y="122" font-family="Times New Roman,serif" font-size="66" font-weight="700" text-anchor="middle">'+esc(kgNum)+'</text>'+
-        '<text x="860" y="122" font-family="Times New Roman,serif" font-size="52" text-anchor="middle">KG</text>'+
-        '<text x="66" y="214" font-family="Times New Roman,serif" font-size="30" font-weight="700">SP CỦA: CÔNG TY TNHH THỰC PHẨM SÔNG CÔNG</text>'+
-        '<text x="66" y="296" font-family="Times New Roman,serif" font-size="30" font-weight="700">ĐC: Tổ 1. P.Mỏ Chè, Sông Công, T.Thái Nguyên</text>'+
-        '<line x1="58" y1="334" x2="942" y2="334" stroke="#bbb" stroke-width="1"/>'+
-        '<line x1="350" y1="334" x2="350" y2="418" stroke="#bbb" stroke-width="1"/>'+
-        '<text x="66" y="388" font-family="Times New Roman,serif" font-size="34" font-weight="700">SĐT : 0969709878</text>'+
-        '<text x="372" y="388" font-family="Times New Roman,serif" font-size="34" font-weight="700">TP: Bột gạo, nước</text>'+
-        '<line x1="58" y1="418" x2="942" y2="418" stroke="#bbb" stroke-width="1"/>'+
-        '<text x="66" y="504" font-family="Times New Roman,serif" font-size="32" font-weight="700">BQ : 15°C-20°C. Đóng gói hở. HSD 12h trần nước sôi trước khi dùng.</text>'+
-        '<line x1="58" y1="530" x2="942" y2="530" stroke="#ddd" stroke-width="1"/>'+
-        '<text x="66" y="614" font-family="Times New Roman,serif" font-size="32" font-weight="700">BQ : 10°C-15°C. Đóng gói hở. HSD 24h trần nước sôi trước khi dùng.</text>'+
-        '<line x1="58" y1="640" x2="942" y2="640" stroke="#ddd" stroke-width="1"/>'+
-        '<text x="66" y="724" font-family="Times New Roman,serif" font-size="32" font-weight="700">BQ : 5°C-10°C. Đóng gói hở. HSD 36h trần nước sôi trước khi dùng.</text>'+
-        '<line x1="58" y1="750" x2="942" y2="750" stroke="#ddd" stroke-width="1"/>'+
-        '<text x="66" y="834" font-family="Times New Roman,serif" font-size="32" font-weight="700">BQ : 0°C-5°C. Đóng gói kín. HSD 72h trần nước sôi trước khi dùng.</text>'+
-        '<line x1="58" y1="860" x2="942" y2="860" stroke="#bbb" stroke-width="1"/>'+
-        '<text x="66" y="902" font-family="Times New Roman,serif" font-size="28" font-weight="700">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'+
-        '<line x1="58" y1="930" x2="942" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<line x1="232" y1="860" x2="232" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<line x1="432" y1="860" x2="432" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<line x1="542" y1="860" x2="542" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<line x1="670" y1="860" x2="670" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<line x1="802" y1="860" x2="802" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<text x="78" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700">FORMOL</text>'+
-        '<text x="312" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700" text-anchor="middle">0</text>'+
-        '<text x="487" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700" text-anchor="middle">PH:5-8</text>'+
-        '<text x="736" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700" text-anchor="middle">HÀN THE</text>'+
-        '<text x="786" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700" text-anchor="middle">0</text>'+
-        '<text x="840" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700">BQ</text>'+
-        '<text x="936" y="912" font-family="Times New Roman,serif" font-size="26" font-weight="700" text-anchor="end">0-10°C</text>'+
-        '<line x1="58" y1="930" x2="942" y2="930" stroke="#111" stroke-width="2"/>'+
-        '<line x1="180" y1="930" x2="180" y2="942" stroke="#bbb" stroke-width="1"/>'+
-        '<line x1="370" y1="930" x2="370" y2="942" stroke="#bbb" stroke-width="1"/>'+
-        '<line x1="620" y1="930" x2="620" y2="942" stroke="#bbb" stroke-width="1"/>'+
-        '<text x="76" y="970" font-family="Times New Roman,serif" font-size="30" font-weight="700">NSX:</text>'+
-        '<text x="274" y="970" font-family="Times New Roman,serif" font-size="30" font-weight="700" text-anchor="middle">'+esc(nsx)+'</text>'+
-        '<text x="496" y="970" font-family="Times New Roman,serif" font-size="30" font-weight="700">GIỜ SX:</text>'+
-        '<text x="844" y="970" font-family="Times New Roman,serif" font-size="30" font-weight="700" text-anchor="middle">'+esc(gioSx)+'</text>'+
+        '<g transform="translate(28 41) scale(0.95)">'+
+        '<rect x="0" y="0" width="1000" height="1006" fill="white" stroke="#111" stroke-width="6"/>'+
+        '<text x="430" y="143" font-family="Times New Roman,serif" font-size="70" font-weight="700" text-anchor="middle">'+esc(product)+'</text>'+
+        '<text x="804" y="143" font-family="Times New Roman,serif" font-size="70" font-weight="700" text-anchor="middle">'+esc(kgNum)+'</text>'+
+        '<text x="922" y="143" font-family="Times New Roman,serif" font-size="52" font-weight="700" text-anchor="middle">KG</text>'+
+        '<text x="72" y="245" font-family="Times New Roman,serif" font-size="32" font-weight="700">SP CỦA: CÔNG TY TNHH THỰC PHẨM SÔNG CÔNG</text>'+
+        '<text x="72" y="329" font-family="Times New Roman,serif" font-size="32" font-weight="700">ĐC: Tổ 1. P.Mỏ Chè, Sông Công, T.Thái Nguyên</text>'+
+        '<text x="72" y="413" font-family="Times New Roman,serif" font-size="32" font-weight="700">SĐT : 0969709878</text>'+
+        '<text x="510" y="413" font-family="Times New Roman,serif" font-size="32" font-weight="700">TP: Bột gạo, nước</text>'+
+        '<text x="72" y="497" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 15°C-20°C. Đóng gói hở. HSD 12h trần nước sôi trước khi dùng.</text>'+
+        '<text x="72" y="581" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 10°C-15°C. Đóng gói hở. HSD 24h trần nước sôi trước khi dùng.</text>'+
+        '<text x="72" y="665" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 5°C-10°C. Đóng gói hở. HSD 36h trần nước sôi trước khi dùng.</text>'+
+        '<text x="72" y="749" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 0°C-5°C. Đóng gói kín. HSD 72h trần nước sôi trước khi dùng.</text>'+
+        '<text x="72" y="833" font-family="Times New Roman,serif" font-size="31" font-weight="700">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'+
+        '<text x="105" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700">Formol:</text>'+
+        '<text x="292" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700" text-anchor="middle">0</text>'+
+        '<text x="448" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700">PH:</text>'+
+        '<text x="560" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700" text-anchor="middle">5-8</text>'+
+        '<text x="634" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700">Hàn the:</text>'+
+        '<text x="846" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700" text-anchor="middle">0</text>'+
+        '<text x="140" y="1000" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">NSX:</text>'+
+        '<text x="335" y="1000" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">'+esc(nsx)+'</text>'+
+        '<text x="620" y="1000" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">GIỜ SX:</text>'+
+        '<text x="860" y="1000" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">'+esc(gioSx)+'</text>'+
         '</g>'+
       '</svg>'
     );
@@ -10099,9 +10867,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const openLabelPrintWindow=(labels,ordersForPrint,mode)=>{
     if(!labels.length)return;
     const isPacMode=mode==='pac';
+    const isClassic58=!isPacMode;
     const pageSize=isPacMode?'100mm 100mm':'58mm 40mm';
     const labelWidth=isPacMode?'100mm':'58mm';
     const labelHeight=isPacMode?'100mm':'40mm';
+    const contentWidth=isPacMode?'100mm':'58mm';
+    const contentHeight=isPacMode?'100mm':'40mm';
     const title=isPacMode?'In tem kho vận ':'In tem ';
     const printOrders=(Array.isArray(ordersForPrint)?ordersForPrint:[ordersForPrint]).filter(Boolean);
     const orderSummary=buildPrintOrderSummaryHtml(printOrders);
@@ -10110,7 +10881,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const orderForLabel=it.order||printOrders[0]||{};
       const svg=isPacMode?buildPacLabelSvg(it,orderForLabel):buildClassicLabelSvg(it,orderForLabel);
       const src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
-      return '<section class="label"><img class="label-img" alt="Tem '+esc(product)+'" src="'+src+'"></section>';
+      return '<section class="label'+(isClassic58?' classic58':'')+'"><img class="label-img'+(isClassic58?' classic58-img':'')+'" alt="Tem '+esc(product)+'" src="'+src+'"></section>';
     }).join('');
     const w=window.open('','_blank');
     if(!w){window.showToast('Trình duyệt đang chặn cửa sổ in tem. Hãy cho phép popup rồi thử lại.','warn');return;}
@@ -10132,7 +10903,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       '.label{position:relative;display:block;width:'+labelWidth+';height:'+labelHeight+';overflow:hidden;break-after:page;page-break-after:always}'+
       '.label:last-child{break-after:auto;page-break-after:auto}'+
       '.label-img{display:block;width:'+labelWidth+';height:'+labelHeight+';image-rendering:high-quality;-webkit-user-select:none;user-select:none}'+
-      '@media print{body{padding:0}.summary{display:none}.labels{display:block}}'+
+      '.label.classic58{width:58mm;height:40mm}'+
+      '.label-img.classic58-img{position:static;width:58mm;height:40mm;transform:none}'+
+      '@media print{body{padding:0}.summary{display:none}.labels{display:block}.label.classic58{width:58mm;height:40mm}.label-img.classic58-img{position:static;width:'+contentWidth+';height:'+contentHeight+';transform:rotate(180deg);transform-origin:center center}}'+
       '<\/style><\/head><body><div class="summary"><div class="summary-title">Tóm tắt tem trước khi in</div><div class="summary-sub">Địa điểm: '+esc(orderSummary.pointLabel)+' · Tổng số tem: '+labels.length+' · Số đơn: '+printOrders.length+'</div>'+orderSummary.rows+'</div><div class="labels">'+cards+'<\/div><\/body><\/html>');
     w.document.close();
     setTimeout(()=>w.print(),400);
@@ -10189,7 +10962,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           },h('i',{className:'ti ti-tags',style:{fontSize:14}}),'In tem nhiều đơn'),
           h('button',{
             onClick:updateAutoProductionTimes,
-            title:'Cập nhật lại ca SX, giờ SX, ngày chuyến và ca giao cho các đơn đang dùng tự động trong danh sách đang lọc',
+            title:'Cập nhật lại ca SX, ngày SX, giờ SX, chuyến xe, ngày in tem và giờ in tem cho các đơn đang dùng tự động trong danh sách đang lọc',
             style:{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:5,background:'#2d6a4f',color:'#fff',border:'none',borderRadius:'var(--r)',cursor:'pointer'}
           },h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Cập nhật SX + chuyến'),
           h('button',{
@@ -10427,38 +11200,40 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         false&&h(AddBtn,{onClick:()=>{se(null);sm('f')},label:'Tạo đơn giao'})
       )),
       h('div',{ref:deliveryTopScroll,className:'desktop-only delivery-top-scroll'},
-        h('div',{style:{width:1360,height:1}})
+        h('div',{style:{width:1240,height:1}})
       )
     ),
     h('div',{className:'delivery-body'},
       h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
-        h('table',{style:{minWidth:1160,width:'100%',tableLayout:'fixed'}},
+        h('table',{style:{minWidth:1240,width:'100%',tableLayout:'fixed'}},
         h('colgroup',null,
-          h('col',{style:{width:'16%'}}),
-          h('col',{style:{width:100}}),
-          h('col',{style:{width:70}}),
-          h('col',{style:{width:220}}),
-          h('col',{style:{width:120}}),
+          h('col',{style:{width:'14%'}}),
+          h('col',{style:{width:98}}),
+          h('col',{style:{width:210}}),
+          h('col',{style:{width:88}}),
+          h('col',{style:{width:88}}),
+          h('col',{style:{width:72}}),
           h('col',{style:{width:70}}),
           h('col',{style:{width:105}}),
-          h('col',{style:{width:260}}),
-          h('col',{style:{width:95}})
+          h('col',{style:{width:245}}),
+          h('col',{style:{width:90}})
         ),
         h('thead',null,h('tr',null,
           h('th',null,'Địa điểm giao'),
           h('th',null,'Ngày giao'),
-          h('th',null,'Giờ'),
           h('th',null,'Ca SX'),
-          h('th',null,'Hàng hóa'),
+          h('th',null,'SL ĐẶT'),
+          h('th',null,'SL HĐ'),
+          h('th',null,'Giờ'),
           h('th',null,'Hóa đơn'),
           h('th',null,'Trạng thái'),
           h('th',null,'Chuyến'),
           h('th',null,'')
         )),
         h('tbody',null,list.length?orderTableRows.map((o,_i)=>{
-          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:9,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'5px 12px'}},(o.group?.mode==='trip'?'🚚 Chuyến: ':'📍 Khu vực: ')+(o.group?.label||'')));
+          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:10,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'5px 12px'}},(o.group?.mode==='trip'?'🚚 Chuyến: ':'📍 Khu vực: ')+(o.group?.label||'')));
           if(o._sub) return h('tr',{key:'os'+_i},
-            h('td',{colSpan:5,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg'),
+            h('td',{colSpan:6,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg'),
             h('td',{colSpan:4,style:{background:'#e8f5e9'}})
           );
           const ctx=o._ctx||orderContext(o);
@@ -10472,6 +11247,15 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           const tripOptions=tripOptionsForOrder(ctx);
           const selectedTripId=tripMode==='manual'?(ctx.tripId||''):(autoTrip?.id||'');
           const tripLabel=autoTrip?.area||autoTrip?.shiftName||preferredTripShiftName;
+          const plansForDisplay=prodShiftPlansForOrder(ctx,prodShifts||[],prodShiftRules);
+          const firstPlanForDisplay=plansForDisplay[0]||prodShiftPlan(ctx,prodShifts||[],prodShiftRules);
+          const planRows=plansForDisplay.length
+            ?plansForDisplay.map((plan,pi)=>({key:plan.line?.id||('plan_'+pi),plan,line:plan.line||ctx.lines?.[pi]||{},productName:plan.productName||plan.line?.productName||'Sản phẩm'}))
+            :(ctx.lines||[]).map((line,pi)=>({key:line.id||('line_'+pi),plan:null,line,productName:line.productName||'Sản phẩm'}));
+          const renderLineMetric=(getter,empty='—')=>h('div',{style:{display:'grid',gap:0,minWidth:0}},planRows.length
+            ?planRows.map((row,ri)=>h('div',{key:'metric_'+row.key,style:{fontSize:12,lineHeight:1.35,marginTop:ri?6:0,paddingTop:ri?5:0,borderTop:ri?'1px dashed var(--bd)':'none',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},getter(row)))
+            :h('span',{style:{fontSize:12,color:'var(--tx2)'}},empty)
+          );
           const tripText=t=>{
             if(!t)return 'Chưa có chuyến phù hợp';
             const parts=[];
@@ -10483,14 +11267,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           };
           const tripSelect=h('div',{style:{display:'grid',gap:6,minWidth:0,width:'100%'}},
             h('div',{style:{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}},
-              h('span',{className:'badge',style:{background:tripMode==='manual'?'#FFF3CD':'#E8F5E9',color:tripMode==='manual'?'#8A5A00':'#1B5E20'}},tripMode==='manual'?'Chọn tay':'Tự động ('+tripDateOffsetLabel+')'),
-              preferredTripDate&&h('span',{style:{fontSize:11,color:'var(--tx2)'}},'Ngày chuyến: '+preferredTripDate),
+              h('span',{className:'badge',style:{background:tripMode==='manual'?'#FFF3CD':'#E8F5E9',color:tripMode==='manual'?'#8A5A00':'#1B5E20'}},tripMode==='manual'?'Chọn tay':'T.Đ ('+tripDateOffsetLabel+')'),
               tripLabel&&h('span',{style:{fontSize:11,color:'var(--tx2)'}},'Ca giao: '+tripLabel),
               h('button',{
                 type:'button',
                 onClick:()=>setOrderTripMode(o,tripMode==='manual'?'auto':'manual'),
                 style:{padding:'3px 8px',fontSize:11,borderRadius:999,border:'1px solid var(--bd)',background:'#fff',cursor:'pointer'}
-              },tripMode==='manual'?'Về tự động':'Đổi tay')
+              },tripMode==='manual'?'Về T.Đ':'Đ.Tay')
             ),
             tripMode==='manual'
               ?h('select',{
@@ -10508,14 +11291,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
               h('div',{style:{fontWeight:600,fontSize:13}},ctx.pointName||'—'),
               h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:2}},ctx.customer)
             ),
-            h('td',null,ctx.deliveryDate),h('td',null,ctx.deliveryTime||'—'),
+            h('td',null,ctx.deliveryDate),
             // Cột Ca SX: tự động hoặc sửa tay
             h('td',null,(()=>{ 
               const autoPsh=getProdShiftForOrder({...ctx,deliveryTime:ctx.deliveryTime},prodShifts||[],customers||[]);
               const curPsh=ctx.prodShiftId?(prodShifts||[]).find(s=>s.id===ctx.prodShiftId):null;
               const dispPsh=curPsh||autoPsh;
-              const plans=prodShiftPlansForOrder(ctx,prodShifts||[],prodShiftRules);
-              const firstPlan=plans[0]||prodShiftPlan(ctx,prodShifts||[],prodShiftRules);
+              const firstPlan=firstPlanForDisplay;
               return h('div',{style:{width:'100%',maxWidth:210}},
                 firstPlan
                   ?h('div',null,
@@ -10532,15 +11314,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                           }
                         }
                       },firstPlan.shift.name+(curPsh?' ✎':'')),
-                    plans.map((plan,pi)=>h('div',{key:(plan.line?.id||pi),style:{fontSize:10,color:'var(--tx2)',lineHeight:1.35,marginTop:pi?6:4,paddingTop:pi?5:0,borderTop:pi?'1px dashed var(--bd)':'none'}},
-                      h('div',{style:{fontWeight:600,color:plan.manual?'#8A5A00':'var(--pri3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},(pi+1)+'. '+(plan.productName||'Sản phẩm')),
-                      'SX: ',plan.prodTime||'—',' / ',plan.prodDate||'—'
+                    planRows.map((row,pi)=>h('div',{key:row.key,style:{fontSize:10,color:'var(--tx2)',lineHeight:1.35,marginTop:pi?6:4,paddingTop:pi?5:0,borderTop:pi?'1px dashed var(--bd)':'none'}},
+                      h('div',{style:{fontWeight:600,color:row.plan?.manual?'#8A5A00':'var(--pri3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},(pi+1)+'. '+row.productName),
+                      'SX: ',row.plan?.prodTime||row.line?.prodTime||'—',' / ',row.plan?.prodDate||row.line?.prodDate||'—'
                     ))
                   )
                   :h('span',{style:{fontSize:11,color:'var(--tx2)'}},'—')
               );
             })()),
-            h('td',null,h('div',{style:{whiteSpace:'nowrap'}},(o.lines||[]).length+' mặt hàng'),totalW>0&&h('div',{style:{fontSize:11,color:'var(--pri)',whiteSpace:'nowrap'}},totalW.toFixed(2)+' kg')),
+            h('td',null,renderLineMetric(row=>numFmt(row.line?.qtyProd).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2}))),
+            h('td',null,renderLineMetric(row=>orderLineQty(row.line).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2}))),
+            h('td',null,ctx.deliveryTime||'—'),
             h('td',null,
               o.invoiceImage
                 ?h('div',{style:{display:'flex',gap:4,alignItems:'center'}},
@@ -10558,7 +11342,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
               h('button',{className:'bi',onClick:()=>del(o.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
             ))
           );
-        }):h('tr',null,h('td',{colSpan:9,className:'empty-st'},'Chưa có đơn giao hàng nào.')))
+        }):h('tr',null,h('td',{colSpan:10,className:'empty-st'},'Chưa có đơn giao hàng nào.')))
         )
       )
     ),
@@ -10611,16 +11395,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           ),
           h('div',{style:{background:'var(--bg2)',borderRadius:10,padding:'10px'}},
             h('div',{style:{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:6}},
-              h('span',{className:'badge',style:{background:tripMode==='manual'?'#FFF3CD':'#E8F5E9',color:tripMode==='manual'?'#8A5A00':'#1B5E20'}},tripMode==='manual'?'Chọn tay':'Tự động ('+tripDateOffsetLabel+')'),
+              h('span',{className:'badge',style:{background:tripMode==='manual'?'#FFF3CD':'#E8F5E9',color:tripMode==='manual'?'#8A5A00':'#1B5E20'}},tripMode==='manual'?'Chọn tay':'T.Đ ('+tripDateOffsetLabel+')'),
+              tripLabel&&h('span',{style:{fontSize:12,color:'var(--tx2)'}},'Ca giao: '+tripLabel),
               h('button',{
                 type:'button',
                 onClick:()=>setOrderTripMode(o,tripMode==='manual'?'auto':'manual'),
                 style:{padding:'3px 8px',fontSize:11,borderRadius:999,border:'1px solid var(--bd)',background:'#fff',cursor:'pointer'}
-              },tripMode==='manual'?'Về tự động':'Đổi tay')
-            ),
-            h('div',{style:{fontSize:12,color:'var(--tx2)',lineHeight:1.45,marginBottom:6}},
-              preferredTripDate&&h('div',null,'Ngày chuyến: '+preferredTripDate),
-              tripLabel&&h('div',null,'Ca giao: '+tripLabel)
+              },tripMode==='manual'?'Về T.Đ':'Đ.Tay')
             ),
             tripMode==='manual'
               ?h('select',{
@@ -11934,6 +12715,7 @@ const PAGE_ACCESS = {
   shifts:        ['admin','manager','staff'],
   quotes:       ['admin','manager','staff'],
   delivery:     ['admin','manager','staff'],
+  intem:        ['admin','manager','staff'],
   orderdetail:  ['admin','manager','staff','driver'],
   trips:        ['admin','manager','driver'],
   prodsummary:  ['admin','manager','staff'],
@@ -11943,7 +12725,9 @@ const PAGE_ACCESS = {
   nccs:         ['admin','manager'],
   purchaseorders:['admin','manager'],
   fuelpurchases:['admin','manager','driver'],
+  fuelreport:['admin','manager'],
   purchasereport:['admin','manager'],
+  maintreport:['admin','manager'],
   materialusage:['admin','manager','staff'],
   powderdebtreport:['admin','manager','staff'],
   dbusage:['admin','manager'],
@@ -11982,9 +12766,9 @@ const PTITLES = {
   customers:'Khách hàng', workcats:'Danh mục công việc', tasks:'Giao việc', shifts:'Ca giao hàng',
   workreport_vp:'CÔNG KẾ TOÁN', workreport_sx:'CÔNG SẢN XUẤT', workreport_lx:'CÔNG LÁI XE', workreport_total:'TỔNG CÔNG',
   process_accounting:'QUY TRÌNH KẾ TOÁN', process_bun:'QT SẢN XUẤT BÚN', process_pho:'QT SX PHỞ', process_banhcuon:'QT SX BÁNH CUỐN',
-  quotes:'Báo giá', delivery:'Đơn giao hàng', orderdetail:'Chi tiết đơn hàng', trips:'Chuyến giao hàng',
-  salesreport:'Báo cáo bán hàng', marketsales:'Bán hàng chợ', powdersales:'Bán bột bún',
-  nccs:'Nhà cung cấp', purchaseorders:'Đơn mua hàng', fuelpurchases:'Đơn mua xăng dầu', purchasereport:'Báo cáo mua hàng', materialusage:'Báo cáo NVL tồn và tiêu dùng', powderdebtreport:'Báo cáo công nợ', dbusage:'Dung lượng Supabase',
+  quotes:'Báo giá', delivery:'Đơn giao hàng', intem:'Intem', orderdetail:'Chi tiết đơn hàng', trips:'Chuyến giao hàng',
+  salesreport:'Báo cáo bán hàng', fuelreport:'Báo cáo mua xăng dầu', marketsales:'Bán hàng chợ', powdersales:'Bán bột bún',
+  nccs:'Nhà cung cấp', purchaseorders:'Đơn mua hàng', fuelpurchases:'Đơn mua xăng dầu', purchasereport:'Báo cáo mua hàng', maintreport:'Báo cáo sửa chữa', materialusage:'Báo cáo NVL tồn và tiêu dùng', powderdebtreport:'Báo cáo công nợ', dbusage:'Dung lượng Supabase',
   maint_vehicle:'Bảo dưỡng xe', maint_machine:'Bảo dưỡng máy',
   prodsummary:'Tổng hợp sản xuất', prodorders:'Đơn sản xuất', stock:'Tồn kho',
 };
@@ -11994,8 +12778,8 @@ const PICONS = {
   prodorders:'ti-building-factory', stock:'ti-package', attendance:'ti-face-id', advances:'ti-cash-banknote', rewards:'ti-scale', leaves:'ti-calendar-minus', assets:'ti-building-warehouse', appearance:'ti-typography', printtemplates:'ti-file-spreadsheet',
   workreport_vp:'ti-building', workreport_sx:'ti-building-factory', workreport_lx:'ti-steering-wheel', workreport_total:'ti-report-analytics',
   process_accounting:'ti-file-invoice', process_bun:'ti-tools-kitchen-2', process_pho:'ti-bowl', process_banhcuon:'ti-cookie',
-  marketsales:'ti-building-store', powdersales:'ti-bowl',
-  powderdebtreport:'ti-report-money', dbusage:'ti-database', fuelpurchases:'ti-gas-station', materialusage:'ti-chart-histogram',
+  marketsales:'ti-building-store', powdersales:'ti-bowl', intem:'ti-printer',
+  powderdebtreport:'ti-report-money', dbusage:'ti-database', fuelpurchases:'ti-gas-station', fuelreport:'ti-gas-station', maintreport:'ti-tool', materialusage:'ti-chart-histogram',
   maint_vehicle:'ti-car', maint_machine:'ti-settings'
 };
 
@@ -12220,7 +13004,9 @@ function App(){
         canAccess(cu.role,'nccs',cu.permissions)&&page==='nccs'&&h(NCCTab,{nccs,setNCCs,purchases}),
         canAccess(cu.role,'purchaseorders',cu.permissions)&&page==='purchaseorders'&&h(PurchaseTab,{purchases,setPurchases,nccs,setNCCs,materials,products,cu,setPage}),
         canAccess(cu.role,'fuelpurchases',cu.permissions)&&page==='fuelpurchases'&&h(FuelPurchaseTab,{rows:fuelPurchases,setRows:setFuelPurchases,employees,assets,currentUser:cu}),
+        canAccess(cu.role,'fuelreport',cu.permissions)&&page==='fuelreport'&&h(FuelPurchaseReportTab,{rows:fuelPurchases}),
         canAccess(cu.role,'purchasereport',cu.permissions)&&page==='purchasereport'&&h(PurchaseReportTab,{purchases,nccs}),
+        canAccess(cu.role,'maintreport',cu.permissions)&&page==='maintreport'&&h(MaintenanceReportTab),
         canAccess(cu.role,'materialusage',cu.permissions)&&page==='materialusage'&&h(MaterialUsageReportTab,{materials,purchases,monthOpenings:materialMonthOpenings,setMonthOpenings:setMaterialMonthOpenings}),
         canAccess(cu.role,'powderdebtreport',cu.permissions)&&page==='powderdebtreport'&&h(PowderDebtReportTab,{customers}),
         canAccess(cu.role,'maint_vehicle',cu.permissions)&&page==='maint_vehicle'&&h(MaintenanceTab,{title:'Bảo dưỡng xe',icon:'ti-car',assets,employees}),
@@ -12228,6 +13014,7 @@ function App(){
         canAccess(cu.role,'shifts',cu.permissions)&&page==='shifts'&&h(ShiftsTab,{shifts,setShifts}),
         canAccess(cu.role,'quotes',cu.permissions)&&page==='quotes'&&h(QuotesTab,{quotes,setQuotes,customers,products,currentUser:cu}),
         canAccess(cu.role,'delivery',cu.permissions)&&page==='delivery'&&h(DeliveryOrdersTab,{orders,setOrders,customers,setCustomers,products,prodCats,quotes,employees,currentUser:cu,trips,setTrips,company,prodShifts,prodShiftRules,shifts,menuHidden,setMenuHidden,printTemplateSettings}),
+        canAccess(cu.role,'intem',cu.permissions)&&page==='intem'&&h(IntemTab,{products,company}),
         canAccess(cu.role,'trips',cu.permissions)&&page==='trips'&&h(TripsTab,{trips,setTrips,orders,setOrders,employees,shifts,customers,products,currentUser:cu}),
         canAccess(cu.role,'orderdetail',cu.permissions)&&page==='orderdetail'&&h(OrderDetailListTab,{orders,setOrders,products,customers,shifts,currentUser:cu,prodShifts}),
         canAccess(cu.role,'salesreport',cu.permissions)&&page==='salesreport'&&h(SalesReportTab,{orders,customers,products,shifts:prodShifts,quotes}),
