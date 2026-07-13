@@ -237,20 +237,24 @@ function prodShiftPlan(order,prodShifts,prodShiftRules){
       manual:true
     };
   }
-  const sh=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
+  const manualOrder=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId;
+  const sh=manualOrder?(prodShifts||[]).find(s=>s.id===order.prodShiftId):getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
   if(!sh)return null;
-  const prodTime=sh.actualProdTime||sh.endTime||'';
+  const prodTime=manualOrder?normalizeTimeInput(order.prodTime||sh.actualProdTime||sh.endTime||''):(sh.actualProdTime||sh.endTime||'');
   return {
     shift:prodShiftSmallDisplay(sh,prodTime,prodShiftRules),
     prodTime,
-    prodDate:addDaysVN(order.deliveryDate,sh.prodDateOffset||0),
-    labelTime:sh.labelPrintTime||'',
-    labelDate:addDaysVN(order.deliveryDate,sh.labelPrintDateOffset||0)
+    prodDate:manualOrder?(order.prodDate||addDaysVN(order.deliveryDate,sh.prodDateOffset||0)):addDaysVN(order.deliveryDate,sh.prodDateOffset||0),
+    labelTime:manualOrder?normalizeTimeInput(order.labelTime||sh.labelPrintTime||''):(sh.labelPrintTime||''),
+    labelDate:manualOrder?(order.labelDate||addDaysVN(order.deliveryDate,sh.labelPrintDateOffset||0)):addDaysVN(order.deliveryDate,sh.labelPrintDateOffset||0),
+    manual:!!manualOrder
   };
 }
 function prodShiftPlansForOrder(order,prodShifts,prodShiftRules){
   if(!order||order._hdr||order._sub)return [];
-  const defaultPlan=prodShiftPlan({...order,lines:(order.lines||[]).filter(l=>!l.shiftOverride)},prodShifts,prodShiftRules);
+  const hasLineOverrides=(order.lines||[]).some(l=>!!l.shiftOverride);
+  const defaultOrder=hasLineOverrides?{...order,prodShiftAssignMode:'auto',prodShiftId:'',prodTime:'',prodDate:'',labelTime:'',labelDate:''}:order;
+  const defaultPlan=prodShiftPlan({...defaultOrder,lines:(order.lines||[]).filter(l=>!l.shiftOverride)},prodShifts,prodShiftRules);
   return (order.lines||[]).map((l,i)=>{
     if(l.shiftOverride&&(l.prodTime||l.prodDate||l.labelTime||l.labelDate)){
       const manualShift=getProdShiftByProdTime(l.prodTime,prodShifts||[]);

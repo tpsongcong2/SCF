@@ -50,7 +50,7 @@ button:hover{background:var(--bg2)}
 .delivery-center-head,.delivery-center-cell,.delivery-qty-head{text-align:center!important}
 .delivery-product-qty-cell{vertical-align:middle!important;padding:0!important}
 .delivery-product-qty-content{width:100%;max-width:100%}
-.delivery-product-qty-row{display:grid;grid-template-columns:64.2857% 17.8571% 17.8571%;gap:0;align-items:center;min-height:32px;padding:5px 0}
+.delivery-product-qty-row{display:grid;grid-template-columns:minmax(0,var(--delivery-product-column-width,240px)) 85px 85px;gap:0;align-items:center;min-height:32px;padding:5px 0}
 .delivery-product-qty-row+.delivery-product-qty-row{border-top:1px dashed var(--bd)}
 .delivery-product-info{min-width:0;line-height:1.35;padding:0 12px}
 .delivery-product-name{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
