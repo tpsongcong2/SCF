@@ -1,5 +1,36 @@
-const CACHE = 'scf-v5';
-const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'scf-v34';
+const ASSETS = [
+  './',
+  './index.html',
+  './styles.css',
+  './runtime.js',
+  './storage.js',
+  './helpers.js',
+  './defaults.js',
+  './auth.js',
+  './server-auth.js',
+  './templates.js',
+  './ui-common.js',
+  './catalogs.js',
+  './production-shifts.js',
+  './organization.js',
+  './operations.js',
+  './navigation-reports.js',
+  './order-detail.js',
+  './delivery-shifts.js',
+  './import-tools.js',
+  './auth-workforce.js',
+  './quotations.js',
+  './delivery-orders.js',
+  './trips.js',
+  './production.js',
+  './permissions.js',
+  './app.js',
+  './bootstrap.js',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(
