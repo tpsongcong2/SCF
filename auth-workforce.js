@@ -75,9 +75,52 @@ function LoginPage({employees,onLogin}){
   );
 }
 
+const FACE_AI_MODEL_URL='https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+let faceAiModelsPromise=null;
+function ensureFaceAiModels(){
+  if(faceAiModelsPromise)return faceAiModelsPromise;
+  faceAiModelsPromise=(async()=>{
+    if(!window.faceapi)throw new Error('Chưa tải được thư viện AI khuôn mặt. Kiểm tra kết nối mạng.');
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_AI_MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_AI_MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_AI_MODEL_URL)
+    ]);
+    return true;
+  })().catch(error=>{faceAiModelsPromise=null;throw error;});
+  return faceAiModelsPromise;
+}
+function videoFrameCanvas(video,maxEdge=720){
+  const width=video.videoWidth||0,height=video.videoHeight||0;
+  const scale=Math.min(1,maxEdge/Math.max(width,height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(width*scale));
+  canvas.height=Math.max(1,Math.round(height*scale));
+  canvas.getContext('2d').drawImage(video,0,0,width,height,0,0,canvas.width,canvas.height);
+  return canvas;
+}
+function legacyFaceHash(canvas){
+  const small=document.createElement('canvas');small.width=8;small.height=8;
+  const ctx=small.getContext('2d');ctx.drawImage(canvas,0,0,8,8);
+  const data=ctx.getImageData(0,0,8,8).data;const hash=[];
+  for(let i=0;i<data.length;i+=4)hash.push(Math.round((data[i]+data[i+1]+data[i+2])/3));
+  return hash;
+}
+async function analyzeFaceWithAi(canvas){
+  await ensureFaceAiModels();
+  const options=new faceapi.TinyFaceDetectorOptions({inputSize:416,scoreThreshold:0.55});
+  const faces=await faceapi.detectAllFaces(canvas,options).withFaceLandmarks(true).withFaceDescriptors();
+  if(!faces.length)throw new Error('AI chưa tìm thấy khuôn mặt. Hãy nhìn thẳng, đủ sáng và đưa mặt gần camera hơn.');
+  if(faces.length>1)throw new Error('Ảnh có nhiều hơn một khuôn mặt. Chỉ để một người trước camera.');
+  const face=faces[0];
+  const box=face.detection.box;
+  if(box.width<canvas.width*.18||box.height<canvas.height*.18)throw new Error('Khuôn mặt đang quá nhỏ. Hãy đưa mặt gần camera hơn.');
+  return {descriptor:[...face.descriptor],confidence:Math.round((face.detection.score||0)*100),box:{x:box.x,y:box.y,width:box.width,height:box.height}};
+}
+
 function CameraBox({onCapture,preview,setPreview,template,setTemplate,autoOpenSignal}) {
   const videoRef=useRef(null);const streamRef=useRef(null);
-  const[started,setStarted]=useState(false);const[msg,setMsg]=useState('');
+  const[started,setStarted]=useState(false);const[msg,setMsg]=useState('');const[processing,setProcessing]=useState(false);
   const bindStream=()=>{
     const v=videoRef.current;const st=streamRef.current;
     if(!v||!st)return;
@@ -111,7 +154,8 @@ function CameraBox({onCapture,preview,setPreview,template,setTemplate,autoOpenSi
       streamRef.current=st;
       setPreview('');
       setStarted(true);
-      setMsg('');
+      setMsg('Camera đã sẵn sàng. Nhìn thẳng và giữ khuôn mặt đủ sáng.');
+      void ensureFaceAiModels().then(()=>setMsg('AI khuôn mặt đã sẵn sàng. Nhìn thẳng vào camera.')).catch(e=>setMsg(e.message||'Chưa tải được AI khuôn mặt.'));
     }catch(e){
       const warn='Không mở được camera. Hãy cấp quyền camera cho trình duyệt rồi thử lại.';
       setMsg(warn);
@@ -119,7 +163,25 @@ function CameraBox({onCapture,preview,setPreview,template,setTemplate,autoOpenSi
     }
   };
   useEffect(()=>{if(autoOpenSignal)void start();},[autoOpenSignal]);
-  const snap=()=>{const v=videoRef.current;if(!v||!v.videoWidth||!v.videoHeight){setMsg('Camera chưa sẵn sàng.');return;}const c=document.createElement('canvas');c.width=320;c.height=240;const ctx=c.getContext('2d');ctx.drawImage(v,0,0,c.width,c.height);const img=c.toDataURL('image/jpeg',.72);const small=document.createElement('canvas');small.width=8;small.height=8;const sctx=small.getContext('2d');sctx.drawImage(v,0,0,8,8);const data=[...sctx.getImageData(0,0,8,8).data];const fp=[];for(let i=0;i<data.length;i+=4)fp.push(Math.round((data[i]+data[i+1]+data[i+2])/3));setPreview(img);onCapture&&onCapture({image:img,faceHash:fp});setMsg('Đã chụp khuôn mặt. Nếu cần chụp lại, bấm Mở camera.');stop();};
+  const snap=async()=>{
+    const v=videoRef.current;
+    if(processing)return;
+    if(!v||!v.videoWidth||!v.videoHeight){setMsg('Camera chưa sẵn sàng.');return;}
+    setProcessing(true);setMsg('AI đang dò và căn chỉnh khuôn mặt...');
+    try{
+      const canvas=videoFrameCanvas(v);
+      const ai=await analyzeFaceWithAi(canvas);
+      const img=canvas.toDataURL('image/jpeg',.82);
+      const fp=legacyFaceHash(canvas);
+      setPreview(img);
+      onCapture&&onCapture({image:img,faceHash:fp,faceDescriptor:ai.descriptor,faceDetectionScore:ai.confidence,faceBox:ai.box,faceModel:'face-api-128-v1'});
+      setMsg('Đã chụp đúng 1 khuôn mặt • AI tin cậy '+ai.confidence+'%.');
+      stop();
+    }catch(e){
+      const warn=e.message||'AI chưa xử lý được khuôn mặt. Hãy thử chụp lại.';
+      setMsg(warn);window.showToast(warn,'warn',5000);
+    }finally{setProcessing(false);}
+  };
   const resetTemplate=()=>{setTemplate&&setTemplate(null);setPreview('');setMsg('Đã xóa mẫu mặt cũ. Hãy chụp lại khuôn mặt mới.');window.showToast('Đã xóa mẫu mặt cũ.','success');};
   return h('div',null,
     h('div',{className:'att-camera'},
@@ -129,9 +191,9 @@ function CameraBox({onCapture,preview,setPreview,template,setTemplate,autoOpenSi
     ),
     msg&&h('div',{style:{fontSize:12,color:'#A32D2D',marginTop:8}},msg),
     h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}},
-      h('button',{className:'bp',onClick:started?snap:start},h('i',{className:'ti '+(started?'ti-camera-check':'ti-camera'),style:{fontSize:15}}),started?'Chụp khuôn mặt':'Mở camera'),
-      started&&h('button',{onClick:stop},h('i',{className:'ti ti-player-stop',style:{fontSize:14}}),'Tắt'),
-      template&&h('button',{onClick:resetTemplate},h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Đăng ký lại')
+      h('button',{className:'bp',onClick:started?snap:start,disabled:processing},h('i',{className:'ti '+(processing?'ti-loader-2 spin':started?'ti-camera-check':'ti-camera'),style:{fontSize:15}}),processing?'AI đang kiểm tra...':started?'Chụp khuôn mặt':'Mở camera'),
+      started&&h('button',{onClick:stop,disabled:processing},h('i',{className:'ti ti-player-stop',style:{fontSize:14}}),'Tắt'),
+      template&&h('button',{onClick:resetTemplate,disabled:processing},h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Đăng ký lại')
     )
   );
 }
@@ -187,8 +249,9 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
   const needEmp=()=>canManage&&!empId;
   const gs=gpsStatus(pos,settings);
   const tpl=emp.faceTemplate;
-  const score=faceScore(cap&&cap.faceHash,tpl&&tpl.hash);
-  const faceOk=!!tpl&&!!cap&&score>=65;
+  const faceMatch=faceMatchResult(cap,tpl);
+  const score=faceMatch.score;
+  const faceOk=!!tpl&&!!cap&&faceMatch.ok;
   const faceState=!tpl?'Chưa có mẫu mặt':!cap?'Chưa chụp mặt':faceOk?'Mặt hợp lệ':'Mặt chưa khớp';
   const faceStateStyle=faceOk
     ? {background:'#EAF3DE',color:'#3B6D11'}
@@ -282,7 +345,7 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
     window.showToast('Nhân viên chỉ được chấm công cho chính mình.','warn');
     return false;
   };
-  const buildFaceTemplate=()=>cap?{hash:[...(cap.faceHash||[])],image:cap.image||'',updatedAt:fmtDT(),updatedBy:currentUser.name}:null;
+  const buildFaceTemplate=()=>cap?{hash:[...(cap.faceHash||[])],descriptor:[...(cap.faceDescriptor||[])],model:cap.faceModel||'',detectionScore:cap.faceDetectionScore||0,image:cap.image||'',updatedAt:fmtDT(),updatedBy:currentUser.name}:null;
   const persistFaceTemplate=template=>{
     if(!template)return;
     setEmployees(list=>list.map(e=>e.id===emp.id?{...e,faceTemplate:template}:e));
@@ -333,8 +396,9 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
         persistFaceTemplate(workingTemplate);
         window.showToast('Đã tự lưu mặt mẫu lần đầu cho '+emp.name+'.','success');
       }
-      const workingScore=faceScore(cap&&cap.faceHash,workingTemplate&&workingTemplate.hash);
-      const workingFaceOk=!!workingTemplate&&!!cap&&workingScore>=65;
+      const workingMatch=faceMatchResult(cap,workingTemplate);
+      const workingScore=workingMatch.score;
+      const workingFaceOk=!!workingTemplate&&!!cap&&workingMatch.ok;
       let workingPos=pos;
       if(!workingPos){
         workingPos=await requestGps('attendance',{silentSuccess:true});
@@ -453,7 +517,8 @@ function AttendanceTab({attendance,setAttendance,employees,setEmployees,currentU
             h('div',null,h('div',{style:{fontWeight:600}},emp.name),h('div',{style:{fontSize:12,color:'var(--tx2)'}},emp.id+' • '+(emp.dept||''))),
             h('span',{className:'badge',style:{background:tpl?'#EAF3DE':'#FAEEDA',color:tpl?'#3B6D11':'#854F0B'}},tpl?'Đã có mẫu mặt':'Chưa có mẫu')
           ),
-        h('div',{className:'att-helper-text'},'Điểm khớp: ',h('b',{style:{color:faceOk?'#2d6a4f':'#A32D2D'}},cap&&tpl?score+'%':'—'),' • Lần tiếp theo: ',h('b',null,nextType==='in'?'Vào ca':'Ra ca'))
+        h('div',{className:'att-helper-text'},'Điểm khớp '+(faceMatch.method==='ai'?'AI':'mẫu cũ')+': ',h('b',{style:{color:faceOk?'#2d6a4f':'#A32D2D'}},cap&&tpl?score+'%':'—'),' • Lần tiếp theo: ',h('b',null,nextType==='in'?'Vào ca':'Ra ca')),
+        tpl&&!tpl.descriptor&&h('div',{className:'att-helper-text',style:{color:'#854F0B'}},'Mẫu mặt này được tạo bằng cách cũ. Nên bấm Đăng ký lại để chuyển sang nhận diện AI.')
         ),
         h('div',{className:'att-status-row'},
           h('span',{className:'badge',style:faceStateStyle},faceState),

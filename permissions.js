@@ -39,6 +39,7 @@ const PAGE_ACCESS = {
   purchase:     ['admin','manager'],
   nccs:         ['admin','manager'],
   purchaseorders:['admin','manager'],
+  purchasegoods:['admin','manager'],
   fuelpurchases:['admin','manager','driver'],
   fuelreport:['admin','manager'],
   purchasereport:['admin','manager'],
@@ -60,7 +61,10 @@ function roleDefaults(role) {
 function canAccess(role, page, perms) {
   const allowed = PAGE_ACCESS[page];
   if (!allowed) return false;
-  if (perms && perms.length > 0) return perms.includes(page);
+  if (perms && perms.length > 0) {
+    if(page==='purchasegoods'&&perms.includes('purchaseorders')) return true;
+    return perms.includes(page);
+  }
   return allowed.includes(role);
 }
 // Mức quyền: 'r'=chỉ xem, 'rw'=xem+sửa, 'rwd'=xem+sửa+xóa
