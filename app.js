@@ -240,7 +240,7 @@ function App(){
                 h('span',{style:{fontSize:11,color:'rgba(255,255,255,.78)'}},cu.dept)
               )
             ),
-            h('button',{onClick:async()=>{await serverLogout();setSession(null);if(SCF_SERVER_AUTH_ENABLED)location.reload();},style:{fontSize:12,padding:'5px 10px',color:'#A32D2D',borderColor:'#F7C1C1'}},h('i',{className:'ti ti-logout',style:{fontSize:14}}),'Đăng xuất')
+            h('button',{className:'topbar-logout',onClick:async()=>{await serverLogout();setSession(null);if(SCF_SERVER_AUTH_ENABLED)location.reload();},style:{fontSize:12,padding:'5px 10px',color:'#A32D2D',borderColor:'#F7C1C1'},title:'Đăng xuất','aria-label':'Đăng xuất'},h('i',{className:'ti ti-logout',style:{fontSize:14}}),h('span',{className:'topbar-logout-label'},'Đăng xuất'))
           )
         ),
         h(TopNav,{page,setPage,role:cu.role,perms:cu.permissions})
@@ -298,7 +298,8 @@ function App(){
         canAccess(cu.role,'stock',cu.permissions)&&page==='stock'&&h(StockTab,{stock,setStock,products,currentUser:cu}),
         canAccess(cu.role,'dbusage',cu.permissions)&&page==='dbusage'&&h(SupabaseUsageReportTab,{employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,quotes,orders,trips,attendance,advances,rewards,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}),
         wips.includes(page)&&h(PlaceholderTab,{title:PTITLES[page],icon:PICONS[page]||'ti-clock'})
-      )
+      ),
+      h(MobileNav,{page,setPage,role:cu.role,perms:cu.permissions})
     ),
     cu.mustChangePw&&h(CpwModal,{
       emp:cu,cu,forced:true,onClose:()=>{},

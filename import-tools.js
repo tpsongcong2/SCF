@@ -80,9 +80,13 @@ function SmartImportModal({prodCats,onImport,onClose}) {
 
 function parseProductStr(s){
   if(!s) return {name:'',unit:'Kg'};
-  const parts=s.toString().split(',');
+  const source=s.toString().trim();
+  const parts=source.split(',');
   const rawUnit=parts[parts.length-1].trim();
   const rawUnitUP=rawUnit.toUpperCase();
+  const compactUnit=rawUnitUP.replace(/\s+/g,'');
+  const explicitUnits=['KG','KGS','KILOGRAM','G','GR','GRAM','CÁI','CAI','GÓI','GOI','CHAI','THÙNG','THUNG','TÚI','TUI','HỘP','HOP','PAC','PACK'];
+  const hasExplicitUnit=parts.length>1&&explicitUnits.includes(compactUnit);
   let unit,name;
   if(rawUnitUP.includes('PAC')){
     // Đơn vị = Gói, tên SP gồm cả phần xKG/PAC
@@ -97,7 +101,7 @@ function parseProductStr(s){
     });
     // Ghép tên + rawUnit vào tên sản phẩm
     name=(rest.join(',').trim()+','+rawUnit).replace(/^,|,$/g,'');
-  } else {
+  } else if(hasExplicitUnit) {
     unit=rawUnitUP.includes('KG')?'KG':(rawUnit||'Kg');
     let rest=parts.slice(0,-1);
     const skip=['VD_QV','VD','SEV'];
@@ -107,6 +111,11 @@ function parseProductStr(s){
       return !['SÔNGCÔNG','SONGCONG','SONGCÔNG','SÔNGCONG'].includes(u);
     });
     name=rest.join(',').trim();
+  } else {
+    // Tên sản phẩm đơn giản (không có cột đơn vị ghép ở cuối).
+    // Trước đây "BÚN TƯƠI" bị hiểu nhầm toàn bộ là đơn vị nên tên trả về rỗng.
+    name=source;
+    unit='Kg';
   }
   return {name, unit};
 }
@@ -632,3 +641,53 @@ function TopNav({page,setPage,role,perms}){
   );
 }
 
+function MobileNav({page,setPage,role,perms}){
+  const[open,setOpen]=useState(false);
+  const groups=[]; let cur=null;
+  NAV.forEach(item=>{
+    if(item.sec){cur={sec:item.sec,pages:[]};groups.push(cur);return;}
+    if(!canAccess(role,item.key,perms))return;
+    if(cur)cur.pages.push(item);
+    else groups.push({sec:item.label,pages:[item],single:true});
+  });
+  const visible=groups.filter(g=>g.pages.length);
+  const preferred=['welcome','delivery','trips','attendance'];
+  const quick=preferred.map(key=>NAV.find(item=>item.key===key))
+    .filter(item=>item&&canAccess(role,item.key,perms));
+  const currentIsQuick=quick.some(item=>item.key===page);
+  const go=key=>{setPage(key);setOpen(false);};
+  const items=[...quick,{key:'more',icon:'ti-grid-dots',label:'Thêm'}];
+
+  return h(React.Fragment,null,
+    open&&h('div',{className:'mobile-nav-backdrop',onClick:()=>setOpen(false),role:'presentation'}),
+    open&&h('section',{className:'mobile-nav-sheet','aria-label':'Danh sách chức năng'},
+      h('div',{className:'mobile-nav-sheet-head'},
+        h('div',null,h('b',null,'Tất cả chức năng'),h('span',null,'Chọn mục bạn muốn mở')),
+        h('button',{className:'mobile-nav-close',onClick:()=>setOpen(false),'aria-label':'Đóng menu',title:'Đóng menu'},
+          h('i',{className:'ti ti-x'})
+        )
+      ),
+      h('div',{className:'mobile-nav-sheet-body'},
+        visible.map(group=>h('div',{className:'mobile-nav-section',key:group.sec},
+          !group.single&&h('div',{className:'mobile-nav-section-title'},group.sec),
+          h('div',{className:'mobile-nav-grid'},
+            group.pages.map(item=>h('button',{key:item.key,className:'mobile-nav-link'+(page===item.key?' on':''),onClick:()=>go(item.key)},
+              h('i',{className:'ti '+item.icon}),
+              h('span',null,item.label)
+            ))
+          )
+        ))
+      )
+    ),
+    h('nav',{className:'mobile-nav','aria-label':'Điều hướng nhanh',style:{gridTemplateColumns:'repeat('+items.length+',1fr)'}},
+      items.map(item=>item.key==='more'
+        ?h('button',{key:item.key,className:'mobile-nav-btn'+(open||!currentIsQuick?' on':''),onClick:()=>setOpen(v=>!v),'aria-label':'Mở tất cả chức năng',title:'Thêm'},
+          h('i',{className:'ti '+(open?'ti-x':item.icon)})
+        )
+        :h('button',{key:item.key,className:'mobile-nav-btn'+(page===item.key?' on':''),onClick:()=>go(item.key),'aria-label':item.label,title:item.label},
+          h('i',{className:'ti '+item.icon})
+        )
+      )
+    )
+  );
+}

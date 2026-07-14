@@ -171,27 +171,28 @@ function PrintModal({order,company,onClose}){
 }
 function OrderForm({order,customers,products,quotes,employees,currentUser,prodShifts,prodCats,onSave,onClose}){
   const[f,sf]=useState(order?{...order,prodShiftAssignMode:order.prodShiftAssignMode==='manual'?'manual':'auto'}:{orderId:'',customerId:'',customer:'',pointId:'',pointName:'',address:'',deliveryDate:fmtDate(),deliveryTime:'08:00',prodShiftAssignMode:'auto',note:'',status:'pending',invoiceNo:'',workOut:'',workReturn:'',lines:[]});
-  const[pointSearch,setPointSearch]=useState(order?(order.pointName||''):'');
   const s=(k,v)=>sf(p=>({...p,[k]:v}));
   const selCust=customers.find(c=>c.id===f.customerId);
-  const matchedPoint=f.pointId?(selCust?.points||[]).find(x=>x.id===f.pointId):findOrderPointMatch(f,customers||[])?.point||null;
+  const matchedPoint=(f.pointId?(selCust?.points||[]).find(x=>x.id===f.pointId):null)||findOrderPointMatch(f,customers||[])?.point||null;
   const matchedPointArea=matchedPoint?.area||f.area||'';
   const resolvedPointName=matchedPoint?.name||f.pointName||f.address||'';
-  const setCust=cid=>{const c=customers.find(x=>x.id===cid);sf(p=>({...p,customerId:cid,customer:c?c.name:'',pointId:'',pointName:'',address:'',area:''}));};
-  const setPt=pid=>{const pt=selCust?.points.find(x=>x.id===pid);sf(p=>({...p,pointId:pid,pointName:pt?pt.name:'',address:pt?pt.address:'',area:pt ? (pt.area||'') : ''}));};
-  const allPoints=customers.flatMap(c=>(c.points||[]).filter(pt=>pt&&pt.id).map(pt=>({...pt,customerId:c.id,customerName:c.name,searchLabel:pt.name+(c.name?' - '+c.name:'')})));
   const normPoint=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ');
+  const allPoints=customers.flatMap(c=>(c.points||[]).filter(pt=>pt&&String(pt.name||'').trim()).map((pt,index)=>({...pt,
+    customerId:c.id,customerName:c.name,
+    pointKey:String(c.id||'')+'\u001f'+String(pt.id||('name_'+index+'_'+pt.name)),
+    searchLabel:pt.name+(c.name?' - '+c.name:'')
+  }))).sort((a,b)=>String(a.customerName||'').localeCompare(String(b.customerName||''),'vi')||String(a.name||'').localeCompare(String(b.name||''),'vi'));
+  const pointById=allPoints.find(pt=>f.pointId&&String(pt.id||'')===String(f.pointId)&&(!f.customerId||String(pt.customerId||'')===String(f.customerId)));
+  const pointNameMatches=allPoints.filter(pt=>normPoint(pt.name)===normPoint(f.pointName));
+  const selectedPointOption=pointById||(pointNameMatches.length===1?pointNameMatches[0]:null);
   const pickPoint=pt=>{
-    setPointSearch(pt?pt.name:'');
     sf(p=>({...p,pointId:pt?.id||'',pointName:pt?.name||'',address:pt?.address||'',area:pt?.area||'',customerId:pt?.customerId||'',customer:pt?.customerName||''}));
   };
-  const setPointText=v=>{
-    setPointSearch(v);
-    const nv=normPoint(v);
-    const exact=allPoints.find(pt=>normPoint(pt.name)===nv||normPoint(pt.searchLabel)===nv);
-    if(exact) pickPoint(exact);
-    else sf(p=>({...p,pointId:'',pointName:v,address:'',customerId:'',customer:''}));
-  };
+  useEffect(()=>{
+    if(!selectedPointOption)return;
+    if(String(f.pointId||'')===String(selectedPointOption.id||'')&&String(f.customerId||'')===String(selectedPointOption.customerId||''))return;
+    pickPoint(selectedPointOption);
+  },[selectedPointOption?.pointKey]);
   const addLine=()=>sf(p=>({...p,lines:[...p.lines,{id:uid(),productId:'',productName:'',unit:'',weightPerUnit:0,qtyProd:0,qtyInvoice:0,shift:'day',price:0,note:''}]}));
   const updLine=(id,data)=>sf(p=>({...p,lines:p.lines.map(l=>l.id===id?data:l)}));
   const delLine=id=>sf(p=>({...p,lines:p.lines.filter(l=>l.id!==id)}));
@@ -250,11 +251,22 @@ function OrderForm({order,customers,products,quotes,employees,currentUser,prodSh
   };
   return h(Modal,{title:order?'Sửa đơn '+order.id:'Tạo đơn giao hàng mới',onClose,lg:true},
     h(F,{label:'Địa điểm giao * ('+customers.reduce((n,c)=>n+(c.points||[]).length,0)+' điểm)'},h('div',null,
-      h('input',{value:pointSearch,onChange:e=>setPointText(e.target.value),list:'delivery-point-list',placeholder:'Gõ tên địa điểm để tìm nhanh...',autoComplete:'off'}),
-      h('datalist',{id:'delivery-point-list'},
-        allPoints.map(pt=>h('option',{key:pt.customerId+'_'+pt.id,value:pt.searchLabel},pt.name))
+      h('select',{
+        value:selectedPointOption?.pointKey||(f.pointName?'__current__':''),
+        onChange:e=>pickPoint(allPoints.find(pt=>pt.pointKey===e.target.value)||null),
+        title:'Chọn địa điểm trong danh mục khách hàng',
+        style:{width:'100%',fontSize:13}
+      },
+        !selectedPointOption&&f.pointName&&h('option',{value:'__current__',disabled:true},f.pointName+' (chưa khớp danh mục)'),
+        h('option',{value:''},'— Chọn địa điểm giao —'),
+        customers.map(c=>{
+          const points=allPoints.filter(pt=>String(pt.customerId||'')===String(c.id||''));
+          return points.length?h('optgroup',{key:c.id,label:c.name||'Khách hàng'},points.map(pt=>
+            h('option',{key:pt.pointKey,value:pt.pointKey},pt.name+(pt.area?' · '+pt.area:''))
+          )):null;
+        })
       ),
-      f.pointId&&h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:4}},f.customer||'')
+      f.customerId&&h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:4}},(f.customer||'')+(f.area?' · Khu vực: '+f.area:''))
     )),
     h('div',{style:{display:'grid',gridTemplateColumns:'90px 100px 100px 90px 90px 1fr',gap:'0 8px'}},
       h(F,{label:'Ngày giao'},h('input',{value:f.deliveryDate,onChange:e=>s('deliveryDate',e.target.value),placeholder:'DD/MM/YY'})),
@@ -325,6 +337,40 @@ function isValidCustomerImportDate(value){
   const date=new Date(year,month-1,day);
   return date.getFullYear()===year&&date.getMonth()===month-1&&date.getDate()===day;
 }
+function customerImportColumnOffset(rawRows){
+  const rows=(rawRows||[]).slice(0,100);
+  const maxColumns=Math.min(12,Math.max(0,...rows.map(row=>(row||[]).length)));
+  const hasText=value=>value!==null&&value!==undefined&&String(value).trim()!=='';
+  const looksDate=value=>{
+    if(value instanceof Date)return !Number.isNaN(value.getTime());
+    if(typeof value==='number')return value>=20000&&value<=80000;
+    const text=String(value??'').trim();
+    return isValidCustomerImportDate(text)||/^\d{4}-\d{1,2}-\d{1,2}$/.test(text);
+  };
+  const looksQty=value=>{
+    const text=String(value??'').trim().replace(',','.');
+    return text!==''&&Number.isFinite(Number(text));
+  };
+  const looksTime=value=>/^(?:\d{1,2}\s*[hH](?:\s*\d{1,2})?|\d{1,2}[:.]\d{1,2})$/.test(String(value??'').trim());
+  let bestOffset=0,bestScore=-1;
+  for(let offset=0;offset<Math.max(1,maxColumns-3);offset++){
+    let score=0,matchingRows=0;
+    rows.forEach(row=>{
+      const cells=(row||[]).slice(offset);
+      if(!looksDate(cells[0])||!hasText(cells[1])||!hasText(cells[2])||!looksQty(cells[3]))return;
+      matchingRows++;
+      score+=8;
+      if(looksTime(cells[4])||looksTime(cells[5]))score+=2;
+    });
+    if(matchingRows>0&&(score>bestScore||(score===bestScore&&offset<bestOffset))){bestOffset=offset;bestScore=score;}
+  }
+  return bestScore>=0?bestOffset:0;
+}
+function excelColumnName(index){
+  let value=Math.max(0,Number(index)||0)+1,name='';
+  while(value>0){value--;name=String.fromCharCode(65+(value%26))+name;value=Math.floor(value/26);}
+  return name;
+}
 function customerImportOrderIssues(order){
   const issues=[];
   if(!isValidCustomerImportDate(order?.deliveryDate))issues.push('Ngày giao');
@@ -344,7 +390,7 @@ function customerImportOrderIssues(order){
 
 /* ─── IMPORT PREVIEW MODAL ─── */
 function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, prodShifts, onClose}) {
-  const {newOrders=[], dupOrders=[], unknownPts=[], incompleteOrders=[]} = data||{};
+  const {newOrders=[], dupOrders=[], unknownPts=[], incompleteOrders=[], columnOffset=0} = data||{};
   const [skipDups, setSkipDups] = React.useState(true);
   const [includeIncomplete, setIncludeIncomplete] = React.useState(false);
   const [ptAssign, setPtAssign] = React.useState({}); // pointName -> customerId
@@ -434,6 +480,9 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   };
 
   return h(Modal,{title:'Xem trước import đơn hàng',lg:true,onClose},
+    columnOffset>0&&h('div',{style:{background:'#EAF3DE',border:'1px solid #52b788',borderRadius:'var(--r)',padding:'8px 12px',marginBottom:'1rem',fontSize:12,color:'#2D5A0E'}},
+      'Đã tự nhận dạng dữ liệu bắt đầu từ cột '+excelColumnName(columnOffset)+'; các cột trống bên trái đã được bỏ qua.'
+    ),
     // Summary
     h('div',{style:{display:'flex',gap:10,marginBottom:'1rem',flexWrap:'wrap'}},
       h('div',{style:{background:'#EAF3DE',border:'1px solid #52b788',borderRadius:'var(--r)',padding:'8px 16px',fontSize:13}},
@@ -586,7 +635,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
     h('div',{style:{maxHeight:200,overflowY:'auto',marginBottom:'1rem'}},
       h('table',{style:{width:'100%',fontSize:12,borderCollapse:'collapse'}},
         h('thead',null,h('tr',{style:{background:'var(--bg2)'}},
-          ['Ngày','Địa điểm','Giờ','Khách hàng','SP','SL đặt','SL HĐ','Trạng thái'].map(c=>
+          ['Ngày','Địa điểm','Giờ','Khách hàng','Sản phẩm','SL đặt','SL HĐ','Trạng thái'].map(c=>
             h('th',{key:c,style:{padding:'5px 8px',textAlign:'left',borderBottom:'1px solid var(--bd)',fontWeight:600}},c)
           )
         )),
@@ -595,7 +644,9 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
           h('td',{style:{padding:'4px 8px',fontWeight:500}},o.pointName),
           h('td',{style:{padding:'4px 8px'}},o.deliveryTime),
           h('td',{style:{padding:'4px 8px',color:'var(--tx2)'}},o.customer||h('span',{style:{color:'#E06060'}},'Chưa gán')),
-          h('td',{style:{padding:'4px 8px'}},(o.lines||[]).length+' SP'),
+          h('td',{style:{padding:'4px 8px',minWidth:150}},(o.lines||[]).map((line,index)=>
+            h('div',{key:line.id||index,style:{whiteSpace:'nowrap',lineHeight:1.5}},(index+1)+'. '+(line.productName||'—'))
+          )),
           h('td',{style:{padding:'4px 8px'}},(o.lines||[]).reduce((sum,line)=>sum+(Number(line.qtyProd)||0),0)),
           h('td',{style:{padding:'4px 8px'}},(o.lines||[]).reduce((sum,line)=>sum+(Number(line.qtyInvoice)||0),0)),
           h('td',{style:{padding:'4px 8px'}},
@@ -2418,25 +2469,27 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                 const wb=XLSX.read(ev.target.result,{type:'binary'});
                 const ws=wb.Sheets[wb.SheetNames[0]];
                 const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-                // Parse rows: [date, point, productStr, qtyHD, _, time]
+                // Tự nhận dạng cột đầu tiên rồi đọc: [date, point, productStr, qtyHD, _, time].
+                const columnOffset=customerImportColumnOffset(raw);
                 const orderMap={};
                 const invalidDateRows=[];
                 raw.forEach((r,idx)=>{
-                  const sourceCells=(r||[]).slice(0,6);
+                  const cells=(r||[]).slice(columnOffset);
+                  const sourceCells=cells.slice(0,6);
                   if(!sourceCells.some(v=>v!==null&&v!==undefined&&String(v).trim()!==''))return;
                   const headerText=normalizeLookupText(sourceCells.join(' '));
                   if(headerText.includes('ngay')&&(headerText.includes('san pham')||headerText.includes('ten hang'))&&(headerText.includes('so luong')||headerText.includes('sl')))return;
                   // Format date
                   let dStr='';
-                  if(r[0] instanceof Date||typeof r[0]==='number'){
-                    const d=typeof r[0]==='number'?new Date(Math.round((r[0]-25569)*86400*1000)):r[0];
-                    const excelDate=XLSX.SSF.parse_date_code(r[0]);
+                  if(cells[0] instanceof Date||typeof cells[0]==='number'){
+                    const d=typeof cells[0]==='number'?new Date(Math.round((cells[0]-25569)*86400*1000)):cells[0];
+                    const excelDate=XLSX.SSF.parse_date_code(cells[0]);
                     if(excelDate){dStr=String(excelDate.d).padStart(2,'0')+'/'+String(excelDate.m).padStart(2,'0')+'/'+excelDate.y;}
                     else{dStr=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();}
-                  } else if(typeof r[0]==='string') dStr=r[0];
-                  const point=(r[1]||'').toString().trim();
-                  const col4=String(r[4]??'').trim();
-                  const col5=String(r[5]??'').trim();
+                  } else if(typeof cells[0]==='string') dStr=cells[0];
+                  const point=(cells[1]||'').toString().trim();
+                  const col4=String(cells[4]??'').trim();
+                  const col5=String(cells[5]??'').trim();
                   const col4LooksTime=/^(?:\d{1,2}\s*[hH](?:\s*\d{1,2})?|\d{1,2}[:.]\d{1,2})$/.test(col4);
                   const time=normalizeCustomerImportTime(col5||(col4LooksTime?col4:''));
                   const dParts=(dStr||'').split('/');
@@ -2474,15 +2527,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                     }));
                   }
                   // Parse product
-                  const {name,unit}=parseProductStr((r[2]||'').toString());
-                  const qtyOrdered=parseFloat(r[3])||0;
+                  const rawProduct=String(cells[2]??'').trim();
+                  const safeProduct=/^#(?:N\/A|VALUE!|REF!|NAME\?|DIV\/0!|NULL!|NUM!)$/i.test(rawProduct)?'':rawProduct;
+                  const {name,unit}=parseProductStr(safeProduct);
+                  const qtyOrdered=parseFloat(String(cells[3]??'').replace(',','.'))||0;
                   const separateInvoiceQty=col5&&col4&&!col4LooksTime&&Number.isFinite(Number(col4.replace(',','.')));
                   const qtyInvoice=separateInvoiceQty?(parseFloat(col4.replace(',','.'))||0):qtyOrdered;
                   // Find product in catalog
                   const prod=products.find(p=>p.name.toUpperCase()===name.toUpperCase())||{};
                   orderMap[key].lines.push({
                     id:uid(),productId:prod.id||'',productName:name,
-                    unit:unit,weightPerUnit:prod.weightPerUnit||0,
+                    unit:prod.unit||unit,weightPerUnit:prod.weightPerUnit||0,
                     qtyProd:qtyOrdered,qtyInvoice:qtyInvoice,shift:'day',note:''
                   });
                 });
@@ -2504,7 +2559,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                 if(invalidDateRows.length){
                   window.showToast('Có '+invalidDateRows.length+' dòng thiếu hoặc sai ngày/năm. Vui lòng kiểm tra trước khi import.','warn');
                 }
-                window._importData={newOrders,dupOrders,unknownPts,incompleteOrders,invalidDateRows};
+                window._importData={newOrders,dupOrders,unknownPts,incompleteOrders,invalidDateRows,columnOffset};
                 sm('importPreview');
               };
               reader.readAsBinaryString(file);
