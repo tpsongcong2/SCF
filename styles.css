@@ -241,6 +241,42 @@ th{font-size:var(--ui-header-size)!important;font-weight:var(--ui-header-weight)
 .att-mobile-extra{display:block}
 .att-mobile-toolbar{display:none}
 .att-punch-sticky{display:none}
+.attendance-employee-simple{width:min(520px,100%);margin:0 auto;display:grid;gap:14px}
+.attendance-employee-camera{background:#fff;border:1px solid var(--bd);border-radius:16px;padding:14px;box-shadow:0 4px 14px rgba(18,60,45,.06)}
+.attendance-employee-working{display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 14px;border-radius:12px;background:#e6f1eb;color:var(--pri3);font-weight:700}
+.attendance-employee-times{display:grid;gap:9px}
+.attendance-time-card{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:1px solid var(--bd);border-radius:14px}
+.attendance-time-card>i{font-size:25px;color:var(--pri)}
+.attendance-time-card b,.attendance-time-card span{display:block}
+.attendance-time-card b{font-size:15px;color:var(--pri3)}
+.attendance-time-card span{font-size:14px;margin-top:3px}
+.attendance-no-time{text-align:center;padding:16px;color:var(--tx2);background:#fff;border:1px solid var(--bd);border-radius:14px}
+.attendance-manager-simple{display:grid;grid-template-columns:minmax(320px,520px) minmax(360px,1fr);gap:14px;align-items:start}
+.attendance-manager-placeholder{text-align:center;padding:34px 16px;color:var(--tx2);background:var(--bg);border:1px dashed var(--bd2);border-radius:12px}
+.attendance-manager-title{font-size:16px;font-weight:700;color:var(--pri3);margin-bottom:12px}
+.attendance-manager-approvals{display:grid;gap:8px}
+.attendance-approval-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:12px}
+.attendance-approval-row b,.attendance-approval-row span{display:block}.attendance-approval-row span{font-size:12px;color:var(--tx2);margin-top:3px}
+.attendance-manager-page{display:grid;gap:14px}
+.attendance-history-card,.attendance-monthly-card{min-width:0}
+.attendance-report-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.attendance-report-filters .searchbar{flex:1;min-width:220px}
+.attendance-report-filters select,.attendance-report-filters input[type=date],.attendance-report-filters input[type=month]{width:auto;min-width:145px}
+.attendance-period-stats{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:8px;margin-bottom:12px}
+.attendance-period-stats>div{padding:9px 11px;background:var(--bg);border:1px solid var(--bd);border-radius:10px}
+.attendance-period-stats span,.attendance-period-stats b{display:block}.attendance-period-stats span{font-size:11px;color:var(--tx2)}.attendance-period-stats b{font-size:18px;color:var(--pri3);margin-top:2px}
+.attendance-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.attendance-report-head .attendance-manager-title{margin-bottom:2px}
+.attendance-report-note{font-size:12px;color:var(--tx2)}
+.attendance-month-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.attendance-month-actions input[type=month]{width:155px}
+.attendance-workshift-title{font-size:13px;font-weight:700;color:var(--pri3);margin:8px 0}
+.attendance-workshift-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.attendance-workshift-card{border:1px solid var(--bd);border-radius:12px;padding:10px}
+.attendance-workshift-name{font-size:15px;font-weight:700;margin-bottom:7px}
+.attendance-workshift-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.attendance-workshift-times .field{margin-bottom:0}
+.attendance-workshift-range{font-size:11px;color:var(--tx2);margin-top:7px}
 @media(max-width:768px){
   body{font-size:13px;overflow-x:hidden}
   input,select,textarea{min-height:40px;font-size:13px}
@@ -355,6 +391,17 @@ th{font-size:var(--ui-header-size)!important;font-weight:var(--ui-header-weight)
   .prodshift-mobile-grid{grid-template-columns:1fr}
 }
 @media(max-width:900px){.att-grid,.att-stat{grid-template-columns:1fr}}
+@media(max-width:900px){
+  .attendance-manager-simple{grid-template-columns:1fr}
+  .attendance-period-stats{grid-template-columns:repeat(3,minmax(80px,1fr))}
+  .attendance-workshift-grid{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .attendance-report-filters>*{width:100%!important;min-width:0!important}
+  .attendance-period-stats{grid-template-columns:repeat(2,minmax(80px,1fr))}
+  .attendance-month-actions{width:100%}
+  .attendance-month-actions input[type=month]{flex:1;width:auto}
+}
 
 /* ── TOAST SYSTEM ── */
 #scf-toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none}

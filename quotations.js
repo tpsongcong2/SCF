@@ -238,12 +238,95 @@ function QuotesTab({quotes,setQuotes,customers,products,currentUser}){
   const del=id=>{if(confirm('Xóa báo giá?'))setQuotes(p=>p.filter(x=>x.id!==id));};
   const sts=[['all','Tất cả'],['draft','Nháp'],['sent','Đã gửi'],['approved','Đã duyệt'],['expired','Hết hạn']];
   const list=quotes.filter(x=>(filter==='all'||x.status===filter)&&(!q||x.customer.toLowerCase().includes(q.toLowerCase())||x.id.toLowerCase().includes(q.toLowerCase())));
+  const statusLabels={draft:'Nháp',sent:'Đã gửi',approved:'Đã duyệt',expired:'Hết hạn',cancelled:'Hủy'};
+  const quoteExportRows=list.flatMap(quote=>{
+    const rows=quote.lines&&quote.lines.length?quote.lines:[{}];
+    const customer=customers.find(c=>c.id===quote.customerId);
+    const pointNames=(quote.pointNames&&quote.pointNames.length?quote.pointNames:(customer?.points||[]).filter(p=>(quote.pointIds||[]).includes(p.id)).map(p=>p.name)).join(' | ');
+    return rows.map(line=>({
+      quoteId:quote.id,customerId:quote.customerId||'',customer:quote.customer||'',pointNames,areaNames:(quote.areaNames||[]).join(' | '),
+      dateFrom:quote.dateFrom||'',dateTo:quote.dateTo||'',status:statusLabels[quote.status]||quote.status||'',productId:line.productId||'',productName:line.productName||'',unit:line.unit||'',price:numFmt(line.price),note:quote.note||'',createdBy:quote.createdBy||'',createdAt:quote.createdAt||''
+    }));
+  });
+  const exportCols=[['quoteId','Mã BG'],['customerId','Mã KH'],['customer','Khách hàng'],['pointNames','Địa điểm áp dụng'],['areaNames','Khu vực áp dụng'],['dateFrom','Ngày bắt đầu'],['dateTo','Ngày kết thúc'],['status','Trạng thái'],['productId','Mã SP'],['productName','Sản phẩm'],['unit','ĐVT'],['price','Đơn giá'],['note','Ghi chú'],['createdBy','Người tạo'],['createdAt','Ngày tạo']];
+  const importQuotes=async rows=>{
+    const text=v=>String(v??'').trim();
+    const norm=v=>text(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ');
+    const money=v=>typeof v==='number'?(Number.isFinite(v)?v:0):(Number(text(v).replace(/[^0-9-]/g,''))||0);
+    const val=(r,names)=>{for(const name of names){if(r[name]!==undefined&&r[name]!==null&&text(r[name])!=='')return r[name];}return'';};
+    const dateText=v=>{
+      if(v instanceof Date&&!isNaN(v))return String(v.getDate()).padStart(2,'0')+'/'+String(v.getMonth()+1).padStart(2,'0')+'/'+v.getFullYear();
+      const s=text(v);if(!s)return'';
+      const iso=s.match(/^(\d{4})[-\/]([01]?\d)[-\/]([0-3]?\d)/);if(iso)return iso[3].padStart(2,'0')+'/'+iso[2].padStart(2,'0')+'/'+iso[1];
+      const vn=s.match(/^([0-3]?\d)[-\/]([01]?\d)[-\/](\d{4})/);if(vn)return vn[1].padStart(2,'0')+'/'+vn[2].padStart(2,'0')+'/'+vn[3];
+      return s;
+    };
+    const statusValue=v=>{
+      const n=norm(v);if(!n)return'draft';
+      if(n.includes('da duyet')||n==='approved')return'approved';
+      if(n.includes('da gui')||n==='sent')return'sent';
+      if(n.includes('het han')||n==='expired')return'expired';
+      if(n.includes('huy')||n==='cancelled')return'cancelled';
+      return'draft';
+    };
+    const groups=new Map();
+    (rows||[]).forEach((row,index)=>{
+      const code=text(val(row,['Mã BG','Mã báo giá','Ma BG','quoteId','id']));
+      const key=code||'__NEW_'+index;
+      if(!groups.has(key))groups.set(key,{code,rows:[]});
+      groups.get(key).rows.push(row);
+    });
+    let nextNo=Math.max(0,...quotes.map(x=>Number(String(x.id||'').replace(/\D/g,''))||0))+1;
+    const imported=[];const issues=[];
+    for(const group of groups.values()){
+      const first=group.rows[0]||{};
+      const customerRef=text(val(first,['Mã KH','Ma KH','customerId']));
+      const customerName=text(val(first,['Khách hàng','Tên khách hàng','customer']));
+      const customer=customers.find(c=>norm(c.id)===norm(customerRef)||norm(c.code)===norm(customerRef))||customers.find(c=>norm(c.name)===norm(customerName||customerRef));
+      if(!customer){issues.push((group.code||'Dòng mới')+': không tìm thấy khách hàng '+(customerName||customerRef||'trống'));continue;}
+      const lines=[];
+      group.rows.forEach((row,rowIndex)=>{
+        const productRef=text(val(row,['Mã SP','Mã sản phẩm','Ma SP','productId']));
+        const productName=text(val(row,['Sản phẩm','Tên sản phẩm','productName']));
+        const product=products.find(p=>norm(p.id)===norm(productRef)||norm(p.code)===norm(productRef))||products.find(p=>norm(p.name)===norm(productName||productRef));
+        if(!product){issues.push((group.code||'Dòng mới')+' dòng '+(rowIndex+1)+': không tìm thấy sản phẩm '+(productName||productRef||'trống'));return;}
+        lines.push({id:uid(),productId:product.id,productName:product.name,unit:product.unit||text(val(row,['ĐVT','Đơn vị','unit'])),price:money(val(row,['Đơn giá','Giá','price']))});
+      });
+      if(!lines.length){issues.push((group.code||'Dòng mới')+': không có sản phẩm hợp lệ');continue;}
+      const splitList=v=>text(v).split(/[|;,]+/).map(x=>x.trim()).filter(Boolean);
+      const requestedPoints=splitList(val(first,['Địa điểm áp dụng','Địa điểm','pointNames']));
+      const requestedAreas=splitList(val(first,['Khu vực áp dụng','Khu vực','areaNames']));
+      const customerPoints=customer.points||[];
+      const pointIds=requestedPoints.length?customerPoints.filter(p=>requestedPoints.some(name=>norm(name)===norm(p.name)||norm(name)===norm(p.id))).map(p=>p.id):customerPoints.map(p=>p.id);
+      const areaNames=requestedAreas.length?requestedAreas:[];
+      const id=group.code||'BG'+String(nextNo++).padStart(3,'0');
+      const existing=quotes.find(x=>x.id===id);
+      imported.push({
+        ...(existing||{}),id,customerId:customer.id,customer:customer.name,pointIds,pointId:pointIds[0]||'',pointNames:customerPoints.filter(p=>pointIds.includes(p.id)).map(p=>p.name),areaNames,
+        dateFrom:dateText(val(first,['Ngày bắt đầu','Từ ngày','dateFrom']))||fmtDate(),dateTo:dateText(val(first,['Ngày kết thúc','Đến ngày','dateTo'])),status:statusValue(val(first,['Trạng thái','status'])),note:text(val(first,['Ghi chú','note'])),lines,
+        createdBy:existing?.createdBy||text(val(first,['Người tạo','createdBy']))||currentUser.name,createdAt:existing?.createdAt||dateText(val(first,['Ngày tạo','createdAt']))||fmtDate(),updatedBy:currentUser.name,updatedAt:fmtDT()
+      });
+    }
+    if(!imported.length){window.showToast('Không có báo giá hợp lệ để nhập.'+(issues.length?' Kiểm tra khách hàng và sản phẩm.':''),'error',6000);return;}
+    if(issues.length){
+      const ok=await window.scfConfirm('Có '+issues.length+' lỗi dữ liệu sẽ bị bỏ qua. Vẫn nhập '+imported.length+' báo giá hợp lệ?\n\n'+issues.slice(0,8).join('\n'),'Kiểm tra dữ liệu nhập');
+      if(!ok)return;
+    }
+    setQuotes(prev=>{
+      const next=[...prev];
+      imported.forEach(quote=>{const index=next.findIndex(x=>x.id===quote.id);if(index>=0)next[index]=quote;else next.push(quote);});
+      return next;
+    });
+    window.showToast('Đã nhập '+imported.length+' báo giá'+(issues.length?' • bỏ qua '+issues.length+' lỗi':''),'success',6000);
+  };
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-file-invoice',style:{fontSize:20}}),'Báo giá'),
     h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8}},
       h('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},sts.map(([v,l])=>h('button',{key:v,className:'pill'+(filter===v?' on':''),onClick:()=>sf(v)},l+' ('+( v==='all'?quotes.length:quotes.filter(x=>x.status===v).length)+')'))),
-      h('div',{style:{display:'flex',gap:6}},
+      h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
         h(SearchBar,{value:q,onChange:sq,placeholder:'Tìm báo giá...'}),
+        h(ExportBtn,{onClick:()=>xlsxExport(quoteExportRows,exportCols,'Bao_gia')}),
+        h(ImportBtn,{onFile:importQuotes}),
         h(AddBtn,{onClick:()=>{se(null);sm('f')},label:'Tạo báo giá'})
       )
     ),
@@ -265,4 +348,3 @@ function QuotesTab({quotes,setQuotes,customers,products,currentUser}){
     modal==='f'&&h(QuoteForm,{quote:edit,quotes,customers,products,currentUser,onSave:save,onClose:()=>{sm(null);se(null);}})
   );
 }
-

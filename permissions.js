@@ -6,6 +6,8 @@ const PAGE_ACCESS = {
   printtemplates:['admin','manager'],
   employees:    ['admin','manager'],
   attendance:   ['admin','manager','staff','driver'],
+  attendance_settings:['admin'],
+  attendance_report:['admin','manager','staff','driver'],
   advances:     ['admin','manager','staff','driver'],
   rewards:      ['admin','manager','staff','driver'],
   leaves:       ['admin','manager','staff','driver'],
@@ -63,6 +65,8 @@ function canAccess(role, page, perms) {
   if (!allowed) return false;
   if (perms && perms.length > 0) {
     if(page==='purchasegoods'&&perms.includes('purchaseorders')) return true;
+    if(page==='attendance_report'&&perms.includes('attendance')) return true;
+    if(page==='attendance_settings'&&role==='admin'&&perms.includes('attendance')) return true;
     return perms.includes(page);
   }
   return allowed.includes(role);
