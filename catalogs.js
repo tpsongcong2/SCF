@@ -135,29 +135,47 @@ function AssetsTab({assets,setAssets}){
 function ProdCatForm({cat,onSave,onClose}){
   const[f,sf]=useState(cat||{name:'',desc:''});
   const submit=()=>{if(!f.name){window.showToast('Nhập tên danh mục!','warn');return;}onSave({...f,id:cat?.id||'DM'+uid()});};
-  return h(Modal,{title:cat?'Sửa danh mục':'Thêm danh mục sản phẩm',onClose},
-    h(F,{label:'Tên danh mục *'},h('input',{value:f.name,onChange:e=>sf(p=>({...p,name:e.target.value})),placeholder:'Nhóm sản phẩm A...'})),
+  return h(Modal,{title:cat?'Sửa nhóm sản phẩm':'Thêm nhóm sản phẩm',onClose},
+    h(F,{label:'Tên nhóm *'},h('input',{value:f.name,onChange:e=>sf(p=>({...p,name:e.target.value})),placeholder:'Nhóm sản phẩm A...'})),
     h(F,{label:'Mô tả'},h('textarea',{value:f.desc,onChange:e=>sf(p=>({...p,desc:e.target.value})),rows:2})),
-    h(Row,null,h('button',{onClick:onClose},'Hủy'),h('button',{className:'bp',onClick:submit,style:{padding:'8px 20px'}},'Lưu danh mục'))
+    h(Row,null,h('button',{onClick:onClose},'Hủy'),h('button',{className:'bp',onClick:submit,style:{padding:'8px 20px'}},'Lưu nhóm sản phẩm'))
   );
 }
 
 /* ─── PRODUCTS ─── */
+function inferProductWeightPerUnit(prod){
+  const stored=numFmt(prod?.weightPerUnit);
+  if(stored>0)return stored;
+  const unit=String(prod?.unit||'').trim().toLowerCase();
+  if(['kg','tấn','tan','lít','lit'].includes(unit))return 0;
+  const name=String(prod?.name||'').toUpperCase().replace(/,/g,'.');
+  const kg=name.match(/(?:^|[^A-Z0-9])(\d+(?:\.\d+)?)\s*KG(?:\b|\/)/);
+  if(kg)return Number(kg[1])||0;
+  const gram=name.match(/(?:^|[^A-Z0-9])(\d+(?:\.\d+)?)\s*(?:GRAM|GR|G)(?:\b|\/)/);
+  if(gram)return (Number(gram[1])||0)/1000;
+  return 0;
+}
+function normalizeProductWeight(prod){
+  if(!prod)return prod;
+  const inferred=inferProductWeightPerUnit(prod);
+  return inferred>0&&!(numFmt(prod.weightPerUnit)>0)?{...prod,weightPerUnit:inferred}:prod;
+}
 function ProductForm({prod,prodCats,onSave,onClose}){
-  const baseRule=resolveProductLabelPackRule(prod,prod?.name);
-  const[f,sf]=useState({...{code:'',name:'',catId:prodCats[0]?.id||'',unit:'Cái',weightPerUnit:'',note:'',custCode:'',custName:'',needsLabel:baseRule.enabled,labelPackSize:baseRule.pack,labelMergeSmallRemainder:baseRule.mergeSmallRemainder},...(prod||{})});
+  const normalizedProd=normalizeProductWeight(prod);
+  const baseRule=resolveProductLabelPackRule(normalizedProd,normalizedProd?.name);
+  const[f,sf]=useState({...{code:'',name:'',catId:prodCats[0]?.id||'',unit:'Cái',weightPerUnit:'',note:'',custCode:'',custName:'',needsLabel:baseRule.enabled,labelPackSize:baseRule.pack,labelMergeSmallRemainder:baseRule.mergeSmallRemainder},...(normalizedProd||{})});
   const s=(k,v)=>sf(p=>({...p,[k]:v}));
   const needWeight=!['Kg','Tấn','Lít'].includes(f.unit);
   const submit=()=>{
     if(!f.name){window.showToast('Nhập tên sản phẩm!','warn');return;}
-    onSave({
+    onSave(normalizeProductWeight({
       ...f,
       id:prod?.id||'SP'+uid(),
       weightPerUnit:f.weightPerUnit?numFmt(f.weightPerUnit):0,
       needsLabel:!!f.needsLabel,
       labelPackSize:f.needsLabel&&f.labelPackSize?numFmt(f.labelPackSize):0,
       labelMergeSmallRemainder:!!f.labelMergeSmallRemainder
-    });
+    }));
   };
   return h(Modal,{title:prod?'Sửa sản phẩm':'Thêm sản phẩm',onClose},
     h('div',{className:'g2'},
@@ -220,9 +238,9 @@ function isGoodsProduct(prod,prodCats){
 function ProductsTab({products,setProducts,prodCats,setProdCats}){
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[catModal,scm]=useState(null);const[editCat,sec]=useState(null);const[q,sq]=useState('');const[filterCat,sfc]=useState('all');
   const saveProd=d=>{if(edit)setProducts(p=>p.map(x=>x.id===edit.id?d:x));else setProducts(p=>[...p,d]);sm(null);se(null);};
-  const saveCat=d=>{if(editCat)setProdCats(p=>p.map(x=>x.id===editCat.id?d:x));else setProdCats(p=>[...p,d]);scm(null);sec(null);};
+  const saveCat=d=>{if(editCat)setProdCats(p=>p.map(x=>x.id===editCat.id?d:x));else setProdCats(p=>[...p,d]);scm('manage');sec(null);window.showToast(editCat?'Đã cập nhật nhóm sản phẩm':'Đã thêm nhóm sản phẩm','success');};
   const delProd=id=>{window.scfConfirm('Bạn có chắc muốn xóa sản phẩm này?','Xóa sản phẩm',true).then(ok=>{if(ok){setProducts(p=>p.filter(x=>x.id!==id));window.showToast('Đã xóa sản phẩm','success');}});};
-  const delCat=id=>{if(products.some(p=>p.catId===id)){window.showToast('Danh mục này đang có sản phẩm, không thể xóa!','error');return;}window.scfConfirm('Bạn có chắc muốn xóa danh mục này?','Xóa danh mục',true).then(ok=>{if(ok){setProdCats(p=>p.filter(x=>x.id!==id));window.showToast('Đã xóa danh mục','success');}});};
+  const delCat=id=>{if(products.some(p=>p.catId===id)){window.showToast('Nhóm này đang có sản phẩm. Hãy chuyển sản phẩm sang nhóm khác trước khi xóa.','error',5500);return;}window.scfConfirm('Bạn có chắc muốn xóa nhóm sản phẩm này?','Xóa nhóm sản phẩm',true).then(ok=>{if(ok){setProdCats(p=>p.filter(x=>x.id!==id));window.showToast('Đã xóa nhóm sản phẩm','success');}});};
   const COLS=[['code','Mã SP'],['name','Tên SP'],['catName','Danh mục'],['unit','ĐVT'],['weightPerUnit','KL/đơn vị (kg)'],['labelRuleText','Quy tắc tem'],['note','Ghi chú']];
   const[sortProd,setSortProd]=useState('code'); // 'code' | 'name'
   // Hàm sort tự nhiên: TP01 < TP02 < TP10 < HH01 < HH02
@@ -235,12 +253,12 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
     .sort((a,b)=>sortProd==='code'?naturalSort(a.code,b.code):naturalSort(a.name,b.name));
   const exportRows=list.map(x=>{
     const rule=resolveProductLabelPackRule(x,x.name);
-    return {...x,catName:prodCats.find(c=>c.id===x.catId)?.name||'',labelRuleText:rule.enabled?(rule.pack+'kg/tem'+(rule.mergeSmallRemainder?' · gộp lẻ nhỏ':' · tách riêng phần lẻ')):'Không in tem'};
+    return {...normalizeProductWeight(x),catName:prodCats.find(c=>c.id===x.catId)?.name||'',labelRuleText:rule.enabled?(rule.pack+'kg/tem'+(rule.mergeSmallRemainder?' · gộp lẻ nhỏ':' · tách riêng phần lẻ')):'Không in tem'};
   });
   return h('div',null,
     h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},
       h('div',{className:'ptitle',style:{margin:0}},h('i',{className:'ti ti-box',style:{fontSize:20}}),'Sản phẩm'),
-      h('button',{style:{fontSize:12,padding:'5px 12px'},onClick:()=>{sec(null);scm('f')}},h('i',{className:'ti ti-tags',style:{fontSize:13}}),'Quản lý danh mục')
+      h('button',{className:'bp',style:{fontSize:12,padding:'6px 12px'},onClick:()=>{sec(null);scm('manage')}},h('i',{className:'ti ti-tags',style:{fontSize:14}}),'Quản lý nhóm sản phẩm')
     ),
     h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8}},
       h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
@@ -255,7 +273,7 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
         ),
         h(ExportBtn,{onClick:()=>xlsxExport(exportRows,COLS,'San_pham')}),
         h(ImportBtn,{onFile:rows=>{
-          const added=rows.map(r=>({id:'SP'+uid(),code:r['Mã SP']||'',name:r['Tên SP']||'',catId:prodCats.find(c=>c.name===r['Danh mục'])?.id||'',unit:r['ĐVT']||'Cái',weightPerUnit:numFmt(r['KL/đơn vị (kg)']),needsLabel:!/^(0|false|khong|không|no)$/i.test(String(r['Có in tem không']||r['In tem']||'')),labelPackSize:numFmt(r['Kg mỗi tem chuẩn']||r['Kg/tem']||r['Quy tắc tem (kg)']),labelMergeSmallRemainder:/^(1|true|co|có|yes|x)$/i.test(String(r['Gộp lẻ nhỏ']||'')),note:r['Ghi chú']||''})).filter(r=>r.name);
+          const added=rows.map(r=>normalizeProductWeight({id:'SP'+uid(),code:r['Mã SP']||'',name:r['Tên SP']||r['Tên sản phẩm']||'',catId:prodCats.find(c=>c.name===r['Danh mục'])?.id||'',unit:r['ĐVT']||r['Đơn vị']||'Cái',weightPerUnit:numFmt(r['KL/đơn vị (kg)']||r['Khối lượng/đv']||r['Khối lượng kg/cái']),needsLabel:!/^(0|false|khong|không|no)$/i.test(String(r['Có in tem không']||r['In tem']||'')),labelPackSize:numFmt(r['Kg mỗi tem chuẩn']||r['Kg/tem']||r['Quy tắc tem (kg)']),labelMergeSmallRemainder:/^(1|true|co|có|yes|x)$/i.test(String(r['Gộp lẻ nhỏ']||'')),note:r['Ghi chú']||''})).filter(r=>r.name);
           setProducts(p=>[...p,...added]);window.showToast('Đã nhập '+added.length+' sản phẩm','success');
         }}),
         h('button',{onClick:()=>sm('smart'),style:{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:5}},
@@ -264,7 +282,7 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
       )
     ),
     modal==='smart'&&h(SmartImportModal,{prodCats,onImport:rows=>{
-      const added=rows.map(r=>({id:'SP'+uid(),code:'',name:r.name,catId:'',unit:r.unit,weightPerUnit:0,color:'',needsLabel:true,labelPackSize:0,labelMergeSmallRemainder:false,note:''}));
+      const added=rows.map(r=>normalizeProductWeight({id:'SP'+uid(),code:'',name:r.name,catId:'',unit:r.unit,weightPerUnit:0,color:'',needsLabel:true,labelPackSize:0,labelMergeSmallRemainder:false,note:''}));
       setProducts(p=>{
         const names=new Set(p.map(x=>x.name.toLowerCase()+x.unit.toLowerCase()));
         const newOnes=added.filter(x=>!names.has(x.name.toLowerCase()+x.unit.toLowerCase()));
@@ -276,13 +294,14 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
       rows:list.map(x=>{
         const cat=prodCats.find(c=>c.id===x.catId);
         const needW=x.unit==='Cái'||x.unit==='Gói';
+        const effectiveWeight=inferProductWeightPerUnit(x);
         const labelRule=resolveProductLabelPackRule(x,x.name);
         return h('tr',{key:x.id},
           h('td',null,h('span',{style:{color:'var(--pri)',fontWeight:500}},x.code||x.id)),
           h('td',null,h('div',{style:{fontWeight:500}},x.name),x.note&&h('div',{style:{fontSize:11,color:'var(--tx2)'}},x.note)),
           h('td',null,cat?h('span',{className:'badge',style:{background:'var(--bg2)',color:'var(--tx)'}},cat.name):'—'),
           h('td',null,h('span',{className:'badge',style:{background:'#E6F1FB',color:'#185FA5'}},x.unit)),
-          h('td',null,needW&&x.weightPerUnit?x.weightPerUnit+' kg/'+x.unit:'—'),
+          h('td',null,needW&&effectiveWeight?effectiveWeight.toLocaleString('vi-VN',{maximumFractionDigits:3})+' kg/'+x.unit:'—'),
           h('td',null,
             labelRule.enabled
               ?h(React.Fragment,null,
@@ -302,21 +321,22 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
       })
     }),
     modal==='f'&&h(ProductForm,{prod:edit,prodCats,onSave:saveProd,onClose:()=>{sm(null);se(null);}}),
-    catModal==='f'&&h(Modal,{title:'Quản lý danh mục sản phẩm',onClose:()=>{scm(null);sec(null);},lg:true},
-      h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'1rem'}},
-        h(AddBtn,{onClick:()=>{sec(null);},label:'Thêm danh mục'})
+    catModal==='manage'&&h(Modal,{title:'Quản lý nhóm sản phẩm',onClose:()=>{scm(null);sec(null);},lg:true},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:'1rem'}},
+        h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Có '+prodCats.length+' nhóm sản phẩm'),
+        h(AddBtn,{onClick:()=>{sec(null);scm('form');},label:'Thêm nhóm sản phẩm'})
       ),
-      editCat===null&&h(ProdCatForm,{cat:undefined,onSave:saveCat,onClose:()=>scm(null)}),
-      h('hr',{className:'divider'}),
-      prodCats.map(c=>h('div',{key:c.id,style:{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'.5px solid var(--bd)'}},
-        h('i',{className:'ti ti-tag',style:{fontSize:16,color:'var(--pri)'}}),
-        h('div',{style:{flex:1}},h('div',{style:{fontWeight:500}},c.name),c.desc&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},c.desc)),
-        h('span',{className:'badge',style:{background:'var(--bg2)',color:'var(--tx2)'}},products.filter(p=>p.catId===c.id).length+' SP'),
-        h('button',{className:'bi',onClick:()=>sec(c)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
-        h('button',{className:'bi',onClick:()=>delCat(c.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
-      )),
-      editCat&&h(ProdCatForm,{cat:editCat,onSave:saveCat,onClose:()=>sec(null)})
-    )
+      h('div',{className:'card',style:{padding:0,overflow:'hidden'}},
+        prodCats.length?prodCats.map(c=>{const used=products.filter(p=>p.catId===c.id).length;return h('div',{key:c.id,style:{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderBottom:'.5px solid var(--bd)'}},
+          h('i',{className:'ti ti-tag',style:{fontSize:18,color:'var(--pri)'}}),
+          h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontWeight:600}},c.name),c.desc&&h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:2}},c.desc)),
+          h('span',{className:'badge',style:{background:'var(--bg2)',color:'var(--tx2)'}},used+' sản phẩm'),
+          h('button',{className:'bi',title:'Sửa nhóm',onClick:()=>{sec(c);scm('form');}},h('i',{className:'ti ti-edit',style:{fontSize:16}})),
+          h('button',{className:'bi bdel',title:used?'Không thể xóa khi nhóm còn sản phẩm':'Xóa nhóm',onClick:()=>delCat(c.id),style:{color:used?'#999':'#A32D2D',opacity:used?.55:1}},h('i',{className:'ti ti-trash',style:{fontSize:16}}))
+        );}):h('div',{className:'empty-st',style:{padding:30}},'Chưa có nhóm sản phẩm nào.')
+      )
+    ),
+    catModal==='form'&&h(ProdCatForm,{cat:editCat||undefined,onSave:saveCat,onClose:()=>{sec(null);scm('manage');}})
   );
 }
 

@@ -1143,11 +1143,6 @@ function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
 
 function IntemTab({products,company}){
   const printableProducts=(products||[]).filter(Boolean).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi'));
-  const [printerState,setPrinterState]=useLS('scf_420b_wifi_printer',{ip:'',foundIps:[],lastScanAt:'',status:''});
-  const [printerIp,setPrinterIp]=useState(printerState?.ip||'');
-  const [foundIps,setFoundIps]=useState(Array.isArray(printerState?.foundIps)?printerState.foundIps:[]);
-  const [scanMsg,setScanMsg]=useState(printerState?.status||'Chưa quét máy in');
-  const [scanLoading,setScanLoading]=useState(false);
   const [productId,setProductId]=useState(printableProducts[0]?.id||'');
   const [templateType,setTemplateType]=useState('58x40');
   const [prodDate,setProdDate]=useState(isoDate());
@@ -1157,72 +1152,16 @@ function IntemTab({products,company}){
   const [packWeight,setPackWeight]=useState('');
   useEffect(()=>{if(!productId&&printableProducts[0]?.id)setProductId(printableProducts[0].id);},[productId,printableProducts]);
   const selectedProduct=printableProducts.find(p=>String(p.id||'')===String(productId||''))||null;
-  const productNeedsLabel=!!selectedProduct?.needsLabel;
   const labelRule=resolveProductLabelPackRule(selectedProduct,selectedProduct?.name||'');
+  // Thành phẩm TP dùng tem theo quy tắc đóng gói, kể cả dữ liệu cũ còn lưu nhầm cờ "không in tem".
+  const productNeedsLabel=labelRule.enabled||/^TP\d+/i.test(String(selectedProduct?.code||''));
   const defaultPackWeight=numFmt(selectedProduct?.weightPerUnit)||0;
   useEffect(()=>{
     if(templateType==='100x100'&&defaultPackWeight>0&&!numFmt(packWeight))setPackWeight(String(defaultPackWeight));
   },[templateType,defaultPackWeight]);
   const toVnDate=value=>vnDateFromISO(value)||fmtAnyDate(value)||value||'';
-  const scanCandidateIps=()=>{
-    const match=String(printerIp||'').trim().match(/^(\d+\.\d+\.\d+)\.(\d{1,3})$/);
-    const preferredPrefix=match?match[1]:'';
-    const preferredTail=match?Math.max(1,Math.min(254,Number(match[2])||1)):0;
-    const prefixes=[preferredPrefix,'192.168.1','192.168.0','192.168.31','10.0.0','10.0.1'].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
-    const tails=preferredTail
-      ?[preferredTail,preferredTail-1,preferredTail+1,preferredTail-2,preferredTail+2,100,101,110,120,130,140,150,160,170,180,190,200,210,220,230]
-      :[10,20,30,40,50,60,70,80,90,100,101,110,120,130,140,150,160,170,180,190,200,210,220,230,240,250];
-    const list=[];
-    prefixes.forEach(prefix=>{
-      tails.forEach(tail=>{
-        const n=Number(tail);
-        if(n>=1&&n<=254)list.push(prefix+'.'+n);
-      });
-    });
-    return [...new Set(list)];
-  };
-  const probePrinterIp=ip=>new Promise(resolve=>{
-    const ctl=typeof AbortController!=='undefined'?new AbortController():null;
-    const timer=setTimeout(()=>{try{ctl&&ctl.abort();}catch{}resolve(false);},900);
-    fetch('http://'+ip+'/?_='+(Date.now()),{mode:'no-cors',cache:'no-store',signal:ctl?ctl.signal:undefined})
-      .then(()=>{clearTimeout(timer);resolve(true);})
-      .catch(()=>{clearTimeout(timer);resolve(false);});
-  });
-  const scanPrinterIps=async()=>{
-    setScanLoading(true);
-    setScanMsg('Đang quét mạng nội bộ để tìm máy in 420B...');
-    const candidates=scanCandidateIps();
-    const found=[];
-    for(let i=0;i<candidates.length;i+=6){
-      const batch=candidates.slice(i,i+6);
-      const result=await Promise.all(batch.map(async ip=>(await probePrinterIp(ip))?ip:null));
-      result.filter(Boolean).forEach(ip=>{if(!found.includes(ip))found.push(ip);});
-      if(found.length>=6)break;
-    }
-    const nextIp=found[0]||printerIp||'';
-    const status=found.length
-      ?('Đã tìm thấy '+found.length+' IP có phản hồi. Đang chọn '+nextIp)
-      :'Chưa tìm thấy IP phản hồi. Có thể máy in không bật web nội bộ. Hãy nhập IP tay nếu đã biết.';
-    setFoundIps(found);
-    setPrinterIp(nextIp);
-    setScanMsg(status);
-    setPrinterState(prev=>({...prev,ip:nextIp,foundIps:found,lastScanAt:fmtDT(),status}));
-    setScanLoading(false);
-  };
-  const savePrinterIp=()=>{
-    const ip=String(printerIp||'').trim();
-    if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)){window.showToast('Nhập đúng IP máy in, ví dụ 192.168.1.120','warn');return;}
-    const status='Đã lưu IP máy in 420B: '+ip;
-    setScanMsg(status);
-    setPrinterState(prev=>({...prev,ip,foundIps:[...new Set([ip,...(prev?.foundIps||[])])],lastScanAt:fmtDT(),status}));
-    setFoundIps(prev=>[...new Set([ip,...prev])]);
-    window.showToast('Đã lưu IP máy in','success');
-  };
-  const openPrinterPage=()=>{
-    const ip=String(printerIp||'').trim();
-    if(!ip){window.showToast('Chưa có IP máy in để mở','warn');return;}
-    window.open('http://'+ip,'_blank');
-  };
+  // In qua hộp in hệ điều hành; trình duyệt không thể chọn máy in trực tiếp.
+  const printerIp='';
   const splitClassicWeights=kg=>{
     if(!productNeedsLabel)return [];
     const total=Number(numFmt(kg)||0);
@@ -1373,7 +1312,7 @@ function IntemTab({products,company}){
   };
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-printer',style:{fontSize:20}}),'Intem'),
-    h('div',{className:'card',style:{marginBottom:'1rem'}},
+    false&&h('div',{className:'card',style:{marginBottom:'1rem'}},
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:14,flexWrap:'wrap',marginBottom:14}},
         h('div',null,
           h('div',{style:{fontSize:16,fontWeight:700,color:'var(--pri3)',marginBottom:4}},'Kết nối máy in nhiệt 420B qua Wi‑Fi'),

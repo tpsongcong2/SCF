@@ -52,6 +52,7 @@ const PAGE_ACCESS = {
   maint_vehicle:['admin','manager','staff'],
   maint_machine:['admin','manager','staff'],
   salesreport:  ['admin','manager','staff'],
+  cashflowreport:['admin','manager'],
   marketsales:  ['admin','manager','staff'],
   powdersales:  ['admin','manager','staff'],
 };

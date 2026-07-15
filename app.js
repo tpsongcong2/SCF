@@ -6,7 +6,7 @@ const PTITLES = {
   workreport_vp:'Công kế toán', workreport_sx:'Công sản xuất', workreport_lx:'Công lái xe', workreport_total:'Tổng công',
   process_accounting:'QUY TRÌNH KẾ TOÁN', process_bun:'QT SẢN XUẤT BÚN', process_pho:'QT SX PHỞ', process_banhcuon:'QT SX BÁNH CUỐN',
   quotes:'Báo giá', delivery:'Đơn giao hàng', intem:'Intem', orderdetail:'Chi tiết đơn hàng', trips:'Chuyến giao hàng',
-  salesreport:'Báo cáo bán hàng', fuelreport:'Báo cáo mua xăng dầu', marketsales:'Bán hàng chợ', powdersales:'Bán bột bún',
+  salesreport:'Báo cáo bán hàng', cashflowreport:'Báo cáo dòng tiền', fuelreport:'Báo cáo mua xăng dầu', marketsales:'Bán hàng chợ', powdersales:'Bán bột bún',
   nccs:'Nhà cung cấp', purchaseorders:'Đơn mua hàng NVL', purchasegoods:'Đơn mua hàng hàng hóa', fuelpurchases:'Đơn mua xăng dầu', purchasereport:'Báo cáo mua hàng', maintreport:'Báo cáo sửa chữa', materialusage:'Báo cáo NVL tồn và tiêu dùng', powderdebtreport:'Báo cáo công nợ', dbusage:'Dung lượng Supabase',
   maint_vehicle:'Bảo dưỡng xe', maint_machine:'Bảo dưỡng máy',
   prodsummary:'Tổng hợp sản xuất', prodorders:'Đơn sản xuất', stock:'Tồn kho',
@@ -18,7 +18,7 @@ const PICONS = {
   workreport_vp:'ti-building', workreport_sx:'ti-building-factory', workreport_lx:'ti-steering-wheel', workreport_total:'ti-report-analytics',
   process_accounting:'ti-file-invoice', process_bun:'ti-tools-kitchen-2', process_pho:'ti-bowl', process_banhcuon:'ti-cookie',
   marketsales:'ti-building-store', powdersales:'ti-bowl', intem:'ti-printer',
-  powderdebtreport:'ti-report-money', dbusage:'ti-database', purchasegoods:'ti-packages', fuelpurchases:'ti-gas-station', fuelreport:'ti-gas-station', maintreport:'ti-tool', materialusage:'ti-chart-histogram',
+  cashflowreport:'ti-cash-banknote', powderdebtreport:'ti-report-money', dbusage:'ti-database', purchasegoods:'ti-packages', fuelpurchases:'ti-gas-station', fuelreport:'ti-gas-station', maintreport:'ti-tool', materialusage:'ti-chart-histogram',
   maint_vehicle:'ti-car', maint_machine:'ti-settings'
 };
 
@@ -56,6 +56,9 @@ function App(){
   const[leaves,_slv]=useState([]);
   const[uiSettings,_sui]=useState(DEF_UI_SETTINGS);
   const[printTemplateSettings,_spt]=useState(DEF_PRINT_TEMPLATE_SETTINGS);
+  const[financeEntries,_sfe]=useState([]);
+  const[financeDebts,_sfd]=useState([]);
+  const[financeOpenings,_sfo]=useState([]);
   window.__SCF_CUSTOMERS=customers||[];
   window.__SCF_PROD_SHIFTS=prodShifts||[];
   const setEmployees=mkSet('scf_employees',_se);
@@ -89,6 +92,9 @@ function App(){
   const setLeaves=mkSet('scf_leaves',_slv);
   const setUiSettings=mkSet('scf_ui_settings',_sui);
   const setPrintTemplateSettings=mkSet('scf_print_template_settings',_spt);
+  const setFinanceEntries=mkSet('scf_finance_entries',_sfe);
+  const setFinanceDebts=mkSet('scf_finance_debts',_sfd);
+  const setFinanceOpenings=mkSet('scf_finance_openings',_sfo);
   const[loading,setLoading]=useState(true);
   const[col,setCol]=useState(false);
   const[page,setPage]=useState('welcome');
@@ -105,7 +111,7 @@ function App(){
     const loadingGuard=setTimeout(()=>setLoading(false),8000);
     (async()=>{
       try{
-        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,pu,pg,q,fp,mo,o,t,a,adv,rw,lv,dp,ui,pts,pa,shData,psData,psrData]=await Promise.all([
+        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,pu,pg,q,fp,mo,o,t,a,adv,rw,lv,dp,ui,pts,pa,shData,psData,psrData,fe,fd,fo]=await Promise.all([
           dbGet('scf_employees',DEF_EMPS),dbGet('scf_company',DEF_COMPANY),
           dbGet('scf_materials',DEF_MATERIALS),dbGet('scf_assets',[]),dbGet('scf_prodcats',DEF_PRODCATS),
           dbGet('scf_products',DEF_PRODUCTS),dbGet('scf_customers',DEF_CUSTOMERS),
@@ -116,10 +122,13 @@ function App(){
           dbGet('scf_orders',[]),dbGet('scf_trips',[]),dbGet('scf_attendance',[]),
           dbGet('scf_advances',[]),dbGet('scf_rewards',[]),dbGet('scf_leaves',[]),dbGet('scf_depts',DEF_DEPTS),dbGet('scf_ui_settings',DEF_UI_SETTINGS),dbGet('scf_print_template_settings',DEF_PRINT_TEMPLATE_SETTINGS),dbGet('scf_prod_actuals',{}),
           dbGet('scf_shifts',D_SHIFTS),dbGet('scf_prod_shifts',DEF_PROD_SHIFTS),dbGet('scf_prod_shift_rules',DEF_PROD_SHIFT_RULES),
+          dbGet('scf_finance_entries',[]),dbGet('scf_finance_debts',[]),dbGet('scf_finance_openings',[]),
         ]);
         const normalizedOrders=normalizeOrdersForStorage(o||[]);
-        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(p);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);
+        const normalizedProducts=(p||[]).map(normalizeProductWeight);
+        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);
         if(ordersNeedTimeNormalization(o||[]))dbSet('scf_orders',normalizedOrders);
+        if((p||[]).some((item,index)=>Number(item?.weightPerUnit||0)!==Number(normalizedProducts[index]?.weightPerUnit||0)))dbSet('scf_products',normalizedProducts);
       }catch(err){console.warn(err);}finally{clearTimeout(loadingGuard);setLoading(false);}
     })();
     return()=>clearTimeout(loadingGuard);
@@ -269,7 +278,7 @@ function App(){
         canAccess(cu.role,'advances',cu.permissions)&&page==='advances'&&h(MoneyTab,{mode:'advance',records:advances,setRecords:setAdvances,employees,currentUser:cu}),
         canAccess(cu.role,'rewards',cu.permissions)&&page==='rewards'&&h(MoneyTab,{mode:'reward',records:rewards,setRecords:setRewards,employees,currentUser:cu}),
         canAccess(cu.role,'leaves',cu.permissions)&&page==='leaves'&&h(LeaveTab,{leaves,setLeaves,employees,currentUser:cu}),
-        canAccess(cu.role,'backup',cu.permissions)&&page==='backup'&&h(BackupTab,{employees,materials,assets,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,goodsPurchases,depts,prodShiftRules,uiSettings,printTemplateSettings}),
+        canAccess(cu.role,'backup',cu.permissions)&&page==='backup'&&h(BackupTab,{employees,materials,assets,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,goodsPurchases,depts,prodShiftRules,uiSettings,printTemplateSettings,financeEntries,financeDebts,financeOpenings}),
         canAccess(cu.role,'materials',cu.permissions)&&page==='materials'&&h(MaterialsTab,{materials,setMaterials,purchases}),
         canAccess(cu.role,'assets',cu.permissions)&&page==='assets'&&h(AssetsTab,{assets,setAssets}),
         canAccess(cu.role,'depts',cu.permissions)&&page==='depts'&&h(DeptsTab,{depts,setDepts,employees,workcats}),
@@ -295,8 +304,9 @@ function App(){
         canAccess(cu.role,'delivery',cu.permissions)&&page==='delivery'&&h(DeliveryOrdersTab,{orders,setOrders,customers,setCustomers,products,prodCats,quotes,employees,currentUser:cu,trips,setTrips,company,prodShifts,prodShiftRules,shifts,menuHidden,setMenuHidden,printTemplateSettings}),
         canAccess(cu.role,'intem',cu.permissions)&&page==='intem'&&h(IntemTab,{products,company}),
         canAccess(cu.role,'trips',cu.permissions)&&page==='trips'&&h(TripsTab,{trips,setTrips,orders,setOrders,employees,shifts,customers,products,currentUser:cu}),
-        canAccess(cu.role,'orderdetail',cu.permissions)&&page==='orderdetail'&&h(OrderDetailListTab,{orders,setOrders,products,customers,shifts,currentUser:cu,prodShifts}),
+        canAccess(cu.role,'orderdetail',cu.permissions)&&page==='orderdetail'&&h(OrderDetailListTab,{orders,setOrders,products,customers,shifts,trips,currentUser:cu,prodShifts}),
         canAccess(cu.role,'salesreport',cu.permissions)&&page==='salesreport'&&h(SalesReportTab,{orders,customers,products,shifts:prodShifts,quotes}),
+        canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(FinanceReportTab,{entries:financeEntries,setEntries:setFinanceEntries,debts:financeDebts,setDebts:setFinanceDebts,openings:financeOpenings,setOpenings:setFinanceOpenings,customers,nccs,currentUser:cu}),
         canAccess(cu.role,'powdersales',cu.permissions)&&page==='powdersales'&&h(PowderSalesTab,{customers,trips,employees,setPage}),
         canAccess(cu.role,'prodsummary',cu.permissions)&&page==='prodsummary'&&h(ProductionSummaryTab,{orders,products,prodShifts,prodShiftRules,prodActuals,setProdActuals,currentUser:cu}),
         canAccess(cu.role,'prodorders',cu.permissions)&&page==='prodorders'&&h(ProdOrdersTab,{prodOrders,setProdOrders,products,currentUser:cu}),
