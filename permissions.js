@@ -39,12 +39,13 @@ const PAGE_ACCESS = {
   prodorders:   ['admin','manager','staff'],
   stock:        ['admin','manager','staff'],
   purchase:     ['admin','manager'],
-  nccs:         ['admin','manager'],
-  purchaseorders:['admin','manager'],
+  nccs:         ['admin'],
+  nccgoods:     ['admin'],
+  purchaseorders:['admin'],
   purchasegoods:['admin','manager'],
   fuelpurchases:['admin','manager','driver'],
   fuelreport:['admin','manager'],
-  purchasereport:['admin','manager'],
+  purchasereport:['admin'],
   maintreport:['admin','manager'],
   materialusage:['admin','manager','staff'],
   powderdebtreport:['admin','manager','staff'],
@@ -61,11 +62,15 @@ function roleDefaults(role) {
   return Object.keys(PAGE_ACCESS).filter(p => PAGE_ACCESS[p].includes(role));
 }
 // canAccess checks employee's custom permissions first, else falls back to role
-function canAccess(role, page, perms) {
+function canAccess(role, page, perms, dept='') {
+  const isAccounting=String(dept||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('ke toan');
+  if(['nccgoods','purchasegoods'].includes(page)&&(role==='admin'||isAccounting)) return true;
+  if(['nccs','purchaseorders','purchasereport'].includes(page)&&role!=='admin') return false;
   const allowed = PAGE_ACCESS[page];
   if (!allowed) return false;
   if (perms && perms.length > 0) {
     if(page==='purchasegoods'&&perms.includes('purchaseorders')) return true;
+    if(page==='nccgoods'&&perms.includes('nccs')) return true;
     if(page==='attendance_report'&&perms.includes('attendance')) return true;
     if(page==='attendance_settings'&&role==='admin'&&perms.includes('attendance')) return true;
     return perms.includes(page);

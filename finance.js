@@ -72,7 +72,64 @@ function FinanceDebtForm({debt,kind,customers,nccs,currentUser,onSave,onClose}){
   );
 }
 
-function FinanceReportTab({entries,setEntries,debts,setDebts,openings,setOpenings,customers,nccs,currentUser}){
+function financeSalesSummary(orders,products,quotes,customers,month){
+  const monthOf=value=>{
+    const s=String(value||'').trim();
+    if(/^\d{4}-\d{1,2}/.test(s))return s.slice(0,7);
+    const vn=s.match(/^\d{1,2}[\/-](\d{1,2})[\/-](\d{4})/);
+    return vn?vn[2]+'-'+vn[1].padStart(2,'0'):'';
+  };
+  const dateKey=value=>{
+    const s=String(value||'').trim();
+    const iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(iso)return Number(iso[1]+String(iso[2]).padStart(2,'0')+String(iso[3]).padStart(2,'0'));
+    const vn=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    return vn?Number(vn[3]+String(vn[2]).padStart(2,'0')+String(vn[1]).padStart(2,'0')):0;
+  };
+  const pointFor=order=>{
+    for(const customer of (customers||[]))for(const point of (customer.points||[]))if(point.id===order.pointId||point.id===order.ptId||point.name===order.pointName)return {...point,customerId:customer.id,customerName:customer.name};
+    return {};
+  };
+  const quotePrice=(order,line)=>{
+    const point=pointFor(order),orderDate=dateKey(order.deliveryDate);
+    const candidates=(quotes||[]).filter(quote=>{
+      if(['cancelled','expired'].includes(quote.status))return false;
+      if(quote.customerId&&quote.customerId!==(order.customerId||order.custId||point.customerId))return false;
+      const pointIds=quote.pointIds||(quote.pointId?[quote.pointId]:[]),areas=quote.areaNames||[];
+      const pointOk=pointIds.includes(order.pointId||order.ptId||point.id),areaOk=areas.includes(order.area||point.area||'');
+      if(!pointOk&&!areaOk)return false;
+      if(quote.dateFrom&&orderDate<dateKey(quote.dateFrom))return false;
+      if(quote.dateTo&&orderDate>dateKey(quote.dateTo))return false;
+      return (quote.lines||[]).some(row=>row.productId===line.productId||(row.productName&&row.productName===line.productName));
+    }).sort((a,b)=>dateKey(b.dateFrom)-dateKey(a.dateFrom));
+    const row=(candidates[0]?.lines||[]).find(item=>item.productId===line.productId||(item.productName&&item.productName===line.productName));
+    return numFmt(row?.price);
+  };
+  let amount=0,ordersCount=0,missingPrice=0;
+  (orders||[]).filter(order=>monthOf(order.deliveryDate)===month&&order.status!=='cancelled').forEach(order=>{
+    ordersCount++;
+    (order.lines||[]).forEach(line=>{
+      const product=(products||[]).find(item=>item.id===line.productId)||{};
+      const quantity=numFmt(line.qtyInvoice)||numFmt(line.qtyProd)||numFmt(line.qty)||numFmt(line.quantity)||0;
+      const price=numFmt(line.salePrice||line.sellPrice||line.unitPrice)||quotePrice(order,line)||numFmt(product.salePrice||product.sellPrice||product.priceSale||product.price)||(!line.purchasePrice?numFmt(line.price):0);
+      if(!price)missingPrice++;
+      amount+=quantity*price;
+    });
+  });
+  return {amount,ordersCount,missingPrice};
+}
+
+function financePurchaseExpense(purchases,month){
+  const monthOf=value=>{
+    const s=String(value||'').trim();
+    if(/^\d{4}-\d{1,2}/.test(s))return s.slice(0,7);
+    const vn=s.match(/^\d{1,2}[\/-](\d{1,2})[\/-](\d{4})/);
+    return vn?vn[2]+'-'+vn[1].padStart(2,'0'):'';
+  };
+  return (purchases||[]).filter(purchase=>purchase.status!=='cancelled'&&monthOf(purchase.orderDate||purchase.receivedDate||purchase.createdAt)===month).reduce((total,purchase)=>total+(purchase.lines||[]).reduce((lineTotal,line)=>lineTotal+(numFmt(line.qty)||0)*(numFmt(line.price)||0),0),0);
+}
+
+function FinanceReportTab({entries,setEntries,debts,setDebts,openings,setOpenings,customers,nccs,currentUser,orders,products,quotes,purchases,goodsPurchases}){
   const currentMonth=isoDate().slice(0,7);
   const[month,setMonth]=useState(currentMonth);const[tab,setTab]=useState('overview');const[entryModal,setEntryModal]=useState(null);const[debtModal,setDebtModal]=useState(null);
   const[editEntry,setEditEntry]=useState(null);const[editDebt,setEditDebt]=useState(null);
@@ -93,7 +150,11 @@ function FinanceReportTab({entries,setEntries,debts,setDebts,openings,setOpening
   const cashIn=sum(monthEntries,x=>x.direction==='in'&&x.method==='cash'?x.amount:0),cashOut=sum(monthEntries,x=>x.direction==='out'&&x.method==='cash'?x.amount:0);
   const bankIn=sum(monthEntries,x=>x.direction==='in'&&x.method!=='cash'?x.amount:0),bankOut=sum(monthEntries,x=>x.direction==='out'&&x.method!=='cash'?x.amount:0);
   const openingTotal=(Number(opening.cash)||0)+(Number(opening.bank)||0),endingCash=(Number(opening.cash)||0)+cashIn-cashOut,endingBank=(Number(opening.bank)||0)+bankIn-bankOut,endingTotal=endingCash+endingBank;
-  const revenue=sum(monthEntries,x=>x.pnlType==='revenue'?x.amount:0),expense=sum(monthEntries,x=>x.pnlType==='expense'?x.amount:0),profit=revenue-expense;
+  const recordedRevenue=sum(monthEntries,x=>x.pnlType==='revenue'?x.amount:0);
+  const manualExpense=sum(monthEntries,x=>x.pnlType==='expense'&&!['Mua nguyên vật liệu','Mua hàng hóa'].includes(x.category)?x.amount:0);
+  const materialExpense=financePurchaseExpense(purchases,month),goodsExpense=financePurchaseExpense(goodsPurchases,month),expense=manualExpense+materialExpense+goodsExpense;
+  const salesSummary=financeSalesSummary(orders,products,quotes,customers,month);
+  const revenue=salesSummary.amount,profit=revenue-expense;
   const monthEnd=month+'-31';
   const debtRows=debts.filter(x=>!x.date||x.date<=monthEnd);
   const outstanding=x=>Math.max(0,(Number(x.amount)||0)-(Number(x.paidAmount)||0));
@@ -107,7 +168,7 @@ function FinanceReportTab({entries,setEntries,debts,setDebts,openings,setOpening
   const year=month.slice(0,4);
   const yearRows=Array.from({length:12},(_,i)=>{
     const ym=year+'-'+String(i+1).padStart(2,'0'),rows=entries.filter(x=>String(x.date||'').startsWith(ym)),op=calcOpening(ym);
-    const inc=sum(rows,x=>x.direction==='in'?x.amount:0),out=sum(rows,x=>x.direction==='out'?x.amount:0),rev=sum(rows,x=>x.pnlType==='revenue'?x.amount:0),exp=sum(rows,x=>x.pnlType==='expense'?x.amount:0);
+    const inc=sum(rows,x=>x.direction==='in'?x.amount:0),out=sum(rows,x=>x.direction==='out'?x.amount:0),rev=financeSalesSummary(orders,products,quotes,customers,ym).amount,exp=sum(rows,x=>x.pnlType==='expense'&&!['Mua nguyên vật liệu','Mua hàng hóa'].includes(x.category)?x.amount:0)+financePurchaseExpense(purchases,ym)+financePurchaseExpense(goodsPurchases,ym);
     return{month:ym,opening:(Number(op.cash)||0)+(Number(op.bank)||0),inflow:inc,outflow:out,ending:(Number(op.cash)||0)+(Number(op.bank)||0)+inc-out,revenue:rev,expense:exp,profit:rev-exp};
   });
   const debtStatus=x=>outstanding(x)<=0?'paid':Number(x.paidAmount)>0?'partial':'unpaid';
@@ -126,6 +187,19 @@ function FinanceReportTab({entries,setEntries,debts,setDebts,openings,setOpening
     h('div',{className:'finance-kpis'},[
       ['Tiền đầu tháng',openingTotal,'ti-wallet'],['Tiền vào',inflow,'ti-arrow-down-left'],['Tiền ra',outflow,'ti-arrow-up-right'],['Tiền cuối tháng',endingTotal,'ti-cash'],['Doanh thu',revenue,'ti-chart-line'],['Chi phí',expense,'ti-receipt'],['Lợi nhuận',profit,'ti-report-money'],['Phải thu KH',receivable,'ti-user-dollar'],['Phải trả NCC',payable,'ti-building-bank']
     ].map(([label,value,icon])=>h('div',{className:'finance-kpi',key:label},h('i',{className:'ti '+icon}),h('span',null,label),h('b',{style:value<0?{color:'#A32D2D'}:null},finMoney(value))))),
+    h('div',{className:'card',style:{marginBottom:'1rem',padding:'10px 14px',background:'#f3f9f5',border:'1px solid #cde4d3'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}},
+        h('div',null,
+          h('div',{style:{fontWeight:700,color:'var(--pri3)',fontSize:13}},h('i',{className:'ti ti-link',style:{marginRight:6}}),'Đồng bộ doanh thu từ Báo cáo bán hàng'),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:3}},'Tháng '+month+': '+salesSummary.ordersCount+' đơn · '+salesSummary.missingPrice+' dòng chưa có giá bán')
+        ),
+        h('div',{style:{fontSize:12,color:'var(--tx2)',textAlign:'right'}},
+          h('div',null,'Doanh thu theo đơn hàng: ',h('b',{style:{color:'var(--pri3)'}},finMoney(revenue))),
+        h('div',{style:{marginTop:2}},'Tiền thực thu đã ghi sổ: ',h('b',null,finMoney(recordedRevenue))),
+        h('div',{style:{marginTop:2}},'Chi phí tự động: NVL ',h('b',null,finMoney(materialExpense)),' · Hàng hóa ',h('b',null,finMoney(goodsExpense)))
+        )
+      )
+    ),
     tab==='overview'&&h('div',{className:'finance-overview-grid'},
       h('div',{className:'card'},h('div',{className:'finance-card-title'},'Số dư tiền tháng '+month),opening.auto&&h('div',{className:'finance-auto-opening'},h('i',{className:'ti ti-refresh'}),' Tự chuyển từ số dư cuối tháng trước'),h('div',{className:'g2'},h(F,{label:'Tiền mặt đầu tháng'},h('input',{type:'number',value:openingEdit.cash,onChange:e=>setOpeningEdit(p=>({...p,cash:e.target.value}))})),h(F,{label:'Ngân hàng đầu tháng'},h('input',{type:'number',value:openingEdit.bank,onChange:e=>setOpeningEdit(p=>({...p,bank:e.target.value}))}))),h('button',{className:'bp',onClick:saveOpening},'Lưu tiền đầu tháng'),h('div',{className:'finance-balance-lines'},h('div',null,'Tiền mặt cuối tháng',h('b',null,finMoney(endingCash))),h('div',null,'Ngân hàng cuối tháng',h('b',null,finMoney(endingBank))),h('div',null,'Tổng tiền cuối tháng',h('b',null,finMoney(endingTotal))))),
       h('div',{className:'card'},h('div',{className:'finance-card-title'},'Kết quả kinh doanh'),h('div',{className:'finance-result'},h('div',null,'Doanh thu',h('b',null,finMoney(revenue))),h('div',null,'Chi phí',h('b',null,finMoney(expense))),h('div',{className:'profit'},'Lợi nhuận',h('b',{style:profit<0?{color:'#A32D2D'}:null},finMoney(profit)))),h('div',{className:'finance-note'},'Lợi nhuận = Doanh thu − Chi phí. Các khoản vay, vốn góp hoặc thu/trả công nợ có thể chọn “Không tính lợi nhuận”.'))

@@ -2,10 +2,7 @@
 /* ═══════ COLLAPSIBLE SIDEBAR + MUA HÀNG + BÁO CÁO ═══════ */
 
 /* --- NCC (Nhà cung cấp) --- */
-function NCCTab({nccs,setNCCs,purchases}) {
-  const [modal,sm]=useState(null); const [edit,se]=useState(null); const [q,sq]=useState('');
-  const norm=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  function NCCForm({ncc,onSave,onClose}) {
+function NCCForm({ncc,onSave,onClose}) {
     const [f,sf]=useState(ncc||{code:'',name:'',taxCode:'',address:'',phone:'',email:'',contact:'',note:''});
     const s=(k,v)=>sf(p=>({...p,[k]:v}));
     return h(Modal,{title:ncc?'Sửa NCC':'Thêm nhà cung cấp',onClose},
@@ -16,7 +13,11 @@ function NCCTab({nccs,setNCCs,purchases}) {
       h(F,{label:'Ghi chú'},h('textarea',{value:f.note,onChange:e=>s('note',e.target.value),rows:2})),
       h(Row,null,h('button',{onClick:onClose},'Hủy'),h('button',{className:'bp',onClick:()=>{if(!f.name){window.showToast('Nhập tên NCC!','warn');return;}onSave({...f,id:ncc?.id||'NCC'+uid()});},style:{padding:'8px 20px'}},'Lưu NCC'))
     );
-  }
+}
+function NCCTab({nccs,setNCCs,purchases,setPurchases,title='Nhà cung cấp',fileName='Nha_cung_cap',readOnly=false}) {
+  const [modal,sm]=useState(null); const [edit,se]=useState(null); const [q,sq]=useState('');
+  const [mergeOpen,setMergeOpen]=useState(false); const [keepId,setKeepId]=useState(''); const [mergeId,setMergeId]=useState('');
+  const norm=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const save=d=>{if(edit)setNCCs(p=>p.map(x=>x.id===edit.id?d:x));else setNCCs(p=>[...p,d]);sm(null);se(null);};
   const del=id=>{
     const target=(nccs||[]).find(x=>x.id===id);
@@ -37,6 +38,25 @@ function NCCTab({nccs,setNCCs,purchases}) {
       }
     });
   };
+  const openMerge=()=>{
+    const first=(nccs||[])[0]?.id||'';
+    const second=(nccs||[]).find(x=>x.id!==first)?.id||'';
+    setKeepId(first);setMergeId(second);setMergeOpen(true);
+  };
+  const mergeSuppliers=()=>{
+    if(!keepId||!mergeId||keepId===mergeId){window.showToast('Chọn 2 NCC khác nhau để gộp.','warn');return;}
+    const keep=(nccs||[]).find(x=>x.id===keepId),old=(nccs||[]).find(x=>x.id===mergeId);
+    if(!keep||!old)return;
+    const isOld=p=>String(p.nccId||'')===String(old.id)||norm(p.nccName)===norm(old.name)||(old.code&&norm(p.nccName)===norm(old.code));
+    const affected=(purchases||[]).filter(isOld).length;
+    window.scfConfirm('Gộp "'+(old.name||old.code)+'" vào "'+(keep.name||keep.code)+'"? '+affected+' đơn mua liên quan sẽ tự chuyển sang NCC giữ lại.','Gộp nhà cung cấp',true).then(ok=>{
+      if(!ok)return;
+      setPurchases&&setPurchases(prev=>(prev||[]).map(p=>isOld(p)?{...p,nccId:keep.id,nccName:keep.name}:p));
+      setNCCs(prev=>(prev||[]).filter(x=>x.id!==old.id));
+      setMergeOpen(false);
+      window.showToast('Đã gộp NCC và chuyển '+affected+' đơn mua.','success');
+    });
+  };
   const importNcc=rows=>{
     const mapped=rows.map(r=>({
       id:'NCC'+uid(),
@@ -52,15 +72,22 @@ function NCCTab({nccs,setNCCs,purchases}) {
     if(!mapped.length){window.showToast('File chưa có dòng NCC hợp lệ.','warn');return;}
     setNCCs(prev=>{const next=[...prev];mapped.forEach(n=>{const i=next.findIndex(x=>(n.code&&x.code===n.code)||x.name.toLowerCase()===n.name.toLowerCase());if(i>=0)next[i]={...next[i],...n,id:next[i].id};else next.push(n);});return next;});
   };
-  const list=nccs.filter(x=>!q||String(x.name||'').toLowerCase().includes(q.toLowerCase())||String(x.code||'').toLowerCase().includes(q.toLowerCase())||String(x.phone||'').includes(q));
+  const list=nccs.filter(x=>!q||String(x.name||'').toLowerCase().includes(q.toLowerCase())||String(x.code||'').toLowerCase().includes(q.toLowerCase())||String(x.phone||'').includes(q)).slice().sort((a,b)=>{
+    const codeNo=x=>{const m=String(x.code||'').trim().match(/^NCC0*(\d+)$/i);return m?Number(m[1]):Number.POSITIVE_INFINITY;};
+    const na=codeNo(a),nb=codeNo(b);
+    if(na!==nb)return na-nb;
+    const byCode=String(a.code||'').localeCompare(String(b.code||''),'vi',{numeric:true});
+    return byCode||String(a.name||'').localeCompare(String(b.name||''),'vi');
+  });
   return h('div',null,
-    h('div',{className:'ptitle'},h('i',{className:'ti ti-building-store',style:{fontSize:20}}),'Nhà cung cấp'),
+    h('div',{className:'ptitle'},h('i',{className:'ti ti-building-store',style:{fontSize:20}}),title),
     h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8}},
       h(SearchBar,{value:q,onChange:sq,placeholder:'Tìm NCC...'}),
       h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
-        h(ExportBtn,{onClick:()=>xlsxExport(nccs,[['code','Mã NCC'],['name','Tên NCC'],['taxCode','MST'],['phone','Điện thoại'],['email','Email'],['contact','Người LH'],['address','Địa chỉ'],['note','Ghi chú']],'Nha_cung_cap')}),
-        h(ImportBtn,{onFile:importNcc}),
-        h(AddBtn,{onClick:()=>{se(null);sm('f')},label:'Thêm NCC'})
+        h(ExportBtn,{onClick:()=>xlsxExport(nccs,[['code','Mã NCC'],['name','Tên NCC'],['taxCode','MST'],['phone','Điện thoại'],['email','Email'],['contact','Người LH'],['address','Địa chỉ'],['note','Ghi chú']],fileName)}),
+        !readOnly&&h(ImportBtn,{onFile:importNcc}),
+        !readOnly&&h('button',{onClick:openMerge,disabled:(nccs||[]).length<2,style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-git-merge',style:{fontSize:14}}),'Gộp NCC'),
+        !readOnly&&h(AddBtn,{onClick:()=>{se(null);sm('f')},label:'Thêm NCC'})
       )
     ),
     h('div',{className:'mobile-only report-mobile-section'},
@@ -79,7 +106,7 @@ function NCCTab({nccs,setNCCs,purchases}) {
         (x.address||x.email)&&h('div',{style:{marginTop:8,fontSize:12,color:'var(--tx2)'}},
           [x.address,x.email].filter(Boolean).join(' • ')
         ),
-        h('div',{className:'fuel-mobile-actions',style:{marginTop:8}},
+        !readOnly&&h('div',{className:'fuel-mobile-actions',style:{marginTop:8}},
           h('button',{className:'bi',onClick:()=>{se(x);sm('f')}},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
           h('button',{className:'bi',onClick:()=>del(x.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
         )
@@ -92,13 +119,19 @@ function NCCTab({nccs,setNCCs,purchases}) {
         h('td',null,h('div',{style:{fontWeight:500}},x.name),x.email&&h('div',{style:{fontSize:11,color:'var(--tx2)'}},x.email)),
         h('td',null,x.taxCode||'—'),h('td',null,x.phone||'—'),h('td',null,x.contact||'—'),
         h('td',null,h('span',{style:{color:'var(--tx2)',fontSize:12,display:'block',maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},x.address||'—')),
-        h('td',null,h('div',{style:{display:'flex',gap:2}},
+        h('td',null,!readOnly&&h('div',{style:{display:'flex',gap:2}},
           h('button',{className:'bi',onClick:()=>{se(x);sm('f')}},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
           h('button',{className:'bi',onClick:()=>del(x.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
         ))
       )):h('tr',null,h('td',{colSpan:7,className:'empty-st'},'Chưa có nhà cung cấp nào.')))
     )),
-    modal==='f'&&h(NCCForm,{ncc:edit,onSave:save,onClose:()=>{sm(null);se(null);}})
+    modal==='f'&&h(NCCForm,{ncc:edit,onSave:save,onClose:()=>{sm(null);se(null);}}),
+    mergeOpen&&h(Modal,{title:'Gộp nhà cung cấp',onClose:()=>setMergeOpen(false)},
+      h('div',{style:{fontSize:13,color:'var(--tx2)',marginBottom:12}},'Đơn mua của NCC bị gộp sẽ tự đổi sang NCC được giữ lại.'),
+      h(F,{label:'NCC giữ lại *'},h('select',{value:keepId,onChange:e=>setKeepId(e.target.value)},h('option',{value:''},'— Chọn NCC giữ lại —'),(nccs||[]).map(x=>h('option',{key:x.id,value:x.id},(x.code?x.code+' · ':'')+x.name)))),
+      h(F,{label:'NCC gộp vào / xóa *'},h('select',{value:mergeId,onChange:e=>setMergeId(e.target.value)},h('option',{value:''},'— Chọn NCC cần gộp —'),(nccs||[]).filter(x=>x.id!==keepId).map(x=>h('option',{key:x.id,value:x.id},(x.code?x.code+' · ':'')+x.name)))),
+      h(Row,null,h('button',{onClick:()=>setMergeOpen(false)},'Hủy'),h('button',{className:'bp',onClick:mergeSuppliers,style:{padding:'8px 20px'}},h('i',{className:'ti ti-git-merge',style:{fontSize:14}}),'Gộp NCC'))
+    )
   );
 }
 
@@ -265,7 +298,7 @@ function PurchaseTab({purchases,setPurchases,nccs,setNCCs,materials,products,cu,
     h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8}},
       h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Hiển thị đơn mới lên trên, có thể xem nhanh trên điện thoại theo từng thẻ.'),
       h('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
-        h('button',{onClick:()=>setPage('nccs'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-building-store',style:{fontSize:14}}),'Nhà cung cấp'),
+        h('button',{onClick:()=>setPage(isGoods?'nccgoods':'nccs'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-building-store',style:{fontSize:14}}),isGoods?'Nhà CC Hàng hóa':'Nhà CC NVL'),
         h('button',{onClick:syncNccFromPurchases,style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Cập nhật NCC'),
         h(ImportBtn,{onFile:importRows}),
         h(ExportBtn,{onClick:()=>xlsxExport(exportRows,[['orderDate','Ngày nhập'],['nccName','NCC'],['itemName',itemLabel],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền']],isGoods?'Don_mua_hang_hang_hoa':'Don_mua_hang_NVL')}),
@@ -1801,6 +1834,15 @@ function PowderDebtReportTab({customers}){
 }
 
 function SupabaseUsageReportTab({employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,goodsPurchases,quotes,orders,trips,attendance,advances,rewards,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}) {
+  const [maintenanceVehicle,setMaintenanceVehicle]=useState([]);
+  const [maintenanceMachine,setMaintenanceMachine]=useState([]);
+  useEffect(()=>{
+    let active=true;
+    Promise.all([dbGet('scf_maint_vehicle',[]),dbGet('scf_maint_machine',[])]).then(([vehicle,machine])=>{
+      if(active){setMaintenanceVehicle(vehicle||[]);setMaintenanceMachine(machine||[]);}
+    }).catch(()=>{});
+    return()=>{active=false;};
+  },[]);
   const sizeOf=v=>new Blob([JSON.stringify(v??null)]).size;
   const rows=[
     ['employees','Nhân viên',employees],
@@ -1816,6 +1858,8 @@ function SupabaseUsageReportTab({employees,materials,assets,prodCats,products,cu
     ['nccs','Nhà cung cấp',nccs],
     ['purchases','Đơn mua hàng NVL',purchases],
     ['goodsPurchases','Đơn mua hàng hàng hóa',goodsPurchases],
+    ['maintenanceVehicle','Bảo dưỡng xe',maintenanceVehicle],
+    ['maintenanceMachine','Bảo dưỡng máy',maintenanceMachine],
     ['quotes','Báo giá',quotes],
     ['orders','Đơn giao hàng',orders],
     ['trips','Chuyến giao hàng',trips],

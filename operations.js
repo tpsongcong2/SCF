@@ -785,7 +785,7 @@ function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
           {sec:'Bao cong', pages:[{k:'attendance_report',l:'Bao cao cham cong'},{k:'workreport_vp',l:'Cong ke toan'},{k:'workreport_sx',l:'Cong san xuat'},{k:'workreport_lx',l:'Cong lai xe'},{k:'workreport_total',l:'Tong cong'}]},
           {sec:'Danh muc', pages:[{k:'materials',l:'Vat tu'},{k:'depts',l:'Bo phan'},{k:'products',l:'San pham'},{k:'customers',l:'Khach hang'},{k:'areas',l:'Khu vuc'},{k:'prodshifts',l:'Ca san xuat'},{k:'workcats',l:'DM Cong viec'},{k:'shifts',l:'Ca giao hang'}]},
           {sec:'Ban hang', pages:[{k:'quotes',l:'Bao gia'},{k:'delivery',l:'Don giao hang'},{k:'intem',l:'Intem'},{k:'orderdetail',l:'Chi tiet don hang'},{k:'trips',l:'Chuyen giao hang'},{k:'salesreport',l:'Bao cao BH'},{k:'marketsales',l:'Ban hang cho'},{k:'powdersales',l:'Ban bot bun'}]},
-          {sec:'Mua hang', pages:[{k:'nccs',l:'Nha cung cap'},{k:'purchaseorders',l:'Don mua hang NVL'},{k:'purchasegoods',l:'Don mua hang hang hoa'},{k:'fuelpurchases',l:'Don mua xang dau'},{k:'purchasereport',l:'Bao cao MH'},{k:'materialusage',l:'Bao cao NVL ton va tieu dung'},{k:'purchase',l:'Mua hang'}]},
+          {sec:'Mua hang', pages:[{k:'nccs',l:'Nha CC NVL'},{k:'nccgoods',l:'Nha CC Hang hoa'},{k:'purchaseorders',l:'Don mua hang NVL'},{k:'purchasegoods',l:'Don mua hang hang hoa'},{k:'fuelpurchases',l:'Don mua xang dau'},{k:'purchasereport',l:'Bao cao MH'},{k:'materialusage',l:'Bao cao NVL ton va tieu dung'},{k:'purchase',l:'Mua hang'}]},
           {sec:'Bao cao', pages:[{k:'cashflowreport',l:'Bao cao dong tien'},{k:'fuelreport',l:'Bao cao xang dau'},{k:'maintreport',l:'Bao cao sua chua'}]},
           {sec:'San xuat', pages:[{k:'prodsummary',l:'Tong hop SX'},{k:'prodorders',l:'Don san xuat'},{k:'stock',l:'Ton kho'}]},
         ].map(sec=>h('div',{key:sec.sec,style:{marginBottom:10}},
@@ -1187,12 +1187,6 @@ function MaintenanceTab({title,icon,assets,employees}){
     dbGet(storageKey,items).then(data=>{if(!off&&data)_setItems(data);});
     return ()=>{off=true;};
   },[storageKey]);
-  useEffect(()=>{
-    try{
-      const hasLocal=!!localStorage.getItem(storageKey);
-      if(hasLocal&&items&&items.length) dbSet(storageKey,items);
-    }catch{}
-  },[]);
   const normalizeExcelDate=v=>{
     if(v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0,10);
     if(typeof v==='number'&&Number.isFinite(v)){
@@ -1290,10 +1284,10 @@ function MaintenanceTab({title,icon,assets,employees}){
     if(repairCount) return repairCount>1?(repairCount+' ảnh sửa chữa'):'Ảnh sửa chữa';
     return r.invoice||'—';
   };
-  const openImageViewer=(title,images,startIndex=0)=>{
+  const openImageViewer=(title,images,startIndex=0,kind='')=>{
     const list=(images||[]).filter(x=>x&&x.url);
     if(!list.length)return;
-    setImageView({title,images:list,index:Math.max(0,Math.min(startIndex,list.length-1))});
+    setImageView({title,images:list,index:Math.max(0,Math.min(startIndex,list.length-1)),kind});
   };
   const pickMaintenanceImage=async(kind,files)=>{
     const picked=Array.from(files||[]).filter(Boolean);
@@ -1305,19 +1299,21 @@ function MaintenanceTab({title,icon,assets,employees}){
         :'maintenance/repairs/'+(edit?.id||'new');
       if(kind==='invoice'){
         const file=picked[0];
-        const url=await uploadPhoto(file,folderBase);
-        setForm(p=>({...p,invoiceImage:url,invoiceImageName:file.name||'hoa-don-bao-duong.jpg'}));
+        const url=await uploadPhoto(file,folderBase,{max:1000,quality:.65});
+        const next={...form,invoiceImage:url,invoiceImageName:file.name||'hoa-don-bao-duong.jpg'};
+        setForm(next);
+        if(edit)setItems(prev=>prev.map(x=>x.id===edit.id?{...x,invoiceImage:next.invoiceImage,invoiceImageName:next.invoiceImageName}:x));
       }else{
         const uploaded=[];
         for(const file of picked){
-          const url=await uploadPhoto(file,folderBase);
+          const url=await uploadPhoto(file,folderBase,{max:1000,quality:.65});
           uploaded.push({url,name:file.name||'anh-sua-chua.jpg'});
         }
-        setForm(p=>{
-          const prevImages=getRepairImages(p);
-          const repairImages=[...prevImages,...uploaded];
-          return {...p,repairImages,repairImage:repairImages[0]?.url||'',repairImageName:repairImages[0]?.name||''};
-        });
+        const prevImages=getRepairImages(form);
+        const repairImages=[...prevImages,...uploaded];
+        const next={...form,repairImages,repairImage:repairImages[0]?.url||'',repairImageName:repairImages[0]?.name||''};
+        setForm(next);
+        if(edit)setItems(prev=>prev.map(x=>x.id===edit.id?{...x,repairImages:next.repairImages,repairImage:next.repairImage,repairImageName:next.repairImageName}:x));
       }
       window.showToast(kind==='invoice'?'Đã lưu ảnh hóa đơn':('Đã lưu '+picked.length+' ảnh sửa chữa'),'success');
     }catch(e){
@@ -1327,15 +1323,33 @@ function MaintenanceTab({title,icon,assets,employees}){
     }
   };
   const clearMaintenanceImage=(kind,index=null)=>{
-    if(kind==='invoice') setForm(p=>({...p,invoiceImage:'',invoiceImageName:''}));
-    else setForm(p=>{
-      const repairImages=getRepairImages(p);
-      if(index===null){
-        return {...p,repairImages:[],repairImage:'',repairImageName:''};
-      }
-      const nextImages=repairImages.filter((_,i)=>i!==index);
-      return {...p,repairImages:nextImages,repairImage:nextImages[0]?.url||'',repairImageName:nextImages[0]?.name||''};
+    if(kind==='invoice'){
+      const next={...form,invoiceImage:'',invoiceImageName:''};
+      setForm(next);
+      if(edit)setItems(prev=>prev.map(x=>x.id===edit.id?{...x,invoiceImage:'',invoiceImageName:''}:x));
+    }else{
+      const repairImages=getRepairImages(form);
+      const nextImages=index===null?[]:repairImages.filter((_,i)=>i!==index);
+      const next={...form,repairImages:nextImages,repairImage:nextImages[0]?.url||'',repairImageName:nextImages[0]?.name||''};
+      setForm(next);
+      if(edit)setItems(prev=>prev.map(x=>x.id===edit.id?{...x,repairImages:next.repairImages,repairImage:next.repairImage,repairImageName:next.repairImageName}:x));
+    }
+  };
+  const requestClearMaintenanceImage=(kind,index=null)=>{
+    const one=index!==null;
+    const message=kind==='invoice'
+      ?'Bạn có chắc muốn xóa ảnh hóa đơn này?'
+      :(one?'Bạn có chắc muốn xóa ảnh sửa chữa này?':'Bạn có chắc muốn xóa toàn bộ ảnh sửa chữa?');
+    window.scfConfirm(message,'Xác nhận xóa ảnh',true).then(ok=>{
+      if(!ok)return;
+      clearMaintenanceImage(kind,index);
+      setImageView(null);
+      window.showToast('Đã xóa ảnh','success');
     });
+  };
+  const deleteViewedImage=()=>{
+    if(!imageView?.kind)return;
+    requestClearMaintenanceImage(imageView.kind,imageView.kind==='repair'?imageView.index:null);
   };
   const toggleRepairer=option=>setForm(prev=>{
     const selectedIds=getRepairerIds(prev);
@@ -1357,16 +1371,13 @@ function MaintenanceTab({title,icon,assets,employees}){
     return h(F,{label},
       h('div',{style:{display:'grid',gap:10}},
         h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
-          hasImage&&h('button',{type:'button',onClick:()=>openImageViewer(label,isRepair?repairImages:[{url:image,name:imageName||label}],0),style:{fontSize:12,padding:'6px 12px'}},
+          hasImage&&h('button',{type:'button',onClick:()=>openImageViewer(label,isRepair?repairImages:[{url:image,name:imageName||label}],0,isRepair?'repair':'invoice'),style:{fontSize:12,padding:'6px 12px'}},
             h('i',{className:'ti ti-photo',style:{fontSize:14}}),isRepair?('Xem '+repairImages.length+' ảnh'):'Xem ảnh'
           ),
           h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:uploading?'wait':'pointer',background:'#fff'}},
             h('i',{className:'ti '+(uploading===kind?'ti-loader-2 spin':'ti-camera-plus'),style:{fontSize:14}}),
             uploading===kind?'Đang tải ảnh...':(isRepair?'Chụp / thêm ảnh':'Chụp / tải ảnh'),
             h('input',{type:'file',accept:'image/*',capture:'environment',multiple:isRepair,style:{display:'none'},disabled:!!uploading,onChange:e=>pickMaintenanceImage(kind,e.target.files)})
-          ),
-          hasImage&&h('button',{type:'button',onClick:()=>clearMaintenanceImage(kind),style:{fontSize:12,padding:'6px 12px',background:'#fff4f4',color:'#A32D2D',border:'1px solid #f0c9c9'}},
-            h('i',{className:'ti ti-trash',style:{fontSize:14}}),isRepair?'Xóa tất cả':'Xóa ảnh'
           )
         ),
         isRepair
@@ -1378,8 +1389,7 @@ function MaintenanceTab({title,icon,assets,employees}){
                   ),
                   h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:4,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},img.name||('Ảnh '+(idx+1))),
                   h('div',{style:{display:'flex',justifyContent:'space-between',marginTop:4}},
-                    h('button',{type:'button',className:'bi',title:'Xem ảnh',onClick:()=>openImageViewer(label,repairImages,idx)},h('i',{className:'ti ti-photo',style:{fontSize:14}})),
-                    h('button',{type:'button',className:'bi',title:'Xóa ảnh này',onClick:()=>clearMaintenanceImage(kind,idx),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:14}}))
+                    h('button',{type:'button',className:'bi',title:'Xem ảnh',onClick:()=>openImageViewer(label,repairImages,idx,'repair')},h('i',{className:'ti ti-photo',style:{fontSize:14}}))
                   )
                 ))
               )
@@ -1567,6 +1577,7 @@ function MaintenanceTab({title,icon,assets,employees}){
           ))
         ),
         h(Row,null,
+          imageView.kind&&h('button',{className:'bdel',onClick:deleteViewedImage},h('i',{className:'ti ti-trash',style:{fontSize:14}}),'Xóa ảnh này'),
           imageView.index>0&&h('button',{onClick:()=>setImageView(v=>v?{...v,index:Math.max(0,v.index-1)}:v)},h('i',{className:'ti ti-arrow-left',style:{fontSize:14}}),'Ảnh trước'),
           imageView.index<imageView.images.length-1&&h('button',{onClick:()=>setImageView(v=>v?{...v,index:Math.min(v.images.length-1,v.index+1)}:v)},'Ảnh sau',h('i',{className:'ti ti-arrow-right',style:{fontSize:14}})),
           h('button',{className:'bp',onClick:()=>setImageView(null)},'Đóng')

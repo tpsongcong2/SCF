@@ -556,7 +556,8 @@ const NAV=[
   {key:'marketsales',icon:'ti-building-store',label:'Bán hàng chợ'},
   {key:'powdersales',icon:'ti-bowl',label:'Bán bột bún'},
   {sec:'Mua hàng'},
-  {key:'nccs',icon:'ti-building-store',label:'Nhà cung cấp'},
+  {key:'nccs',icon:'ti-building-store',label:'Nhà CC NVL'},
+  {key:'nccgoods',icon:'ti-building-store',label:'Nhà CC Hàng hóa'},
   {key:'purchaseorders',icon:'ti-shopping-cart',label:'Đơn mua hàng NVL'},
   {key:'purchasegoods',icon:'ti-packages',label:'Đơn mua hàng hàng hóa'},
   {key:'fuelpurchases',icon:'ti-gas-station',label:'Đơn mua xăng dầu'},
@@ -612,12 +613,12 @@ function Sidebar({page,setPage,col,setCol,company,role,perms}){
     )
   );
 }
-function TopNav({page,setPage,role,perms}){
+function TopNav({page,setPage,role,perms,dept}){
   const[open,setOpen]=useState(null);
   const groups=[]; let cur=null;
   NAV.forEach(item=>{
     if(item.sec){cur={sec:item.sec,pages:[]};groups.push(cur);return;}
-    if(!canAccess(role,item.key,perms))return;
+    if(!canAccess(role,item.key,perms,dept))return;
     if(cur)cur.pages.push(item);
     else groups.push({sec:item.label,pages:[item],single:true,icon:item.icon});
   });
@@ -645,19 +646,19 @@ function TopNav({page,setPage,role,perms}){
   );
 }
 
-function MobileNav({page,setPage,role,perms}){
+function MobileNav({page,setPage,role,perms,dept}){
   const[open,setOpen]=useState(false);
   const groups=[]; let cur=null;
   NAV.forEach(item=>{
     if(item.sec){cur={sec:item.sec,pages:[]};groups.push(cur);return;}
-    if(!canAccess(role,item.key,perms))return;
+    if(!canAccess(role,item.key,perms,dept))return;
     if(cur)cur.pages.push(item);
     else groups.push({sec:item.label,pages:[item],single:true});
   });
   const visible=groups.filter(g=>g.pages.length);
   const preferred=['welcome','delivery','trips','attendance'];
   const quick=preferred.map(key=>NAV.find(item=>item.key===key))
-    .filter(item=>item&&canAccess(role,item.key,perms));
+    .filter(item=>item&&canAccess(role,item.key,perms,dept));
   const currentIsQuick=quick.some(item=>item.key===page);
   const go=key=>{setPage(key);setOpen(false);};
   const items=[...quick,{key:'more',icon:'ti-grid-dots',label:'Thêm'}];

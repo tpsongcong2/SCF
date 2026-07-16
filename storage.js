@@ -71,7 +71,7 @@ function mkSet(key,setter){return valOrFn=>{
   }
   setter(prev=>{const nextRaw=typeof valOrFn==='function'?valOrFn(prev):valOrFn;const next=key==='scf_orders'?normalizeOrdersForStorage(nextRaw):nextRaw;dbSet(key,next);return next;});
 };}
-function resizeImageFile(file,max=1600,quality=.82){
+function resizeImageFile(file,max=1280,quality=.72){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onload=ev=>{
@@ -90,8 +90,8 @@ function resizeImageFile(file,max=1600,quality=.82){
     reader.readAsDataURL(file);
   });
 }
-async function uploadPhoto(file,folder='delivery'){
-  const img=await resizeImageFile(file);
+async function uploadPhoto(file,folder='delivery',options={}){
+  const img=await resizeImageFile(file,options.max||1280,options.quality||.72);
   if(!sb)return img.dataUrl;
   const clean=(file.name||'photo.jpg').toLowerCase().replace(/[^a-z0-9.]+/g,'-').replace(/-+/g,'-');
   const path=folder+'/'+new Date().toISOString().slice(0,10)+'/'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)+'-'+clean.replace(/\.[^.]+$/,'')+'.jpg';

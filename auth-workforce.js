@@ -523,6 +523,30 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
   const stat={in:periodRecords.filter(r=>r.type==='in').length,out:periodRecords.filter(r=>r.type==='out').length,valid:periodRecords.filter(r=>r.status==='valid').length,review:periodRecords.filter(r=>r.status!=='valid').length,late:periodRecords.filter(r=>(r.timeStatus||timeStatus(r.type,r.time,r.workShiftId))==='Đi muộn').length,early:periodRecords.filter(r=>(r.timeStatus||timeStatus(r.type,r.time,r.workShiftId))==='Về sớm').length};
   const exportRows=filtered.map(r=>({date:r.date,time:r.time,empId:r.empId,empName:r.empName,dept:r.dept,workShift:r.workShiftName||'',type:r.type==='in'?'Vào ca':'Ra ca',timeStatus:r.timeStatus||timeStatus(r.type,r.time,r.workShiftId),faceScore:r.faceScore,gps:r.gpsOk?'Hợp lệ':'Ngoài vùng',distance:r.distance,status:r.status,note:r.note||''}));
   const monthlyRecords=scopedAttendance.filter(r=>String(r.date||'').startsWith(month)&&r.status==='valid');
+  const calcWorkHours=rows=>{
+    const sorted=[...rows].sort((a,b)=>(String(a.date||'')+'T'+String(a.time||'')).localeCompare(String(b.date||'')+'T'+String(b.time||'')));
+    let open=null,totalMinutes=0,overtimeMinutes=0;
+    sorted.forEach(record=>{
+      if(record.type==='in'){open=record;return;}
+      if(record.type!=='out'||!open)return;
+      const start=Date.parse(String(open.date||'')+'T'+String(open.time||'00:00'));
+      let end=Date.parse(String(record.date||'')+'T'+String(record.time||'00:00'));
+      if(!Number.isFinite(start)||!Number.isFinite(end)){open=null;return;}
+      if(end<=start)end+=86400000;
+      const minutes=Math.round((end-start)/60000);
+      if(minutes>0&&minutes<=24*60){
+        totalMinutes+=minutes;
+        const workShift=workShifts.find(shift=>shift.id===open.workShiftId)||workShifts.find(shift=>shift.id===record.workShiftId);
+        if(workShift){
+          let standard=timeToMin(workShift.end)-timeToMin(workShift.start);
+          if(standard<=0)standard+=24*60;
+          overtimeMinutes+=Math.max(0,minutes-standard);
+        }
+      }
+      open=null;
+    });
+    return {hours:Math.round(totalMinutes/60*100)/100,overtime:Math.round(overtimeMinutes/60*100)/100};
+  };
   const monthlyEmployeeIds=canManage
     ?Array.from(new Set([...employees.map(e=>e.id),...monthlyRecords.map(r=>r.empId)])).filter(Boolean)
     :[currentUser.id];
@@ -530,6 +554,8 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
     const employee=employees.find(e=>e.id===id)||{};
     const rows=monthlyRecords.filter(r=>r.empId===id);
     const workDays=new Set(rows.map(r=>r.date).filter(Boolean)).size;
+    const workHours=calcWorkHours(rows);
+    const hourlyRate=Number(settings.hourlyRates?.[id])||0;
     return {
       id,
       name:employee.name||rows[0]?.empName||id,
@@ -537,11 +563,15 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
       workDays,
       inCount:rows.filter(r=>r.type==='in').length,
       outCount:rows.filter(r=>r.type==='out').length,
+      hours:workHours.hours,
+      overtime:workHours.overtime,
+      hourlyRate,
+      wage:Math.round(workHours.hours*hourlyRate),
       late:rows.filter(r=>(r.timeStatus||timeStatus(r.type,r.time,r.workShiftId))==='Đi muộn').length,
       early:rows.filter(r=>(r.timeStatus||timeStatus(r.type,r.time,r.workShiftId))==='Về sớm').length
     };
   }).filter(r=>r.workDays||!canManage).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
-  const monthlyExportRows=monthlyRows.map(r=>({empId:r.id,empName:r.name,dept:r.dept,month,workDays:r.workDays,inCount:r.inCount,outCount:r.outCount,late:r.late,early:r.early}));
+  const monthlyExportRows=monthlyRows.map(r=>({empId:r.id,empName:r.name,dept:r.dept,month,workDays:r.workDays,inCount:r.inCount,outCount:r.outCount,hours:r.hours,overtime:r.overtime,hourlyRate:r.hourlyRate,wage:r.wage,late:r.late,early:r.early}));
   const zaloText=()=>{
     const periodLabel=periodMode==='month'?'thang '+month:vnDateFromISO(day||isoDate());
     const lines=['SCF - Bao cao cham cong '+periodLabel,'Vao ca: '+stat.in+' | Ra ca: '+stat.out+' | Hop le: '+stat.valid+' | Can duyet: '+stat.review+' | Di muon: '+stat.late+' | Ve som: '+stat.early];
@@ -610,15 +640,15 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
       h('div',null,h('div',{className:'attendance-manager-title'},canManage?'Báo công theo tháng':'Báo cáo ngày công của tôi'),h('div',{className:'attendance-report-note'},'Số ngày công được tính theo các ngày có bản ghi chấm công hợp lệ.')),
       h('div',{className:'attendance-month-actions'},
         h('input',{type:'month',value:month,onChange:e=>setMonth(e.target.value||isoDate().slice(0,7))}),
-        h(ExportBtn,{onClick:()=>xlsxExport(monthlyExportRows,[['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['month','Tháng'],['workDays','Ngày công'],['inCount','Lượt vào'],['outCount','Lượt ra'],['late','Đi muộn'],['early','Về sớm']],'Bao_cong_thang_'+month)})
+        h(ExportBtn,{onClick:()=>xlsxExport(monthlyExportRows,[['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['month','Tháng'],['workDays','Ngày công'],['inCount','Lượt vào'],['outCount','Lượt ra'],['hours','Tổng giờ'],['overtime','Tăng ca'],['hourlyRate','Lương giờ'],['wage','Tiền công'],['late','Đi muộn'],['early','Về sớm']],'Bao_cong_thang_'+month)})
       )
     ),
     h('div',{className:'tw'},h('table',null,
-      h('thead',null,h('tr',null,...['Nhân viên','Bộ phận','Ngày công','Lượt vào','Lượt ra','Đi muộn','Về sớm'].map(c=>h('th',{key:c},c)))),
+      h('thead',null,h('tr',null,...['Nhân viên','Bộ phận','Ngày công','Lượt vào','Lượt ra','Tổng giờ','Tăng ca','Lương giờ','Tiền công','Đi muộn','Về sớm'].map(c=>h('th',{key:c},c)))),
       h('tbody',null,monthlyRows.length?monthlyRows.map(r=>h('tr',{key:r.id},
         h('td',null,h('b',null,r.name),h('div',{style:{fontSize:11,color:'var(--tx2)'}},r.id)),
-        h('td',null,r.dept||'—'),h('td',null,h('b',null,r.workDays)),h('td',null,r.inCount),h('td',null,r.outCount),h('td',null,r.late),h('td',null,r.early)
-      )):h('tr',null,h('td',{colSpan:7,className:'empty-st'},'Tháng này chưa có dữ liệu chấm công')))
+        h('td',null,r.dept||'—'),h('td',null,h('b',null,r.workDays)),h('td',null,r.inCount),h('td',null,r.outCount),h('td',null,h('b',null,r.hours)),h('td',null,r.overtime||'—'),h('td',null,r.hourlyRate?r.hourlyRate.toLocaleString('vi-VN')+'đ':'—'),h('td',null,h('b',null,r.wage?r.wage.toLocaleString('vi-VN')+'đ':'—')),h('td',null,r.late),h('td',null,r.early)
+      )):h('tr',null,h('td',{colSpan:11,className:'empty-st'},'Tháng này chưa có dữ liệu chấm công')))
     ))
   );
   if(section==='report'){
@@ -681,6 +711,17 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
               h('button',{onClick:applyGpsToSettings,disabled:gpsBusy},h('i',{className:'ti '+(gpsBusy?'ti-loader-2 spin':'ti-current-location')}),' Dùng GPS hiện tại'),
               h('button',{onClick:resetGpsSettings},'Mặc định Sông Công')
             )
+          ),
+          h('div',{className:'card',style:{marginBottom:'1rem'}},
+            h('div',{className:'attendance-manager-title'},'Lương giờ nhân viên'),
+            h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:10}},'Nhập lương theo giờ cho từng nhân viên. Dữ liệu tự lưu và dùng để tính tiền công trong Báo cáo chấm công.'),
+            h('div',{className:'tw'},h('table',null,
+              h('thead',null,h('tr',null,h('th',null,'Mã NV'),h('th',null,'Nhân viên'),h('th',null,'Bộ phận'),h('th',null,'Lương giờ (đ)'))),
+              h('tbody',null,employees.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi')).map(employee=>h('tr',{key:employee.id},
+                h('td',null,employee.id),h('td',null,h('b',null,employee.name)),h('td',null,employee.dept||'—'),
+                h('td',null,h('input',{type:'number',min:0,step:1000,value:settings.hourlyRates?.[employee.id]||'',placeholder:'Ví dụ: 30000',onChange:e=>setSettings(prev=>({...prev,hourlyRates:{...(prev.hourlyRates||{}),[employee.id]:Math.max(0,Number(e.target.value)||0)}})),style:{minWidth:130}}))
+              )))
+            ))
           ),
           h('div',{className:'card'},
             h('div',{className:'attendance-manager-title'},'Gửi báo cáo Zalo'),
