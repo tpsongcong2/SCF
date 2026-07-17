@@ -213,6 +213,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
   const[gpsBusy,setGpsBusy]=useState(false);
   const[punchBusy,setPunchBusy]=useState(false);
   const[punchPending,setPunchPending]=useState(false);
+  const[lastPunchShare,setLastPunchShare]=useState(null);
   const[cameraAutoOpenSignal,setCameraAutoOpenSignal]=useState(0);
   const[isCompactMobile,setIsCompactMobile]=useState(()=>window.innerWidth<=768);
   const[quickPunchMode,setQuickPunchMode]=useState(()=>window.innerWidth<=768);
@@ -419,7 +420,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
       return;
     }
     if(!gpsValid){
-      window.showToast('GPS chưa hợp lệ ('+(distance??'—')+'m), bạn chưa vào ca được.','error',5000);
+      window.showToast('Bạn chưa ở vị trí chấm công theo quy định, nên chưa chấm công được.','error',6000);
     }
   };
   const punch=async()=>{
@@ -490,6 +491,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
         createdAt:fmtDT()
       };
       setAttendance(p=>[rec,...p]);
+      setLastPunchShare(rec);
       setPreview('');
       setCap(null);
       window.showToast((nextType==='in'?'Vào ca':'Ra ca')+' '+(activeWorkShift?.name||'')+' thành công lúc '+shortTime(now)+(tStatus==='Đúng giờ'?'':' - '+tStatus),'success',5500);
@@ -581,6 +583,33 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
   };
   const copyZalo=async()=>{const txt=zaloText();try{await navigator.clipboard.writeText(txt);window.showToast('Đã sao chép. Mở Zalo và dán vào nhóm.','success');}catch(e){prompt('Sao chép nội dung này để gửi Zalo:',txt);}};
   const shareZalo=async()=>{const txt=zaloText();if(navigator.share){try{await navigator.share({title:'Báo cáo chấm công SCF',text:txt});}catch(e){}}else copyZalo();};
+  const punchShareText=record=>{
+    if(!record)return '';
+    return 'Tên nhân viên: '+record.empName+'\nNgày '+vnDateFromISO(record.date)+' '+(record.type==='in'?'đi làm lúc ':'ra về lúc ')+shortTime(record.time);
+  };
+  const sharePunchZalo=async record=>{
+    const txt=punchShareText(record);
+    if(!txt)return;
+    if(navigator.share){
+      try{
+        await navigator.share({title:'Chấm công - '+record.empName,text:txt});
+        return;
+      }catch(e){
+        if(e&&e.name==='AbortError')return;
+      }
+    }
+    try{
+      await navigator.clipboard.writeText(txt);
+      window.showToast('Đã sao chép nội dung. Mở Zalo, chọn nhóm và dán để gửi.','success',5500);
+    }catch(e){
+      prompt('Sao chép nội dung này để gửi Zalo:',txt);
+    }
+  };
+  const punchShareCard=()=>lastPunchShare&&h('div',{className:'card',style:{margin:'12px 0',padding:14,border:'1px solid #B7DFC8',background:'#F2FBF6'}},
+    h('div',{style:{fontWeight:700,color:'#17633B',marginBottom:6}},h('i',{className:'ti ti-circle-check'}),' Chấm công thành công'),
+    h('div',{style:{whiteSpace:'pre-line',lineHeight:1.55,marginBottom:10}},punchShareText(lastPunchShare)),
+    h('button',{className:'bp',onClick:()=>sharePunchZalo(lastPunchShare)},h('i',{className:'ti ti-brand-zalo'}),' Chia sẻ Zalo')
+  );
   const sendWebhook=async()=>{if(!zaloWebhook){window.showToast('Chưa nhập webhook Zalo/server trung gian.','warn');return;}try{await fetch(zaloWebhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:zaloText(),date:day,records:filtered})});window.showToast('Đã gửi dữ liệu sang webhook.','success');}catch(e){window.showToast('Không gửi được webhook. Kiểm tra đường dẫn hoặc CORS.','error');}};
   const applyGpsToSettings=()=>{
     if(pos){
@@ -743,6 +772,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
         h(CameraBox,{preview,setPreview,template:tpl,onCapture:handleFaceCapture,autoOpenSignal:cameraAutoOpenSignal,simple:true})
       ),
       punchBusy&&h('div',{className:'attendance-employee-working'},h('i',{className:'ti ti-loader-2 spin'}),' Đang xác nhận khuôn mặt và GPS...'),
+      punchShareCard(),
       h('div',{className:'attendance-employee-times'},
         ownTimes.length?ownTimes.map(r=>h('div',{className:'attendance-time-card',key:r.id},
           h('i',{className:'ti '+(r.type==='in'?'ti-login-2':'ti-logout-2')}),
@@ -759,7 +789,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
   return h('div',{className:'attendance-employee-simple attendance-managed-punch'},
     h('div',{className:'ptitle'},h('i',{className:'ti ti-face-id'}),'Chấm công'),
     h('div',{className:'attendance-employee-camera'},
-      h(F,{label:'Chọn nhân viên chấm công'},h('select',{value:empId,onChange:e=>{setEmpId(e.target.value);setPreview('');setCap(null);setPunchPending(false);}},
+      h(F,{label:'Chọn nhân viên chấm công'},h('select',{value:empId,onChange:e=>{setEmpId(e.target.value);setPreview('');setCap(null);setPunchPending(false);setLastPunchShare(null);}},
         h('option',{value:''},'— Chọn nhân viên —'),
         punchEmployees.map(e=>h('option',{key:e.id,value:e.id},e.id+' - '+e.name))
       )),
@@ -768,6 +798,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
         :h('div',{className:'attendance-manager-placeholder'},'Chọn nhân viên để chấm công.')
     ),
     punchBusy&&h('div',{className:'attendance-employee-working'},h('i',{className:'ti ti-loader-2 spin'}),' Đang xác nhận khuôn mặt và GPS...'),
+    punchShareCard(),
     empId&&h('div',{className:'attendance-employee-times'},
       selectedTimes.length?selectedTimes.map(r=>h('div',{className:'attendance-time-card',key:r.id},
         h('i',{className:'ti '+(r.type==='in'?'ti-login-2':'ti-logout-2')}),
