@@ -389,7 +389,7 @@ function customerImportOrderIssues(order){
 }
 
 /* ─── IMPORT PREVIEW MODAL ─── */
-function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, prodShifts, onClose}) {
+function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, products=[], prodShifts, onClose}) {
   const {newOrders=[], dupOrders=[], unknownPts=[], incompleteOrders=[], columnOffset=0} = data||{};
   const [skipDups, setSkipDups] = React.useState(true);
   const [includeIncomplete, setIncludeIncomplete] = React.useState(false);
@@ -397,6 +397,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   const [addToCustomer, setAddToCustomer] = React.useState({}); // pointName -> bool
   const [ptArea, setPtArea] = React.useState({}); // pointName -> area
   const [ptMerge, setPtMerge] = React.useState({}); // pointName -> existingPointId (gộp vào điểm có sẵn)
+  const [productAssign, setProductAssign] = React.useState({}); // tên SP import -> productId trong danh mục
 
   // Hàm tính độ tương đồng tên (Levenshtein đơn giản)
   const similarity = (a, b) => {
@@ -420,6 +421,30 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
     return 1-dp[shorter.length]/longer.length;
   };
 
+  // Mọi sản phẩm từ file KH bắt buộc phải khớp với một sản phẩm trong danh mục.
+  const normalizeProductKey=value=>String(value||'').trim().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D').replace(/đ/g,'d')
+    .replace(/\s+/g,' ').toUpperCase();
+  const productById=id=>products.find(p=>String(p.id)===String(id));
+  const unknownProductMap=new Map();
+  newOrders.forEach(order=>(order.lines||[]).forEach(line=>{
+    if(line.productId&&productById(line.productId))return;
+    const rawName=String(line.productName||'').trim();
+    const key=normalizeProductKey(rawName)||('__EMPTY__'+String(line.id||uid()));
+    const current=unknownProductMap.get(key)||{key,rawName:rawName||'Chưa có tên sản phẩm',count:0,rows:new Set()};
+    current.count++;
+    current.rows.add(order._importRow||'?');
+    unknownProductMap.set(key,current);
+  }));
+  const unknownProductGroups=[...unknownProductMap.values()];
+  const unresolvedProductGroups=unknownProductGroups.filter(group=>!productById(productAssign[group.key]));
+  const sortedProducts=[...products].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi'));
+  const productSuggestions={};
+  unknownProductGroups.forEach(group=>{
+    productSuggestions[group.key]=sortedProducts.map(product=>({product,score:similarity(group.rawName,product.name)}))
+      .sort((a,b)=>b.score-a.score).slice(0,3);
+  });
+
   // Tìm địa điểm gần giống (>= 75%) trong tất cả khách hàng
   const allExistingPts = customers.flatMap(c=>(c.points||[]).map(p=>({...p, custId:c.id, custName:c.name})));
   const similarMap = {}; // ptName -> [{pt, score}]
@@ -438,6 +463,10 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
 
   const doImport = () => {
     if(!toImport.length){window.showToast('Không có đơn đủ điều kiện để import.','warn');return;}
+    if(unresolvedProductGroups.length){
+      window.showToast('Còn '+unresolvedProductGroups.length+' sản phẩm chưa đối chiếu với danh mục. Hãy chọn sản phẩm tương ứng trước khi import.','warn');
+      return;
+    }
     const selectedIncomplete=toImport.filter(o=>incompleteIssueMap.has(o.id));
     if(selectedIncomplete.length){
       const detail=selectedIncomplete.slice(0,8).map(o=>'• Dòng '+(o._importRow||'?')+' - '+(o.pointName||'Chưa có địa điểm')+': '+incompleteIssueMap.get(o.id).join(', ')).join('\n');
@@ -473,7 +502,14 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
         }
       });
     });
-    const cleanOrders=toImport.map(o=>{const {_importRow,...clean}=o;return clean;});
+    const cleanOrders=toImport.map(o=>{
+      const {_importRow,...clean}=o;
+      return {...clean,lines:(o.lines||[]).map(line=>{
+        const existing=productById(line.productId);
+        const mapped=existing||productById(productAssign[normalizeProductKey(line.productName)]);
+        return mapped?{...line,productId:mapped.id,productName:mapped.name,unit:mapped.unit||line.unit,weightPerUnit:mapped.weightPerUnit||0}:line;
+      })};
+    });
     setOrders(p=>[...p,...cleanOrders]);
     window.showToast('Đã import '+toImport.length+' đơn hàng ('+toImport.reduce((s,o)=>s+(o.lines||[]).length,0)+' dòng sản phẩm)!','success');
     onClose();
@@ -497,10 +533,39 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
         h('div',{style:{fontWeight:600,color:'#A32D2D'}},unknownPts.length+' địa điểm mới'),
         h('div',{style:{color:'#555'}},'Chưa có trong danh sách KH')
       ),
+      unknownProductGroups.length>0&&h('div',{style:{background:'#FEE8E8',border:'1px solid #E06060',borderRadius:'var(--r)',padding:'8px 16px',fontSize:13}},
+        h('div',{style:{fontWeight:600,color:'#A32D2D'}},unknownProductGroups.length+' sản phẩm chưa khớp'),
+        h('div',{style:{color:'#555'}},'Bắt buộc chọn sản phẩm trong danh mục')
+      ),
       incompleteOrders.length>0&&h('div',{style:{background:'#FDECEC',border:'1px solid #D9534F',borderRadius:'var(--r)',padding:'8px 16px',fontSize:13}},
         h('div',{style:{fontWeight:600,color:'#A32D2D'}},incompleteOrders.length+' đơn thiếu dữ liệu'),
         h('div',{style:{color:'#555'}},'Cần xác nhận trước khi import')
       )
+    ),
+
+    unknownProductGroups.length>0&&h('div',{style:{background:'#FFF5F5',border:'1px solid #D9534F',borderRadius:'var(--r)',padding:'12px',marginBottom:'1rem'}},
+      h('div',{style:{fontWeight:600,marginBottom:4,fontSize:14,color:'#A32D2D'}},'Đối chiếu sản phẩm chưa có trong danh mục'),
+      h('div',{style:{fontSize:12,color:'#6B1F1F',marginBottom:10}},'App sẽ không tạo hoặc import tên sản phẩm ngoài danh mục. Hãy chọn sản phẩm tương ứng; tên trong đơn sẽ được đổi sang đúng tên danh mục.'),
+      unknownProductGroups.map(group=>{
+        const suggestions=productSuggestions[group.key]||[];
+        return h('div',{key:group.key,style:{display:'grid',gridTemplateColumns:'minmax(180px,1fr) minmax(260px,1.5fr)',gap:10,alignItems:'center',padding:'8px 0',borderTop:'1px solid #f5c6c6'}},
+          h('div',null,
+            h('div',{style:{fontWeight:600,fontSize:13}},group.rawName),
+            h('div',{style:{fontSize:11,color:'var(--tx2)'}},group.count+' dòng · dòng Excel '+[...group.rows].join(', ')),
+            suggestions[0]&&suggestions[0].score>=0.45&&h('div',{style:{fontSize:11,color:'#856404',marginTop:2}},'Gợi ý gần nhất: '+suggestions[0].product.name+' ('+Math.round(suggestions[0].score*100)+'%)')
+          ),
+          h('select',{
+            value:productAssign[group.key]||'',
+            onChange:e=>setProductAssign(prev=>({...prev,[group.key]:e.target.value})),
+            style:{width:'100%',borderColor:productAssign[group.key]?'#52b788':'#D9534F'}
+          },
+            h('option',{value:''},'— Chọn sản phẩm tương ứng trong danh mục —'),
+            suggestions.filter(item=>item.score>=0.45).map(item=>h('option',{key:'suggest-'+item.product.id,value:item.product.id},'Gợi ý: '+(item.product.code?item.product.code+' - ':'')+item.product.name)),
+            h('option',{disabled:true},'──────────'),
+            sortedProducts.map(product=>h('option',{key:product.id,value:product.id},(product.code?product.code+' - ':'')+product.name))
+          )
+        );
+      })
     ),
 
     incompleteOrders.length>0&&h('div',{style:{background:'#FFF5F5',border:'1px solid #D9534F',borderRadius:'var(--r)',padding:'12px',marginBottom:'1rem'}},
@@ -660,9 +725,9 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
 
     h(Row,null,
       h('button',{onClick:onClose},'Hủy'),
-      h('button',{className:'bp',onClick:doImport,disabled:!toImport.length,style:{padding:'8px 20px'}},
+      h('button',{className:'bp',onClick:doImport,disabled:!toImport.length||unresolvedProductGroups.length>0,style:{padding:'8px 20px'}},
         h('i',{className:'ti ti-file-import',style:{fontSize:14}}),
-        ' Import '+toImport.length+' đơn'
+        unresolvedProductGroups.length?' Còn '+unresolvedProductGroups.length+' SP chưa đối chiếu':' Import '+toImport.length+' đơn'
       )
     )
   );
@@ -897,6 +962,11 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,o
   };
   const importRows=()=>{
     if(!rows.length){window.showToast('Chưa có đơn hàng nào để nhập.','warn');return;}
+    const unmatchedLines=rows.flatMap(order=>(order.lines||[]).filter(line=>!line.productId||!(products||[]).some(product=>String(product.id)===String(line.productId))));
+    if(unmatchedLines.length){
+      window.showToast('Còn '+unmatchedLines.length+' dòng sản phẩm chưa khớp danh mục. Hãy chọn sản phẩm tương ứng trước khi nhập.','warn');
+      return;
+    }
     const dup=rows.filter(o=>orders.some(ex=>ex.deliveryDate===o.deliveryDate&&ex.pointName===o.pointName&&ex.deliveryTime===o.deliveryTime));
     const finalRows=dup.length&&confirm('Có '+dup.length+' đơn có thể bị trùng. Bỏ qua đơn trùng?')?rows.filter(o=>!dup.includes(o)):rows;
     if(!finalRows.length){window.showToast('Không còn đơn hàng mới để nhập.','info');return;}
@@ -1474,7 +1544,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const[dateFilterMode,setDateFilterMode]=useState('day');
   const[fDate,sfDate]=useState(_ti0);const[fDateTo,sfDateTo]=useState(_ti0);
   const[fWeek,sfWeek]=useState(currentISOWeekInput());const[fMonth,sfMonth]=useState(_ti0.slice(0,7));
-  const[fPoint,sfPoint]=useState('');const[fTime,sfTime]=useState('');const[fArea,sfArea]=useState('');
+  const[fPoint,sfPoint]=useState('');const[fProduct,sfProduct]=useState('');const[fTime,sfTime]=useState('');const[fArea,sfArea]=useState('');
   const[pageSize,setPageSize]=useState(100);const[currentPage,setCurrentPage]=useState(1);let oSeq=orders.length+1;
   const[bulkSelected,setBulkSelected]=useState({});
   const isAdmin=String(currentUser?.role||'').trim().toLowerCase()==='admin';
@@ -1524,7 +1594,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     document.addEventListener('keydown',onKey,true);
     return()=>document.removeEventListener('keydown',onKey,true);
   },[modal,print,invoiceView]);
-  useEffect(()=>{setCurrentPage(1);setBulkSelected({});},[q,filter,dateFilterMode,fDate,fDateTo,fWeek,fMonth,fPoint,fTime,fArea,sortMode,pageSize]);
+  useEffect(()=>{setCurrentPage(1);setBulkSelected({});},[q,filter,dateFilterMode,fDate,fDateTo,fWeek,fMonth,fPoint,fProduct,fTime,fArea,sortMode,pageSize]);
   const save=d=>{if(edit)applyOrdersAndTripSync(p=>p.map(x=>x.id===edit.id?d:x));else{const datePart=(d.deliveryDate||fmtDate()).split('/').slice(0,2).join('');const id='DGH'+datePart+String(oSeq++).toString().padStart(3,'0');applyOrdersAndTripSync(p=>[...p,{...d,id,createdAt:fmtDate()}]);}sm(null);se(null);};
   const saveInvoiceImage=async(order,file)=>{
     if(!file)return;
@@ -1696,8 +1766,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const orderRowKey=order=>order?._rowKey||orderRowKeyByObject.get(order)||('delivery-order-fallback\u001f'+String(order?.id||''));
   const listWithoutPoint=orders.filter(x=>{
     if(filter!=='all'&&x.status!==filter) return false;
-    if(q&&!String(x.customer||'').toLowerCase().includes(q.toLowerCase())&&!String(x.id||'').toLowerCase().includes(q.toLowerCase())&&!String(x.pointName||'').toLowerCase().includes(q.toLowerCase())) return false;
+    if(q&&!String(x.customer||'').toLowerCase().includes(q.toLowerCase())&&!String(x.id||'').toLowerCase().includes(q.toLowerCase())&&!String(x.pointName||'').toLowerCase().includes(q.toLowerCase())&&!(x.lines||[]).some(line=>String(line.productName||'').toLowerCase().includes(q.toLowerCase()))) return false;
     if(!matchesDateFilter(x.deliveryDate))return false;
+    if(fProduct){
+      const selectedName=normalizeLookupText(fProduct);
+      if(!(x.lines||[]).some(line=>normalizeLookupText(line.productName||'')===selectedName))return false;
+    }
     if(fTime&&normalizeTimeInput(x.deliveryTime||'')!==fTime) return false;
     if(fArea&&getArea(x)!==fArea) return false;
     return true;
@@ -2258,6 +2332,14 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('option',{value:''},'Tất cả địa điểm ('+pointOptions.length+')'),
           pointOptions.map(point=>h('option',{key:point,value:point},point))
         ),
+        h('select',{value:fProduct,onChange:e=>sfProduct(e.target.value),title:'Lọc theo tên sản phẩm đang có trong đơn hàng',
+          style:{padding:'5px 8px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:12,width:160}},
+          h('option',{value:''},'Tất cả sản phẩm'),
+          [...new Set((orders||[]).flatMap(order=>(order.lines||[]).map(line=>String(line.productName||'').trim())).filter(Boolean))]
+            .sort((a,b)=>a.localeCompare(b,'vi',{sensitivity:'base',numeric:true})).map(productName=>
+            h('option',{key:productName,value:productName},productName)
+          )
+        ),
         h('select',{value:fTime,onChange:e=>sfTime(e.target.value),
           style:{padding:'5px 8px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:12,width:100}},
           h('option',{value:''},'Tất cả giờ'),
@@ -2268,11 +2350,11 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('option',{value:''},'Tất cả KV'),
           [...new Set(customers.flatMap(c=>(c.points||[]).map(p=>p.area)).filter(Boolean))].sort().map(a=>h('option',{key:a,value:a},a))
         ),
-        (hasDateFilter||fPoint||fTime||fArea)&&h('button',{
-          onClick:()=>{sfDate('');sfDateTo('');sfWeek('');sfMonth('');sfPoint('');sfTime('');sfArea('');},
+        (hasDateFilter||fPoint||fProduct||fTime||fArea)&&h('button',{
+          onClick:()=>{sfDate('');sfDateTo('');sfWeek('');sfMonth('');sfPoint('');sfProduct('');sfTime('');sfArea('');},
           style:{padding:'5px 8px',fontSize:12,borderRadius:'var(--r)',border:'1px solid var(--bd)',cursor:'pointer',color:'var(--tx2)',whiteSpace:'nowrap'}
         },'✕'),
-        (hasDateFilter||fPoint||fTime||fArea)&&h('span',{style:{fontSize:12,color:'var(--pri)',fontWeight:500,whiteSpace:'nowrap'}},
+        (hasDateFilter||fPoint||fProduct||fTime||fArea)&&h('span',{style:{fontSize:12,color:'var(--pri)',fontWeight:500,whiteSpace:'nowrap'}},
           list.length+' kết quả'
         ),
         list.length>0&&renderPagination('top'),
@@ -2388,7 +2470,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         ),
         modal==='print'&&h(PrintByCustomerModal,{orders,customers,products,company,initialDate:dateFilterMode==='day'?fDate:'',onClose:()=>sm(null)}),
         modal==='printlabels'&&h(PrintLabelsMultiModal,{orders,customers,initialDate:dateFilterMode==='day'?fDate:'',onClose:()=>sm(null),onPrint:printLabelsForOrders}),
-        modal==='importPreview'&&window._importData&&h(ImportPreviewModal,{data:window._importData,customers,setCustomers,orders,setOrders,onClose:()=>{sm(null);delete window._importData;}}),
+        modal==='importPreview'&&window._importData&&h(ImportPreviewModal,{data:window._importData,customers,setCustomers,orders,setOrders,products,prodShifts,onClose:()=>{sm(null);delete window._importData;}}),
         modal==='imageImport'&&h(ImageOrderImportModal,{customers,products,orders,setOrders,prodShifts,onClose:()=>sm(null)}),
         h('button',{
           onClick:()=>sm('imageImport'),
@@ -2712,10 +2794,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
               'SX: '+(plan.prodDate||'—')+' • '+(plan.prodTime||'—')
             ))
           ),
+          h('div',{className:'delivery-mobile-products'},
+            (ctx.lines||[]).map((line,li)=>h('div',{key:line.id||li,className:'delivery-mobile-product-row'},
+              h('span',{title:line.productName||''},(li+1)+'. '+(line.productName||'Sản phẩm')),
+              h('b',null,
+                (Number(line.qtyProd)||0).toLocaleString('vi-VN',{maximumFractionDigits:2}),
+                ' / ',
+                orderLineQty(line).toLocaleString('vi-VN',{maximumFractionDigits:2})
+              )
+            ))
+          ),
           h('div',{className:'mobile-data-grid'},
-            h('div',{className:'mobile-data-item'},h('b',null,'Hàng hóa'),h('span',null,(ctx.lines||[]).length+' mặt hàng')),
-            h('div',{className:'mobile-data-item'},h('b',null,'SL Đặt'),h('span',{className:'delivery-order-qty'},(ctx.lines||[]).reduce((sum,line)=>sum+(Number(line.qtyProd)||0),0).toLocaleString('vi-VN',{maximumFractionDigits:2}))),
-            h('div',{className:'mobile-data-item'},h('b',null,'SL HĐ'),h('span',{className:'delivery-invoice-qty'},(ctx.lines||[]).reduce((sum,line)=>sum+orderLineQty(line),0).toLocaleString('vi-VN',{maximumFractionDigits:2}))),
             h('div',{className:'mobile-data-item'},h('b',null,'Khối lượng'),h('span',null,totalW>0?totalW.toFixed(2)+' kg':'—')),
             h('div',{className:'mobile-data-item'},h('b',null,'Trạng thái'),h(StatusBadge,{s:ctx.status})),
             h('div',{className:'mobile-data-item'},h('b',null,'Hóa đơn'),h('span',null,ctx.invoiceImage?'Đã có ảnh':'Chưa có'))

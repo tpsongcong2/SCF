@@ -298,6 +298,7 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
   const shiftNameFromProdTime=t=>shiftRuleFromProdTime(t)?.name||'';
   const[form,sf]=useState(empty);
   const[sortMode,setSortMode]=useState('area');
+  const[areaFilter,setAreaFilter]=useState('all');
   const pointOptions=[...new Set((customers||[]).flatMap(c=>(c.points||[]).map(pt=>pt.name).filter(Boolean)))].sort((a,b)=>a.localeCompare(b));
   const dateOffsetLabel=v=>{
     const n=Number(v||0);
@@ -312,8 +313,14 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
       const pt=(c.points||[]).find(p=>(p.name||'').trim().toUpperCase()===name);
       if(pt)return pt.area||'Chưa phân khu vực';
     }
+    for(const c of customers||[]){
+      const pt=(c.points||[]).find(p=>(p.area||'').trim().toUpperCase()===name);
+      if(pt)return pt.area||'Chưa phân khu vực';
+    }
     return 'Chưa phân khu vực';
   };
+  const areaFilterOptions=[...new Set((prodShifts||[]).map(sh=>areaOfLocation(normalize(sh).location)).filter(Boolean))]
+    .sort((a,b)=>(a==='Chưa phân khu vực'?1:0)-(b==='Chưa phân khu vực'?1:0)||a.localeCompare(b,'vi'));
   const groupLabelForShift=r=>{
     if(sortMode==='prod'){
       return r.name||'Chưa có ca SX';
@@ -342,7 +349,7 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
     }
     return group==='Chưa phân khu vực'?9999:0;
   };
-  const groupedShifts=[...prodShifts].map(normalize).sort((a,b)=>{
+  const groupedShifts=[...prodShifts].map(normalize).filter(r=>areaFilter==='all'||areaOfLocation(r.location)===areaFilter).sort((a,b)=>{
     const ga=groupLabelForShift(a),gb=groupLabelForShift(b);
     const gp=sortPriorityForGroup(ga)-sortPriorityForGroup(gb);
     if(gp)return gp;
@@ -451,6 +458,11 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
       )
     ),
     h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'1rem',gap:8,flexWrap:'wrap',alignItems:'center'}},
+      h('span',{style:{fontSize:12,color:'var(--tx2)',fontWeight:600}},'Lọc khu vực'),
+      h('select',{value:areaFilter,onChange:e=>setAreaFilter(e.target.value),style:{padding:'7px 10px',border:'1px solid var(--bd)',borderRadius:'var(--r)',fontSize:13,minWidth:180}},
+        h('option',{value:'all'},'Tất cả khu vực ('+(prodShifts||[]).length+')'),
+        areaFilterOptions.map(area=>h('option',{key:area,value:area},area+' ('+(prodShifts||[]).filter(sh=>areaOfLocation(normalize(sh).location)===area).length+')'))
+      ),
       h('span',{style:{fontSize:12,color:'var(--tx2)',fontWeight:600}},'Sắp xếp theo'),
       h('select',{value:sortMode,onChange:e=>setSortMode(e.target.value),style:{padding:'7px 10px',border:'1px solid var(--bd)',borderRadius:'var(--r)',fontSize:13}},
         h('option',{value:'area'},'Khu vực'),
@@ -506,11 +518,12 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
                 h('button',{className:'bi',onClick:()=>del(r),title:'Xóa',style:{color:'#A32D2D',marginLeft:4}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
               )
             ));
-          });return rows;})()
+          });if(!rows.length)rows.push(h('tr',{key:'empty-area-filter'},h('td',{colSpan:11,className:'empty-st'},'Không có dòng cài đặt thuộc khu vực đã chọn.')));return rows;})()
         )
       )
     ),
     h('div',{className:'mobile-card-list',style:{marginBottom:'1.5rem'}},
+      groupedShiftRows.length===0&&h('div',{className:'empty-st',style:{padding:'1rem'}},'Không có dòng cài đặt thuộc khu vực đã chọn.'),
       groupedShiftRows.map(item=>{
         if(item.type==='group'){
           return h('div',{key:item.key,style:{padding:'8px 12px',background:'#E6F1FB',color:'#185FA5',fontWeight:700,borderRadius:10,marginBottom:8}},

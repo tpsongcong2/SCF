@@ -64,6 +64,7 @@ function roleDefaults(role) {
 // canAccess checks employee's custom permissions first, else falls back to role
 function canAccess(role, page, perms, dept='') {
   const isAccounting=String(dept||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('ke toan');
+  if(page==='trips'&&(role==='admin'||isAccounting)) return true;
   if(['nccgoods','purchasegoods'].includes(page)&&(role==='admin'||isAccounting)) return true;
   if(['nccs','purchaseorders','purchasereport'].includes(page)&&role!=='admin') return false;
   const allowed = PAGE_ACCESS[page];

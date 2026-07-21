@@ -230,7 +230,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
   const selfEmpId=employees.some(e=>e.id===currentUser.id)?currentUser.id:'';
   const[empId,setEmpId]=useState(selfEmpId);
   const[q,setQ]=useState('');const[day,setDay]=useState(isoDate());
-  const[periodMode,setPeriodMode]=useState('day');
+  const[periodMode,setPeriodMode]=useState('month');
   const[month,setMonth]=useState(isoDate().slice(0,7));
   const selectedEmpId=isAdmin?(empId||selfEmpId):isManager?empId:selfEmpId;
   useEffect(()=>{

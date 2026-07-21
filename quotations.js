@@ -1,6 +1,6 @@
 /* ─── Status badges ─── */
 function StatusBadge({s}){
-  const map={pending:['#FAEEDA','#854F0B','Chờ xếp'],assigned:['#E6F1FB','#185FA5','Đã xếp'],delivering:['#EAF3DE','#3B6D11','Đang giao'],done:['#E1F5EE','#0F6E56','Đã giao'],failed:['#FCEBEB','#A32D2D','Giao lỗi'],cancelled:['#FCEBEB','#A32D2D','Hủy'],planning:['#E6F1FB','#185FA5','Lên kế hoạch'],active:['#EAF3DE','#3B6D11','Đang giao'],completed:['#E1F5EE','#0F6E56','Hoàn thành'],draft:['#F1EFE8','#5F5E5A','Nháp'],sent:['#E6F1FB','#185FA5','Đã gửi'],approved:['#EAF3DE','#3B6D11','Đã duyệt'],expired:['#F1EFE8','#6b6b67','Hết hạn']};
+  const map={pending:['#FAEEDA','#854F0B','Chờ xếp'],assigned:['#E6F1FB','#185FA5','Đã xếp'],delivering:['#EAF3DE','#3B6D11','Đang giao'],done:['#E1F5EE','#0F6E56','Đã giao'],failed:['#FCEBEB','#A32D2D','Giao lỗi'],cancelled:['#FCEBEB','#A32D2D','Hủy'],planning:['#E6F1FB','#185FA5','Lên kế hoạch'],active:['#EAF3DE','#3B6D11','Đang giao'],completion_pending:['#FFF3CD','#8A5A00','Chờ kế toán duyệt'],completed:['#E1F5EE','#0F6E56','Hoàn thành'],draft:['#F1EFE8','#5F5E5A','Nháp'],sent:['#E6F1FB','#185FA5','Đã gửi'],approved:['#EAF3DE','#3B6D11','Đã duyệt'],expired:['#F1EFE8','#6b6b67','Hết hạn']};
   const[bg,tx,label]=map[s]||['#F1EFE8','#5F5E5A',s];
   return h('span',{className:'badge',style:{background:bg,color:tx}},label);
 }
@@ -108,22 +108,26 @@ function QuoteLineRow({line,products,onChange,onRemove}){
     h('button',{className:'bi',onClick:onRemove,style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:14}}))
   );
 }
-function PointMultiSelect({custPoints,pointIds,areaNames,togglePoint,toggleArea,toggleAll}){
+function quotePointSelectionKey(point){
+  const clean=value=>String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D').replace(/đ/g,'d').replace(/\s+/g,' ').toUpperCase();
+  return clean(point?.id)+'\u001f'+clean(point?.name);
+}
+function PointMultiSelect({custPoints,pointKeys,areaNames,togglePoint,toggleArea,toggleAll,clearAll}){
   const[open,setOpen]=useState(false);
   const areaList=[...new Set(custPoints.map(p=>p.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
-  const selectedByArea=custPoints.filter(p=>p.area&&areaNames.includes(p.area)).map(p=>p.id);
-  const effectivePointIds=[...new Set([...(pointIds||[]),...selectedByArea])];
-  const allChecked=custPoints.length>0&&effectivePointIds.length===custPoints.length;
-  const someChecked=effectivePointIds.length>0&&effectivePointIds.length<custPoints.length;
-  const label=effectivePointIds.length===0?'— Chọn khu vực / địa điểm áp dụng —':
+  const selectedByArea=custPoints.filter(p=>p.area&&areaNames.includes(p.area)).map(quotePointSelectionKey);
+  const effectivePointKeys=[...new Set([...(pointKeys||[]),...selectedByArea])];
+  const allChecked=custPoints.length>0&&effectivePointKeys.length===custPoints.length;
+  const someChecked=effectivePointKeys.length>0&&effectivePointKeys.length<custPoints.length;
+  const label=effectivePointKeys.length===0?'— Chọn khu vực / địa điểm áp dụng —':
     allChecked?'Tất cả '+custPoints.length+' địa điểm':
-    (areaNames.length?areaNames.length+' khu vực, ':'')+effectivePointIds.length+' địa điểm áp dụng';
+    (areaNames.length?areaNames.length+' khu vực, ':'')+effectivePointKeys.length+' địa điểm áp dụng';
   if(custPoints.length===0) return h(F,{label:'Địa điểm áp dụng *'},
     h('div',{style:{padding:'8px 10px',fontSize:12,color:'#A32D2D',background:'#FFF0F0',borderRadius:'var(--r)',border:'1px solid #f0a0a0'}},
       '⚠ Khách hàng này chưa có địa điểm giao hàng.'
     )
   );
-  return h(F,{label:'Khu vực / địa điểm áp dụng *'+(effectivePointIds.length?' ('+effectivePointIds.length+')':'')},
+  return h(F,{label:'Khu vực / địa điểm áp dụng *'+(effectivePointKeys.length?' ('+effectivePointKeys.length+')':'')},
     h('div',{style:{position:'relative'}},
       // Dropdown trigger
       h('div',{
@@ -134,7 +138,7 @@ function PointMultiSelect({custPoints,pointIds,areaNames,togglePoint,toggleArea,
           background:'#fff',cursor:'pointer',fontSize:13,userSelect:'none',
           boxShadow:open?'0 0 0 2px rgba(45,106,79,.15)':'none',transition:'all .15s'}
       },
-        h('span',{style:{color:effectivePointIds.length?'var(--tx)':'var(--tx2)',flex:1}},label),
+h('span',{style:{color:effectivePointKeys.length?'var(--tx)':'var(--tx2)',flex:1}},label),
         h('i',{className:'ti ti-chevron-'+(open?'up':'down'),style:{fontSize:14,color:'var(--tx2)'}})
       ),
       // Dropdown panel
@@ -153,7 +157,12 @@ function PointMultiSelect({custPoints,pointIds,areaNames,togglePoint,toggleArea,
             style:{cursor:'pointer',accentColor:'var(--pri)',width:15,height:15}
           }),
           h('span',{style:{fontSize:12,fontWeight:600,color:'var(--pri)'}},
-            allChecked?'Bỏ chọn tất cả':'Chọn tất cả ('+custPoints.length+')')
+            allChecked?'Bỏ chọn tất cả':'Chọn tất cả ('+custPoints.length+')'),
+          effectivePointKeys.length>0&&h('button',{
+            type:'button',
+            onClick:e=>{e.stopPropagation();clearAll();},
+            style:{marginLeft:'auto',padding:'2px 9px',fontSize:11,color:'#A32D2D',background:'#fff',border:'1px solid #E06060',borderRadius:12,cursor:'pointer'}
+          },'Bỏ chọn')
         ),
         // List địa điểm nhóm theo khu vực
         h('div',{style:{maxHeight:240,overflowY:'auto'}},
@@ -181,18 +190,19 @@ function PointMultiSelect({custPoints,pointIds,areaNames,togglePoint,toggleArea,
                   ));
                 }
               }
-              const checked=effectivePointIds.includes(pt.id);
-              const disabled=pt.area&&areaNames.includes(pt.area);
-              rows.push(h('div',{key:pt.id,onClick:disabled?undefined:()=>togglePoint(pt.id),
+              const checked=effectivePointKeys.includes(quotePointSelectionKey(pt));
+              const inheritedFromArea=pt.area&&areaNames.includes(pt.area);
+              rows.push(h('div',{key:quotePointSelectionKey(pt),onClick:()=>togglePoint(pt),
                 style:{display:'grid',gridTemplateColumns:'auto 1fr auto',
                   alignItems:'center',gap:10,
                   padding:'7px 12px 7px '+(lastArea?'22px':'12px'),
                   background:checked?'#f0faf0':'#fff',
                   borderBottom:'1px solid var(--bd)',
-                  transition:'background .12s',cursor:disabled?'default':'pointer'}
+                  transition:'background .12s',cursor:'pointer'}
               },
-                h('input',{type:'checkbox',checked,disabled,onClick:e=>e.stopPropagation(),onChange:e=>{e.stopPropagation();togglePoint(pt.id);},
-                  style:{cursor:disabled?'not-allowed':'pointer',accentColor:'var(--pri)',width:15,height:15,flexShrink:0}
+                h('input',{type:'checkbox',checked,onClick:e=>e.stopPropagation(),onChange:e=>{e.stopPropagation();togglePoint(pt);},
+                  title:inheritedFromArea?'Bấm để chuyển từ chọn cả khu vực sang chỉ chọn địa điểm này':'Chọn địa điểm này',
+                  style:{cursor:'pointer',accentColor:'var(--pri)',width:15,height:15,flexShrink:0}
                 }),
                 h('span',{style:{fontSize:13,color:'var(--tx)'}},(checked?'✓ ':'')+pt.name),
                 pt.area&&h('span',{style:{fontSize:11,color:'var(--tx2)',background:'var(--bg2)',
@@ -206,7 +216,7 @@ function PointMultiSelect({custPoints,pointIds,areaNames,togglePoint,toggleArea,
         h('div',{style:{padding:'6px 12px',background:'var(--bg2)',borderTop:'1px solid var(--bd)',
           display:'flex',justifyContent:'space-between',alignItems:'center'}},
           h('span',{style:{fontSize:12,color:'var(--tx2)'}},
-            effectivePointIds.length?effectivePointIds.length+'/'+custPoints.length+' điểm áp dụng':'Chưa chọn khu vực / địa điểm nào'
+            effectivePointKeys.length?effectivePointKeys.length+'/'+custPoints.length+' điểm áp dụng':'Chưa chọn khu vực / địa điểm nào'
           ),
           h('button',{onClick:()=>setOpen(false),
             style:{fontSize:12,padding:'3px 12px',background:'var(--pri)',color:'#fff',
@@ -227,9 +237,16 @@ function QuoteForm({quote,quotes,customers,products,currentUser,onSave,onClose,p
   const preselectedCustomer=customers.find(customer=>customer.id===preselectedCustomerId);
   // pointIds: mảng id các địa điểm được chọn, areaNames: khu vực áp dụng tự động cho điểm mới
   const initPointIds=quote?(quote.pointIds||(quote.pointId?[quote.pointId]:[])):[];
-  const[f,sf]=useState(quote?{...quote,lines:normalizeLineOrders(quote.lines),dateFromI:toInput(quote.dateFrom),dateToI:toInput(quote.dateTo),pointIds:initPointIds,areaNames:quote.areaNames||[]}:{customerId:preselectedCustomerId||'',customer:preselectedCustomer?.name||'',dateFromI:today,dateToI:'',status:'draft',note:'',lines:[],pointIds:[],areaNames:[]});
+  const initialCustomer=customers.find(customer=>customer.id===(quote?.customerId||preselectedCustomerId));
+  const initialPoints=initialCustomer?.points||[];
+  const initPointKeys=quote?.pointKeys?.length?[...quote.pointKeys]:
+    (quote?.areaNames||[]).length?[]:
+    quote?.pointNames?.length?initialPoints.filter(point=>quote.pointNames.some(name=>String(name||'').trim().toUpperCase()===String(point.name||'').trim().toUpperCase())).map(quotePointSelectionKey):
+    initialPoints.filter(point=>initPointIds.includes(point.id)).map(quotePointSelectionKey);
+  const initAreaNames=quote?(quote.areaNames||[]):[];
+  const[f,sf]=useState(quote?{...quote,lines:normalizeLineOrders(quote.lines),dateFromI:toInput(quote.dateFrom),dateToI:toInput(quote.dateTo),pointIds:initPointIds,pointKeys:initPointKeys,areaNames:initAreaNames}:{customerId:preselectedCustomerId||'',customer:preselectedCustomer?.name||'',dateFromI:today,dateToI:'',status:'draft',note:'',lines:[],pointIds:[],pointKeys:[],areaNames:[]});
   const s=(k,v)=>sf(p=>({...p,[k]:v}));
-  const setCust=cid=>{const c=customers.find(x=>x.id===cid);sf(p=>({...p,customerId:cid,customer:c?c.name:'',pointIds:[]}));};
+  const setCust=cid=>{const c=customers.find(x=>x.id===cid);sf(p=>({...p,customerId:cid,customer:c?c.name:'',pointIds:[],pointKeys:[],areaNames:[]}));};
   const selCust=customers.find(x=>x.id===f.customerId);
   const previewId=quote?.id||(selCust?nextQuoteId(quotes,selCust,fromInput(f.dateFromI)): 'BG-MÃ_KH-YYYYMM-01');
   const custPoints=(selCust?.points||[]).sort((a,b)=>(a.area||'').localeCompare(b.area||'','vi')||(a.name||'').localeCompare(b.name||'','vi'));
@@ -239,36 +256,59 @@ function QuoteForm({quote,quotes,customers,products,currentUser,onSave,onClose,p
     if(!q)return;
     sf(p=>{
       const hasCustomer=!!p.customerId;
+      const sampleCustomer=customers.find(customer=>customer.id===(q.customerId||''));
+      const samplePoints=sampleCustomer?.points||[];
+      const samplePointKeys=q.pointKeys?.length?[...q.pointKeys]:
+        (q.areaNames||[]).length?[]:
+        q.pointNames?.length?samplePoints.filter(point=>q.pointNames.some(name=>String(name||'').trim().toUpperCase()===String(point.name||'').trim().toUpperCase())).map(quotePointSelectionKey):
+        samplePoints.filter(point=>(q.pointIds||(q.pointId?[q.pointId]:[])).includes(point.id)).map(quotePointSelectionKey);
       return {...p,
         customerId:hasCustomer?p.customerId:(q.customerId||''),
         customer:hasCustomer?p.customer:(q.customer||''),
         pointIds:hasCustomer?p.pointIds:[...(q.pointIds||(q.pointId?[q.pointId]:[]))],
+        pointKeys:hasCustomer?(p.pointKeys||[]):samplePointKeys,
         areaNames:hasCustomer?(p.areaNames||[]):[...(q.areaNames||[])],
         note:q.note||p.note||'',
         lines:normalizeLineOrders(q.lines).map(l=>({...l,id:uid()}))
       };
     });
   };
-  const togglePoint=id=>sf(p=>({...p,pointIds:p.pointIds.includes(id)?p.pointIds.filter(x=>x!==id):[...p.pointIds,id]}));
+  const togglePoint=point=>sf(p=>{
+    const key=quotePointSelectionKey(point);
+    if(!key)return p;
+    const selectedAreas=p.areaNames||[];
+    if(point.area&&selectedAreas.includes(point.area)){
+      const outsideAreaKeys=(p.pointKeys||[]).filter(pointKey=>{
+        const selectedPoint=custPoints.find(item=>quotePointSelectionKey(item)===pointKey);
+        return !selectedPoint||selectedPoint.area!==point.area;
+      });
+      return {...p,areaNames:selectedAreas.filter(area=>area!==point.area),pointKeys:[...new Set([...outsideAreaKeys,key])]};
+    }
+    return {...p,pointKeys:(p.pointKeys||[]).includes(key)?(p.pointKeys||[]).filter(x=>x!==key):[...(p.pointKeys||[]),key]};
+  });
   const toggleArea=area=>sf(p=>({...p,areaNames:(p.areaNames||[]).includes(area)?(p.areaNames||[]).filter(x=>x!==area):[...(p.areaNames||[]),area]}));
-  const effectivePointIds=()=>[...new Set([...f.pointIds,...custPoints.filter(p=>p.area&&(f.areaNames||[]).includes(p.area)).map(p=>p.id)])];
-  const toggleAll=()=>sf(p=>({...p,pointIds:effectivePointIds().length===custPoints.length?[]:custPoints.map(x=>x.id),areaNames:effectivePointIds().length===custPoints.length?[]:(p.areaNames||[])}));
+  const clearPointSelection=()=>sf(p=>({...p,pointIds:[],pointKeys:[],areaNames:[]}));
+  const effectivePointKeys=()=>[...new Set([...(f.pointKeys||[]),...custPoints.filter(p=>p.area&&(f.areaNames||[]).includes(p.area)).map(quotePointSelectionKey)])];
+  const toggleAll=()=>sf(p=>({...p,pointKeys:effectivePointKeys().length===custPoints.length?[]:custPoints.map(quotePointSelectionKey),pointIds:[],areaNames:effectivePointKeys().length===custPoints.length?[]:(p.areaNames||[])}));
   const addLine=()=>sf(p=>({...p,lines:[...p.lines,{id:uid(),sortOrder:Math.max(0,...p.lines.map(line=>Number(line.sortOrder)||0))+1,productId:'',productName:'',unit:'',price:0}]}));
   const updLine=(id,data)=>sf(p=>({...p,lines:p.lines.map(l=>l.id===id?data:l)}));
   const delLine=id=>sf(p=>({...p,lines:p.lines.filter(l=>l.id!==id)}));
   const submit=()=>{
     if(!f.customerId){window.showToast('Vui lòng chọn khách hàng!','warn');return;}
-    if(effectivePointIds().length===0){window.showToast('Chọn ít nhất 1 khu vực hoặc địa điểm áp dụng!','warn');return;}
+    if(effectivePointKeys().length===0){window.showToast('Chọn ít nhất 1 khu vực hoặc địa điểm áp dụng!','warn');return;}
     if(f.lines.length===0){window.showToast('Vui lòng thêm ít nhất 1 sản phẩm!','warn');return;}
     if(f.lines.some(line=>!line.productId)){window.showToast('Vui lòng chọn sản phẩm từ danh sách tìm kiếm!','warn');return;}
     // Tương thích ngược: lưu cả pointId (điểm đầu tiên) lẫn pointIds
-    const effIds=effectivePointIds();
-    const firstPt=custPoints.find(p=>effIds.includes(p.id));
+    const effKeys=effectivePointKeys();
+    const selectedPoints=custPoints.filter(point=>effKeys.includes(quotePointSelectionKey(point)));
+    const explicitPoints=custPoints.filter(point=>(f.pointKeys||[]).includes(quotePointSelectionKey(point)));
+    const firstPt=selectedPoints[0];
     onSave({...f,
       pointId:firstPt?.id||'',pointName:firstPt?.name||'',
-      pointIds:f.pointIds,
+      pointIds:[...new Set(explicitPoints.map(point=>point.id).filter(Boolean))],
+      pointKeys:f.pointKeys||[],
       areaNames:f.areaNames||[],
-      pointNames:custPoints.filter(p=>effIds.includes(p.id)).map(p=>p.name),
+      pointNames:selectedPoints.map(point=>point.name),
       lines:sortLines(f.lines),
       dateFrom:fromInput(f.dateFromI),dateTo:fromInput(f.dateToI),
       createdBy:quote?quote.createdBy:currentUser.name,
@@ -290,7 +330,7 @@ function QuoteForm({quote,quotes,customers,products,currentUser,onSave,onClose,p
       )),
     ),
     h(F,{label:quote?'Mã báo giá':'Mã báo giá dự kiến'},h('input',{value:previewId,readOnly:true,style:{background:'var(--bg2)',fontWeight:600,color:'var(--pri3)'}})),
-    f.customerId&&h(PointMultiSelect,{custPoints,pointIds:f.pointIds,areaNames:f.areaNames||[],togglePoint,toggleArea,toggleAll}),
+    f.customerId&&h(PointMultiSelect,{custPoints,pointKeys:f.pointKeys||[],areaNames:f.areaNames||[],togglePoint,toggleArea,toggleAll,clearAll:clearPointSelection}),
     h('div',{className:'g2'},
       h(F,{label:'Ngày bắt đầu'},h('input',{type:'date',value:f.dateFromI,onChange:e=>s('dateFromI',e.target.value)})),
       h(F,{label:'Ngày kết thúc'},h('input',{type:'date',value:f.dateToI,onChange:e=>s('dateToI',e.target.value)})),

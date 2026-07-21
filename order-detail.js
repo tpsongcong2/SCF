@@ -1,5 +1,5 @@
 /* ─── ĐƠN HÀNG CHI TIẾT ─── */
-function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,currentUser,prodShifts}){
+function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,currentUser,prodShifts,quotes,financeDebts,setFinanceDebts}){
   const todayVN=fmtDate();
   const todayISO=todayVN.split('/').reverse().join('-');
   const[periodMode,setPeriodMode]=useState('day');
@@ -56,14 +56,24 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   });
   const tripForOrder=o=>tripById.get(String(o.tripId||''))||tripByOrder.get(String(o.id||''))||null;
 
-  const customerOptions=[...new Set((orders||[]).map(o=>o.customer).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
+  const isDriver=currentUser?.role==='driver';
+  const deptKey=String(currentUser?.dept||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const isAccounting=deptKey.includes('ke toan');
+  const cleanName=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const isOwnTrip=t=>!isDriver||String(t?.driverId||'')===String(currentUser?.id||'')||cleanName(t?.driverName)===cleanName(currentUser?.name);
+  const scopedTrips=isDriver?(trips||[]).filter(isOwnTrip):(trips||[]);
+  const scopedTripIds=new Set(scopedTrips.map(t=>String(t.id)));
+  const scopedOrderIds=new Set(scopedTrips.flatMap(t=>t.orderIds||[]).map(String));
+  const scopedOrders=isDriver?(orders||[]).filter(o=>scopedOrderIds.has(String(o.id))&&scopedTripIds.has(String(tripForOrder(o)?.id||''))):(orders||[]);
+
+  const customerOptions=[...new Set(scopedOrders.map(o=>o.customer).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
   const areaOptions=[...new Set([
-    ...(orders||[]).map(resolveArea),
-    ...(customers||[]).flatMap(c=>(c.points||[]).map(pt=>pt.area)),
-    ...(shifts||[]).map(s=>s.area)
+    ...scopedOrders.map(resolveArea),
+    ...(!isDriver?(customers||[]).flatMap(c=>(c.points||[]).map(pt=>pt.area)):[]),
+    ...(!isDriver?(shifts||[]).map(s=>s.area):[])
   ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
-  const tripOptions=[...(trips||[])].sort((a,b)=>toISO(b.deliveryDate).localeCompare(toISO(a.deliveryDate))||String(a.id).localeCompare(String(b.id),'vi'));
-  const driverOptions=[...new Set((trips||[]).map(t=>t.driverName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
+  const tripOptions=[...scopedTrips].sort((a,b)=>toISO(b.deliveryDate).localeCompare(toISO(a.deliveryDate))||String(a.id).localeCompare(String(b.id),'vi'));
+  const driverOptions=[...new Set(scopedTrips.map(t=>t.driverName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
   const shiftOrder=name=>{
     const n=String(name||'').toLowerCase();
     if(n.includes('sáng')||n.includes('sang'))return 1;
@@ -74,7 +84,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const shiftOptions=[...new Set((prodShifts||[]).filter(s=>s.active!==false).map(s=>cleanShiftName(s.name)).filter(Boolean))].sort((a,b)=>shiftOrder(a)-shiftOrder(b)||a.localeCompare(b,'vi'));
 
   // Lọc ở cấp đơn trước để không phải dựng hàng nghìn dòng sản phẩm.
-  const filteredOrders=(orders||[]).filter(o=>{
+  const filteredOrders=scopedOrders.filter(o=>{
     if(o.status==='cancelled')return false;
     const date=toISO(o.deliveryDate);
     if(periodRange.from&&date&&date<periodRange.from)return false;
@@ -151,10 +161,36 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
     if(i===sorted.length-1)tableRows.push({_sub:true,area:curArea,sx:areaSX,hd:areaHD,dg:areaDG});
   });
 
-  const canEditDelivered=currentUser&&(currentUser.role==='admin'||currentUser.role==='manager'||currentUser.role==='driver'||currentUser.dept==='Kế toán');
+  const tripAgeDays=trip=>{
+    const iso=toISO(trip?.deliveryDate);
+    if(!iso)return 0;
+    return Math.max(0,Math.floor((new Date(todayISO+'T12:00:00')-new Date(iso+'T12:00:00'))/86400000));
+  };
+  const canEditDeliveredForOrder=order=>{
+    const trip=tripForOrder(order);
+    if(!trip)return false;
+    if(currentUser?.role==='admin'||isAccounting)return true;
+    if(currentUser?.role==='manager')return trip.status!=='completion_pending'&&trip.status!=='completed'&&tripAgeDays(trip)<2;
+    if(isDriver)return isOwnTrip(trip)&&trip.status==='active'&&!trip.driverConfirmedAt&&tripAgeDays(trip)<2;
+    return false;
+  };
+  const syncTripReceivables=(trip,nextOrders)=>{
+    if(!trip||!['completion_pending','completed'].includes(trip.status)||typeof financeTripReceivableDrafts!=='function'||!setFinanceDebts)return;
+    const result=financeTripReceivableDrafts(trip,nextOrders,products||[],quotes||[],customers||[],currentUser);
+    setFinanceDebts(prev=>{
+      const oldByCustomer=new Map((prev||[]).filter(d=>String(d.sourceTripId||'')===String(trip.id)).map(d=>[String(d.partnerId||d.partnerName||''),d]));
+      const keep=(prev||[]).filter(d=>String(d.sourceTripId||'')!==String(trip.id));
+      const rows=result.rows.map(row=>{const old=oldByCustomer.get(String(row.partnerId||row.partnerName||''));if(!old)return row;const paid=Number(old.paidAmount)||0;return{...row,id:old.id,paidAmount:paid,dueDate:old.dueDate||row.dueDate,createdBy:old.createdBy||row.createdBy,createdAt:old.createdAt||row.createdAt,status:paid>=row.amount?'paid':paid>0?'partial':'unpaid'};});
+      return [...keep,...rows];
+    });
+  };
   const updateDeliveredQty=(orderId,lineId,value)=>{
+    const order=(orders||[]).find(o=>String(o.id)===String(orderId));
+    if(!order||!canEditDeliveredForOrder(order)){window.showToast('Bạn không có quyền sửa số lượng đã giao của chuyến này.','warn');return;}
     const qty=numFmt(value);
-    setOrders&&setOrders(prev=>prev.map(o=>o.id===orderId?{...o,lines:(o.lines||[]).map(l=>l.id===lineId?{...l,qtyDelivered:qty,deliveredAt:fmtDT(),deliveredBy:currentUser?.name||''}:l)}:o));
+    const nextOrders=(orders||[]).map(o=>o.id===orderId?{...o,lines:(o.lines||[]).map(l=>l.id===lineId?{...l,qtyDelivered:qty,deliveredAt:fmtDT(),deliveredBy:currentUser?.name||''}:l)}:o);
+    setOrders&&setOrders(nextOrders);
+    syncTripReceivables(tripForOrder(order),nextOrders);
   };
   const firstOrder=totalOrders?(safePage-1)*pageSize+1:0;
   const lastOrder=Math.min(safePage*pageSize,totalOrders);
@@ -201,7 +237,8 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
         h('tbody',null,sorted.length?tableRows.map((r,i)=>{
           if(r._hdr)return h('tr',{key:'h'+i,className:'area-sticky'},h('td',{colSpan:10,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'5px 12px'}},'📍 Khu vực: '+r.area));
           if(r._sub)return h('tr',{key:'s'+i},h('td',{colSpan:3,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng '+r.area+':'),h('td',{style:{background:'#e8f5e9',fontWeight:700,color:'var(--pri)',fontSize:14,padding:'4px 8px'}},r.sx.toLocaleString()),h('td',{style:{background:'#e8f5e9',fontWeight:700,fontSize:14,padding:'4px 8px'}},r.hd.toLocaleString()),h('td',{style:{background:'#e8f5e9',fontWeight:700,color:'#8A5A00',fontSize:14,padding:'4px 8px'}},r.dg.toLocaleString()),h('td',{colSpan:4,style:{background:'#e8f5e9'}}));
-          const canInput=canEditDelivered&&(r.status==='done'||r.status==='completed');
+          const sourceOrder=(orders||[]).find(o=>String(o.id)===String(r.orderId));
+          const canInput=canEditDeliveredForOrder(sourceOrder)&&(r.status==='delivering'||r.status==='done'||r.status==='completed');
           return h('tr',{key:r.orderId+'-'+r.lineId,style:{background:r.prodColor||(r.shift==='night'?'rgba(83,52,131,.04)':'')}},
             h('td',null,h('span',{style:{fontWeight:500}},r.date)),h('td',null,h('div',{style:{fontWeight:600}},r.point||'—')),h('td',null,h('div',{style:{fontWeight:500}},r.product)),
             h('td',null,h('span',{style:{fontWeight:600,color:'var(--pri)',fontSize:15}},r.qtyProd.toLocaleString())),h('td',null,h('span',{style:{fontWeight:600,fontSize:15}},r.qtyInvoice.toLocaleString())),

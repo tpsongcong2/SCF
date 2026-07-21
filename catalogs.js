@@ -441,8 +441,22 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
     });
     return [...map.values()];
   };
+  // Dữ liệu cũ có thể có nhiều địa điểm dùng chung một ID. Màn sửa khu vực
+  // lưu tạm theo ID nên các dòng trùng ID sẽ bị đổi theo nhau. Giữ ID đầu tiên
+  // và cấp ID riêng cho các dòng còn lại ngay khi mở hồ sơ.
+  const ensureUniquePointIds=pts=>{
+    const seen=new Set();
+    return (pts||[]).map(pt=>{
+      let id=String(pt.id||'').trim();
+      if(!id||seen.has(id)){
+        do{id='PT'+uid();}while(seen.has(id));
+      }
+      seen.add(id);
+      return {...pt,id};
+    });
+  };
   // Dedup theo tên khi load - dọn sạch dữ liệu trùng từ lần trước
-  const initPoints=dedup((cust?.points||[]).map(pt=>({...pt,area:normalizeAreaValue(pt.area)})))
+  const initPoints=dedup(ensureUniquePointIds((cust?.points||[]).map(pt=>({...pt,area:normalizeAreaValue(pt.area)}))))
     .sort((a,b)=>{const ac=(a.area||'zzz').localeCompare(b.area||'zzz','vi');return ac!==0?ac:(a.name||'').localeCompare(b.name||'','vi');});
   const[f,sf]=useState(cust?{...cust,points:initPoints}:{id:'',code:'',name:'',group:'',taxCode:'',address:'',note:'',points:[]});
   const[np,snp]=useState({name:'',address:'',contact:'',phone:'',area:'',newAreaText:''});
