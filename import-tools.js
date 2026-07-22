@@ -513,7 +513,7 @@ function PrintTemplateModal({order, company, onClose}) {
 
 
 const NAV=[
-  {key:'welcome',icon:'ti-layout-dashboard',label:'Tổng quan'},
+  {key:'welcome',icon:'ti-cloud-sun',label:'Thời tiết'},
   {sec:'Cài đặt'},
   {key:'company',icon:'ti-building',label:'Thông tin công ty'},
   {key:'appearance',icon:'ti-typography',label:'Cài đặt giao diện'},

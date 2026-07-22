@@ -4,10 +4,11 @@ const D_SHIFTS = [
   {id:'CA02',name:'Ca chiều',area:'Khu vực 1',timeStart:'12:00',timeEnd:'18:00',note:''},
   {id:'CA03',name:'Ca tối',area:'Khu vực 2',timeStart:'18:00',timeEnd:'22:00',note:''},
 ];
-function ShiftsTab({shifts,setShifts}) {
+function ShiftsTab({shifts,setShifts,employees=[],trips=[],setTrips}) {
+  const drivers=(employees||[]).filter(e=>e.role==='driver'||e.dept==='Lái xe');
   const [modal,sm]=useState(null); const [edit,se]=useState(null); const [q,sq]=useState('');
   function ShiftForm({s,allShifts,onSave,onClose}) {
-    const [f,sf]=useState(s?{...s}:{id:'',name:'',area:'',timeStart:'',timeEnd:'',note:''});
+    const [f,sf]=useState(s?{defaultDriverId:'',defaultDriverName:'',...s}:{id:'',name:'',area:'',timeStart:'',timeEnd:'',note:'',defaultDriverId:'',defaultDriverName:''});
     const dupId = f.id && allShifts.some(x=>x.id===f.id && x.id!==(s&&s.id));
     return h(Modal,{title:s?'Sửa ca giao hàng':'Thêm ca giao hàng',onClose},
       h('div',{className:'g2'},
@@ -24,6 +25,10 @@ function ShiftsTab({shifts,setShifts}) {
         h(F,{label:'Giờ bắt đầu'},h('input',{value:f.timeStart,onChange:e=>sf(p=>({...p,timeStart:e.target.value})),placeholder:'06:00'})),
         h(F,{label:'Giờ kết thúc'},h('input',{value:f.timeEnd,onChange:e=>sf(p=>({...p,timeEnd:e.target.value})),placeholder:'12:00'}))
       ),
+      h(F,{label:'Gán lái xe tự động'},h('select',{value:f.defaultDriverId||'',onChange:e=>{const driver=drivers.find(x=>String(x.id)===String(e.target.value));sf(p=>({...p,defaultDriverId:e.target.value,defaultDriverName:driver?.name||''}));}},
+        h('option',{value:''},'— Không tự động gán —'),
+        drivers.map(driver=>h('option',{key:driver.id,value:driver.id},driver.name))
+      )),
       h(F,{label:'Ghi chú'},h('input',{value:f.note,onChange:e=>sf(p=>({...p,note:e.target.value}))})),
       h(Row,null,
         h('button',{onClick:onClose},'Hủy'),
@@ -37,7 +42,17 @@ function ShiftsTab({shifts,setShifts}) {
       )
     );
   }
-  const save=d=>{if(edit)setShifts(p=>p.map(x=>x.id===edit.id?{...d}:x));else setShifts(p=>[...p,d]);sm(null);se(null);};
+  const save=d=>{
+    if(edit)setShifts(p=>p.map(x=>x.id===edit.id?{...d}:x));else setShifts(p=>[...p,d]);
+    if(typeof setTrips==='function')setTrips(previous=>(previous||[]).map(trip=>{
+      const matchesShift=String(trip.shiftId||'')===String(d.id||'');
+      const canRefreshDriver=['planning','assigned'].includes(trip.status||'planning')&&(!trip.driverId&&!trip.driverName||trip.driverAssignMode==='auto');
+      if(!matchesShift||!canRefreshDriver)return trip;
+      const hasDefault=!!(d.defaultDriverId||d.defaultDriverName);
+      return {...trip,driverId:d.defaultDriverId||'',driverName:d.defaultDriverName||'',driverAssignMode:hasDefault?'auto':'',status:hasDefault?'assigned':'planning',updatedAt:fmtDT()};
+    }));
+    sm(null);se(null);
+  };
   const del=id=>{if(confirm('Xóa ca giao hàng?'))setShifts(p=>p.filter(x=>x.id!==id));};
   const list=shifts.filter(x=>!q||x.name.toLowerCase().includes(q.toLowerCase()));
   return h('div',null,
@@ -57,12 +72,13 @@ function ShiftsTab({shifts,setShifts}) {
             h('span',{className:'badge',style:{background:'var(--pri)',color:'#fff',marginLeft:4}},list.filter(x=>(x.area||'Chưa phân khu vực')===area).length+' ca')
           ),
           h('div',{className:'tw',style:{borderRadius:'0 0 var(--rl) var(--rl)'}},h('table',null,
-            h('thead',null,h('tr',null,...['Mã ca','Tên ca','Giờ bắt đầu','Giờ kết thúc','Ghi chú',''].map(c=>h('th',{key:c},c)))),
+            h('thead',null,h('tr',null,...['Mã ca','Tên ca','Giờ bắt đầu','Giờ kết thúc','Lái xe tự động','Ghi chú',''].map(c=>h('th',{key:c},c)))),
             h('tbody',null,list.filter(x=>(x.area||'Chưa phân khu vực')===area).map(x=>h('tr',{key:x.id},
               h('td',null,h('span',{style:{color:'var(--pri)',fontWeight:500}},x.id)),
               h('td',null,h('div',{style:{fontWeight:500}},x.name)),
               h('td',null,x.timeStart?h('span',{className:'badge',style:{background:'#FFF9C4',color:'#854F0B'}},x.timeStart):'—'),
               h('td',null,x.timeEnd?h('span',{className:'badge',style:{background:'#EDE9FE',color:'#5B21B6'}},x.timeEnd):'—'),
+              h('td',null,x.defaultDriverName?h('span',{className:'badge',style:{background:'#E1F5EE',color:'#0F6E56'}},x.defaultDriverName):'—'),
               h('td',null,x.note||'—'),
               h('td',null,h('div',{style:{display:'flex',gap:2}},
                 h('button',{className:'bi',onClick:()=>{se(x);sm('f')}},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
@@ -76,4 +92,3 @@ function ShiftsTab({shifts,setShifts}) {
     modal==='f'&&h(ShiftForm,{s:edit,allShifts:shifts,onSave:save,onClose:()=>{sm(null);se(null);}})
   );
 }
-

@@ -1222,6 +1222,8 @@ function IntemTab({products,company}){
   const [packWeight,setPackWeight]=useState('');
   useEffect(()=>{if(!productId&&printableProducts[0]?.id)setProductId(printableProducts[0].id);},[productId,printableProducts]);
   const selectedProduct=printableProducts.find(p=>String(p.id||'')===String(productId||''))||null;
+  const selectedProductText=[selectedProduct?.name,selectedProduct?.custName,selectedProduct?.unit].filter(Boolean).join(' ').toUpperCase();
+  const isPacProduct=selectedProductText.includes('/PAC')||selectedProductText.includes('KG/PAC')||(/\bPAC\b/i.test(selectedProductText)&&/GÓI|GOI/i.test(selectedProductText));
   const labelRule=resolveProductLabelPackRule(selectedProduct,selectedProduct?.name||'');
   // Thành phẩm TP dùng tem theo quy tắc đóng gói, kể cả dữ liệu cũ còn lưu nhầm cờ "không in tem".
   const productNeedsLabel=labelRule.enabled||/^TP\d+/i.test(String(selectedProduct?.code||''));
@@ -1229,6 +1231,10 @@ function IntemTab({products,company}){
   useEffect(()=>{
     if(templateType==='100x100'&&defaultPackWeight>0&&!numFmt(packWeight))setPackWeight(String(defaultPackWeight));
   },[templateType,defaultPackWeight]);
+  useEffect(()=>{
+    if(!selectedProduct)return;
+    setTemplateType(isPacProduct?'100x100':'58x40');
+  },[productId,isPacProduct]);
   const toVnDate=value=>vnDateFromISO(value)||fmtAnyDate(value)||value||'';
   // In qua hộp in hệ điều hành; trình duyệt không thể chọn máy in trực tiếp.
   const printerIp='';
@@ -1287,7 +1293,7 @@ function IntemTab({products,company}){
       +'<text x=\"552\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\" text-anchor=\"end\">BQ: 0-10°C</text>'
       +'</svg>';
   };
-  const pacSvg=kg=>{
+  const legacyPacSvg=kg=>{
     const product=String(selectedProduct?.name||'').trim().toUpperCase()||'SẢN PHẨM';
     const nsx=toVnDate(prodDate);
     const gioSx=String(prodTime||'').trim().replace(':','H').replace(/H00$/,'H');
@@ -1335,9 +1341,49 @@ function IntemTab({products,company}){
       +'<text x=\"866\" y=\"1015\" font-family=\"Times New Roman,serif\" font-size=\"24\" font-weight=\"700\" text-anchor=\"middle\">'+gioSx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
       +'</svg>';
   };
+  const warehousePacSvg=kg=>{
+    const escapeSvg=value=>String(value||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    const product=String(selectedProduct?.name||'')
+      .replace(/\s+/g,' ')
+      .replace(/\s*,\s*\d+(?:[.,]\d+)?\s*KG\s*\/\s*PAC\b/ig,'')
+      .replace(/\s+\d+(?:[.,]\d+)?\s*KG\s*\/\s*PAC\b/ig,'')
+      .replace(/\s*,\s*PAC\b/ig,'')
+      .trim().toUpperCase()||'SẢN PHẨM';
+    const kgNum=formatKg(kg);
+    const nsx=toVnDate(prodDate);
+    const gioSx=String(prodTime||'').trim().replace(':','H').replace(/H00$/,'H');
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">'
+      +'<rect width="1000" height="1000" fill="white"/>'
+      +'<g transform="translate(28 41) scale(0.95)">'
+      +'<rect x="0" y="0" width="1000" height="1006" fill="white" stroke="#111" stroke-width="6"/>'
+      +'<text x="430" y="143" font-family="Times New Roman,serif" font-size="70" font-weight="700" text-anchor="middle">'+escapeSvg(product)+'</text>'
+      +'<text x="804" y="143" font-family="Times New Roman,serif" font-size="70" font-weight="700" text-anchor="middle">'+escapeSvg(kgNum)+'</text>'
+      +'<text x="922" y="143" font-family="Times New Roman,serif" font-size="52" font-weight="700" text-anchor="middle">KG</text>'
+      +'<text x="72" y="245" font-family="Times New Roman,serif" font-size="32" font-weight="700">SP CỦA: CÔNG TY TNHH THỰC PHẨM SÔNG CÔNG</text>'
+      +'<text x="72" y="329" font-family="Times New Roman,serif" font-size="32" font-weight="700">ĐC: Tổ 1. P.Mỏ Chè, Sông Công, T.Thái Nguyên</text>'
+      +'<text x="72" y="413" font-family="Times New Roman,serif" font-size="32" font-weight="700">SĐT : 0969709878</text>'
+      +'<text x="510" y="413" font-family="Times New Roman,serif" font-size="32" font-weight="700">TP: Bột gạo, nước</text>'
+      +'<text x="72" y="497" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 15°C-20°C. Đóng gói hở. HSD 12h trần nước sôi trước khi dùng.</text>'
+      +'<text x="72" y="581" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 10°C-15°C. Đóng gói hở. HSD 24h trần nước sôi trước khi dùng.</text>'
+      +'<text x="72" y="665" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 5°C-10°C. Đóng gói hở. HSD 36h trần nước sôi trước khi dùng.</text>'
+      +'<text x="72" y="749" font-family="Times New Roman,serif" font-size="31" font-weight="700">BQ : 0°C-5°C. Đóng gói kín. HSD 72h trần nước sôi trước khi dùng.</text>'
+      +'<text x="72" y="833" font-family="Times New Roman,serif" font-size="31" font-weight="700">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'
+      +'<text x="105" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700">Formol:</text>'
+      +'<text x="292" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700" text-anchor="middle">0</text>'
+      +'<text x="448" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700">PH:</text>'
+      +'<text x="560" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700" text-anchor="middle">5-8</text>'
+      +'<text x="634" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700">Hàn the:</text>'
+      +'<text x="846" y="918" font-family="Times New Roman,serif" font-size="31" font-weight="700" text-anchor="middle">0</text>'
+      +'<text x="140" y="997" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">NSX:</text>'
+      +'<text x="335" y="997" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">'+escapeSvg(nsx)+'</text>'
+      +'<text x="620" y="997" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">GIỜ SX:</text>'
+      +'<text x="860" y="997" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">'+escapeSvg(gioSx)+'</text>'
+      +'</g></svg>';
+  };
   const openLabelWindow=()=>{
     if(!selectedProduct){window.showToast('Chọn sản phẩm trước khi in tem','warn');return;}
     if(!productNeedsLabel){window.showToast('Sản phẩm này đang để không in tem trong danh mục sản phẩm','warn');return;}
+    if(templateType==='100x100'&&!isPacProduct){window.showToast('Mẫu tem 100×100 chỉ áp dụng cho sản phẩm PAC','warn');return;}
     if(!labelWeights.length){
       window.showToast(templateType==='58x40'?'Nhập tổng kg cần in để tách tem':'Nhập số gói/số tem và kg mỗi tem để in','warn');
       return;
@@ -1348,7 +1394,7 @@ function IntemTab({products,company}){
     const contentWidth=templateType==='100x100'?'100mm':'58mm';
     const contentHeight=templateType==='100x100'?'100mm':'40mm';
     const labels=labelWeights.map((kg,idx)=>{
-      const svg=templateType==='100x100'?pacSvg(kg):classicSvg(kg);
+      const svg=templateType==='100x100'?warehousePacSvg(kg):classicSvg(kg);
       const src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
       return '<section class=\"label'+(isClassic58?' classic58':'')+'\"><img class=\"label-img'+(isClassic58?' classic58-img':'')+'\" alt=\"Tem '+(idx+1)+'\" src=\"'+src+'\"></section>';
     }).join('');
@@ -1436,7 +1482,7 @@ function IntemTab({products,company}){
         h(F,{label:'Mẫu tem'},
           h('select',{value:templateType,onChange:e=>setTemplateType(e.target.value)},
             h('option',{value:'58x40'},'58 x 40 mm'),
-            h('option',{value:'100x100'},'100 x 100 mm')
+            h('option',{value:'100x100',disabled:!isPacProduct},'100 x 100 mm · PAC kho vận')
           )
         )
       ),
@@ -1671,6 +1717,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         return score(b)-score(a)||(String(a.id||'').localeCompare(String(b.id||''),'vi'));
       })[0]||null;
     }
+    // Đơn đã có khu vực thì chỉ được ghép vào chuyến đúng khu vực.
+    // Không lấy một chuyến khác cùng ngày làm phương án dự phòng.
+    if(area)return null;
     const shiftOptions=(preferredShiftId||preferredShiftName)?options.filter(t=>tripMatchesShift(t,preferredShiftId,preferredShiftName)):[]; 
     if(shiftOptions.length){
       const byDate=preferredDate?shiftOptions.filter(t=>t.deliveryDate===preferredDate):shiftOptions;
@@ -1683,6 +1732,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         return score(b)-score(a)||(String(a.id||'').localeCompare(String(b.id||''),'vi'));
       })[0]||null;
     }
+    if(preferredShiftId||preferredShiftName)return null;
     const candidates=preferredDate?options.filter(t=>t.deliveryDate===preferredDate):options;
     if(!candidates.length)return null;
     return [...candidates].sort((a,b)=>{

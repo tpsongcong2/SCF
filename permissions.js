@@ -98,6 +98,7 @@ function scfControlAction(control){
   const cls=String(control.className||'');
   const iconCls=Array.from(control.querySelectorAll?.('i')||[]).map(i=>i.className||'').join(' ');
   const text=normalizePlainText(control.textContent||'');
+  if(text==='xoa loc'||text.includes('xoa bo loc')||text==='bo loc')return'view';
   if(cls.includes('bdel')||iconCls.includes('ti-trash')||iconCls.includes('ti-delete')||text.includes('xoa ' )||text==='xoa'||text.includes('huy don'))return'delete';
   if(iconCls.includes('ti-edit')||iconCls.includes('ti-pencil')||iconCls.includes('ti-device-floppy')||iconCls.includes('ti-upload')||iconCls.includes('ti-file-import'))return'write';
   const writeWords=['them ','tao don','tao chuyen','giao viec','luu','sua ','cap nhat','doi mat khau','gui bao cao','gui webhook','xac nhan duyet','nhap excel','nhap don','upload'];

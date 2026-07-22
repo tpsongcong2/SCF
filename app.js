@@ -1,6 +1,6 @@
 /* ─── APP ROOT ─── */
 const PTITLES = {
-  welcome:'Tổng quan', company:'Thông tin công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động',
+  welcome:'Thời tiết', company:'Thông tin công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động',
   backup:'Backup dữ liệu', materials:'Nguyên vật liệu', assets:'Danh mục tài sản', products:'Sản phẩm', depts:'Bộ phận',
   customers:'Khách hàng', workcats:'Danh mục công việc', tasks:'Giao việc', shifts:'Ca giao hàng',
   workreport_vp:'Công kế toán', workreport_sx:'Công sản xuất', workreport_lx:'Công lái xe', workreport_total:'Tổng công',
@@ -182,8 +182,8 @@ function App(){
             id:'CH'+uid(),deliveryDate:tStr,
             deliveryTime:sh.timeStart||'',
             shiftId:sh.id,shiftName:sh.name,area:sh.area||'',
-            driverName:'',driverId:'',orderIds:[],totalWeight:0,
-            status:'planning',
+            driverName:sh.defaultDriverName||'',driverId:sh.defaultDriverId||'',driverAssignMode:sh.defaultDriverId||sh.defaultDriverName?'auto':'',orderIds:[],totalWeight:0,
+            status:sh.defaultDriverId||sh.defaultDriverName?'assigned':'planning',
             note:'Tự động tạo: '+sh.name+(sh.area?' - '+sh.area:''),
             createdAt:fmtDT(),autoCreated:true
           });
@@ -266,7 +266,7 @@ function App(){
         className:'content'+(menuHidden?' compact-top':'')+(readOnly?' scf-readonly':'')+(activeLevel!=='rwd'?' scf-no-delete':''),
         onClickCapture:e=>guardPermissionAction(e,cu.role,page,cu.permLevels)
       },
-        readOnly&&h('div',{className:'scf-readonly-banner'},h('i',{className:'ti ti-eye',style:{fontSize:16}}),'Chế độ Chỉ xem — bạn có thể xem, tìm kiếm, lọc, in và xuất báo cáo nhưng không thể thay đổi dữ liệu.'),
+        readOnly&&!['staff','driver'].includes(cu.role)&&h('div',{className:'scf-readonly-banner'},h('i',{className:'ti ti-eye',style:{fontSize:16}}),'Chế độ Chỉ xem — bạn có thể xem, tìm kiếm, lọc, in và xuất báo cáo nhưng không thể thay đổi dữ liệu.'),
         !canAccess(cu.role,page,cu.permissions,cu.dept)&&h('div',{style:{textAlign:'center',padding:'4rem 2rem'}},
           h('i',{className:'ti ti-lock',style:{fontSize:64,display:'block',marginBottom:'1rem',color:'#f8c30f'}}),
           h('h2',{style:{fontSize:18,fontWeight:500,marginBottom:8}},'Không có quyền truy cập'),
@@ -306,7 +306,7 @@ function App(){
         canAccess(cu.role,'powderdebtreport',cu.permissions)&&page==='powderdebtreport'&&h(PowderDebtReportTab,{customers}),
         canAccess(cu.role,'maint_vehicle',cu.permissions)&&page==='maint_vehicle'&&h(MaintenanceTab,{title:'Bảo dưỡng xe',icon:'ti-car',assets,employees}),
         canAccess(cu.role,'maint_machine',cu.permissions)&&page==='maint_machine'&&h(MaintenanceTab,{title:'Bảo dưỡng máy',icon:'ti-settings',assets,employees}),
-        canAccess(cu.role,'shifts',cu.permissions)&&page==='shifts'&&h(ShiftsTab,{shifts,setShifts}),
+        canAccess(cu.role,'shifts',cu.permissions)&&page==='shifts'&&h(ShiftsTab,{shifts,setShifts,employees,trips,setTrips}),
         canAccess(cu.role,'quotes',cu.permissions)&&page==='quotes'&&h(QuotesTab,{quotes,setQuotes,customers,products,currentUser:cu}),
         canAccess(cu.role,'delivery',cu.permissions)&&page==='delivery'&&h(DeliveryOrdersTab,{orders,setOrders,customers,setCustomers,products,prodCats,quotes,employees,currentUser:cu,trips,setTrips,company,prodShifts,prodShiftRules,shifts,menuHidden,setMenuHidden,printTemplateSettings}),
         canAccess(cu.role,'intem',cu.permissions)&&page==='intem'&&h(IntemTab,{products,company}),
