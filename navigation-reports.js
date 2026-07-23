@@ -475,7 +475,8 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
     setModal(true);
   };
   const isOwn=row=>!isDriver||row.buyerId===currentUser.id||String(row.buyerName||'').trim().toLowerCase()===String(currentUser.name||'').trim().toLowerCase();
-  const canFix=row=>canManage||(isDriver&&isOwn(row)&&String(row.note||'').trim());
+  const canEditRow=row=>canManage||(isDriver&&isOwn(row));
+  const canDeleteRow=row=>canManage;
   const busyPlate=uploading==='plate';
   const busyMeter=uploading==='meter';
   const countImages=row=>((row.plateImage?1:0)+(row.meterImage?1:0)+((!row.plateImage&&!row.meterImage&&row.image)?1:0));
@@ -753,7 +754,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
           )
         ),
         h('div',{style:{display:'flex',alignItems:'flex-end'}},
-          h('button',{
+          h('button',{'data-scf-action':'view',
             type:'button',
             onClick:()=>{sq('');sdf('');sdt('');setBuyerFilter('');setVehicleFilter('');}
           },h('i',{className:'ti ti-filter-off',style:{fontSize:14}}),'Xóa lọc')
@@ -778,8 +779,8 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
         r.note&&h('div',{className:'fuel-mobile-note'},r.note),
         h('div',{className:'fuel-mobile-actions'},
           (()=>{const imgs=renderImageActions(r);return imgs==='—'?null:imgs;})(),
-          canFix(r)&&h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
-          canFix(r)&&h('button',{className:'bi',onClick:()=>del(r.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
+          canEditRow(r)&&h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
+          canDeleteRow(r)&&h('button',{className:'bi',onClick:()=>del(r.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
         )
       )):h('div',{className:'card',style:{textAlign:'center',color:'var(--tx2)'}},'Chưa có đơn mua xăng dầu nào.')
     ),
@@ -795,8 +796,8 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
         h('td',null,renderImageActions(r)),
         h('td',null,r.note?h('span',{className:'badge',style:{background:'#FFF3CD',color:'#8A5A00',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.note):'—'),
         h('td',null,h('div',{style:{display:'flex',gap:2}},
-          canFix(r)&&h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
-          canFix(r)&&h('button',{className:'bi',onClick:()=>del(r.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
+          canEditRow(r)&&h('button',{className:'bi',onClick:()=>openEdit(r)},h('i',{className:'ti ti-edit',style:{fontSize:15}})),
+          canDeleteRow(r)&&h('button',{className:'bi',onClick:()=>del(r.id),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
         ))
       )):h('tr',null,h('td',{colSpan:9,className:'empty-st'},'Chưa có đơn mua xăng dầu nào.')))
     )),

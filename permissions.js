@@ -80,6 +80,8 @@ function canAccess(role, page, perms, dept='') {
 }
 // Mức quyền: 'r'=chỉ xem, 'rw'=xem+sửa, 'rwd'=xem+sửa+xóa
 function getLvl(role, page, lvls) {
+  // Lái xe được tạo và cập nhật đơn xăng dầu của chính mình, nhưng không được xóa.
+  if (role === 'driver' && page === 'fuelpurchases') return 'rw';
   if (lvls && lvls[page]) return lvls[page];
   // Mặc định theo role
   if (role === 'admin') return 'rwd';
