@@ -1220,6 +1220,8 @@ function IntemTab({products,company}){
   const [totalKg,setTotalKg]=useState('');
   const [packQty,setPackQty]=useState(1);
   const [packWeight,setPackWeight]=useState('');
+  const [printAgentId,setPrintAgentId]=useState(()=>window.scfPrintAgentSettings?.().agentId||'SCF-PC-01');
+  const [sendingToAgent,setSendingToAgent]=useState(false);
   useEffect(()=>{if(!productId&&printableProducts[0]?.id)setProductId(printableProducts[0].id);},[productId,printableProducts]);
   const selectedProduct=printableProducts.find(p=>String(p.id||'')===String(productId||''))||null;
   const selectedProductText=[selectedProduct?.name,selectedProduct?.custName,selectedProduct?.unit].filter(Boolean).join(' ').toUpperCase();
@@ -1380,6 +1382,34 @@ function IntemTab({products,company}){
       +'<text x="860" y="997" font-family="Times New Roman,serif" font-size="36" font-weight="700" text-anchor="middle">'+escapeSvg(gioSx)+'</text>'
       +'</g></svg>';
   };
+  const sendToPrintAgent=async()=>{
+    if(!selectedProduct){window.showToast('Chọn sản phẩm trước khi in tem','warn');return;}
+    if(!productNeedsLabel){window.showToast('Sản phẩm này đang để không in tem trong danh mục sản phẩm','warn');return;}
+    if(templateType==='100x100'&&!isPacProduct){window.showToast('Mẫu tem 100×100 chỉ áp dụng cho sản phẩm PAC','warn');return;}
+    if(!labelWeights.length){
+      window.showToast(templateType==='58x40'?'Nhập tổng kg cần in để tách tem':'Nhập số gói/số tem và kg mỗi tem để in','warn');
+      return;
+    }
+    try{
+      setSendingToAgent(true);
+      const svgs=labelWeights.map(kg=>templateType==='100x100'?warehousePacSvg(kg):classicSvg(kg));
+      await window.scfQueueLabelPrint({
+        agentId:printAgentId,
+        label:(selectedProduct?.name||'Sản phẩm')+' · '+labelWeights.length+' tem',
+        title:'Tem '+(selectedProduct?.name||'SCF'),
+        paperWidthMm:templateType==='100x100'?100:58,
+        paperHeightMm:templateType==='100x100'?100:40,
+        svgs,
+        rotate180:templateType==='58x40'
+      });
+      window.showToast('Đã gửi '+labelWeights.length+' tem tới '+String(printAgentId||'SCF-PC-01').toUpperCase()+'.','success');
+    }catch(error){
+      console.error('SCF Print Agent:',error);
+      window.showToast(error?.message||'Chưa gửi được lệnh in tới máy tính.','error');
+    }finally{
+      setSendingToAgent(false);
+    }
+  };
   const openLabelWindow=()=>{
     if(!selectedProduct){window.showToast('Chọn sản phẩm trước khi in tem','warn');return;}
     if(!productNeedsLabel){window.showToast('Sản phẩm này đang để không in tem trong danh mục sản phẩm','warn');return;}
@@ -1509,8 +1539,27 @@ function IntemTab({products,company}){
         h('div',null,summaryLine),
         templateType==='100x100'&&defaultPackWeight>0&&h('div',{style:{marginTop:6}},'Khối lượng mặc định của sản phẩm: ',h('b',null,formatKg(defaultPackWeight)),'kg / ',selectedProduct?.unit||'gói')
       ),
+      h('div',{className:'g2',style:{alignItems:'end'}},
+        h(F,{label:'Mã SCF Print Agent trên máy tính'},
+          h('input',{
+            value:printAgentId,
+            onChange:e=>setPrintAgentId(String(e.target.value||'').toUpperCase()),
+            onBlur:()=>window.scfSavePrintAgentSettings?.({agentId:printAgentId}),
+            placeholder:'SCF-PC-01'
+          })
+        ),
+        h('div',{style:{fontSize:12,color:'var(--tx2)',paddingBottom:10,lineHeight:1.45}},
+          'Điện thoại gửi tem qua mạng; máy tính có cùng mã Agent sẽ tự nhận và in.'
+        )
+      ),
       h(Row,null,
-        h('button',{className:'bp',onClick:openLabelWindow,style:{padding:'8px 20px'}},h('i',{className:'ti ti-printer',style:{fontSize:15}}),'Tạo tem và mở in')
+        h('button',{className:'bp',onClick:sendToPrintAgent,disabled:sendingToAgent,style:{padding:'8px 20px'}},
+          h('i',{className:'ti ti-device-desktop-up',style:{fontSize:15}}),
+          sendingToAgent?'Đang gửi tem...':'Gửi in qua máy tính'
+        ),
+        h('button',{onClick:openLabelWindow,disabled:sendingToAgent,style:{padding:'8px 20px'}},
+          h('i',{className:'ti ti-printer',style:{fontSize:15}}),'In trên thiết bị này'
+        )
       )
     )
   );
