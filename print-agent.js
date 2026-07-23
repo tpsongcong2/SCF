@@ -86,3 +86,34 @@ async function scfQueueLabelPrint({agentId,printerRole='x350',label,title,paperW
 window.scfPrintAgentSettings=scfPrintAgentSettings;
 window.scfSavePrintAgentSettings=scfSavePrintAgentSettings;
 window.scfQueueLabelPrint=scfQueueLabelPrint;
+
+function scfShouldUsePrintAgent(){
+  return window.matchMedia?.('(max-width: 820px)').matches||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+}
+
+async function scfQueueA4Print(html,{agentId,title='Đơn hàng SCF'}={}){
+  const settings=scfPrintAgentSettings();
+  const target=String(agentId||settings.agentId||'SCF-PC-01').trim().toUpperCase();
+  const current=await dbGet(SCF_PRINT_QUEUE_KEY,[]);
+  const queue=Array.isArray(current)?current:[];
+  const job={
+    id:'PJ'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+    agentId:target,
+    printerRole:'canon',
+    label:String(title||'Đơn hàng A4'),
+    title:String(title||'Đơn hàng SCF'),
+    paperWidthMm:210,
+    paperHeightMm:297,
+    html:String(html||''),
+    status:'pending',
+    createdAt:new Date().toISOString(),
+    attempts:0
+  };
+  if(!job.html)throw new Error('Không tạo được nội dung đơn hàng để in.');
+  await dbSet(SCF_PRINT_QUEUE_KEY,[...queue.filter(item=>item&&item.status!=='done').slice(-99),job]);
+  return job;
+}
+
+window.scfShouldUsePrintAgent=scfShouldUsePrintAgent;
+window.scfQueueA4Print=scfQueueA4Print;
