@@ -1221,6 +1221,7 @@ function IntemTab({products,company}){
   const [packQty,setPackQty]=useState(1);
   const [packWeight,setPackWeight]=useState('');
   const [printAgentId,setPrintAgentId]=useState(()=>window.scfPrintAgentSettings?.().agentId||'SCF-PC-01');
+  const [printAgentPrinter,setPrintAgentPrinter]=useState(()=>window.scfPrintAgentSettings?.().printerRole||'x350');
   const [sendingToAgent,setSendingToAgent]=useState(false);
   useEffect(()=>{if(!productId&&printableProducts[0]?.id)setProductId(printableProducts[0].id);},[productId,printableProducts]);
   const selectedProduct=printableProducts.find(p=>String(p.id||'')===String(productId||''))||null;
@@ -1237,6 +1238,9 @@ function IntemTab({products,company}){
     if(!selectedProduct)return;
     setTemplateType(isPacProduct?'100x100':'58x40');
   },[productId,isPacProduct]);
+  useEffect(()=>{
+    if(templateType==='100x100')setPrintAgentPrinter('x420');
+  },[templateType]);
   const toVnDate=value=>vnDateFromISO(value)||fmtAnyDate(value)||value||'';
   // In qua hộp in hệ điều hành; trình duyệt không thể chọn máy in trực tiếp.
   const printerIp='';
@@ -1395,6 +1399,7 @@ function IntemTab({products,company}){
       const svgs=labelWeights.map(kg=>templateType==='100x100'?warehousePacSvg(kg):classicSvg(kg));
       await window.scfQueueLabelPrint({
         agentId:printAgentId,
+        printerRole:printAgentPrinter,
         label:(selectedProduct?.name||'Sản phẩm')+' · '+labelWeights.length+' tem',
         title:'Tem '+(selectedProduct?.name||'SCF'),
         paperWidthMm:templateType==='100x100'?100:58,
@@ -1402,7 +1407,8 @@ function IntemTab({products,company}){
         svgs,
         rotate180:templateType==='58x40'
       });
-      window.showToast('Đã gửi '+labelWeights.length+' tem tới '+String(printAgentId||'SCF-PC-01').toUpperCase()+'.','success');
+      window.scfSavePrintAgentSettings?.({agentId:printAgentId,printerRole:printAgentPrinter});
+      window.showToast('Đã gửi '+labelWeights.length+' tem tới '+String(printAgentPrinter||'x350').toUpperCase()+' trên '+String(printAgentId||'SCF-PC-01').toUpperCase()+'.','success');
     }catch(error){
       console.error('SCF Print Agent:',error);
       window.showToast(error?.message||'Chưa gửi được lệnh in tới máy tính.','error');
@@ -1548,8 +1554,19 @@ function IntemTab({products,company}){
             placeholder:'SCF-PC-01'
           })
         ),
-        h('div',{style:{fontSize:12,color:'var(--tx2)',paddingBottom:10,lineHeight:1.45}},
-          'Điện thoại gửi tem qua mạng; máy tính có cùng mã Agent sẽ tự nhận và in.'
+        h(F,{label:'Máy in nhận lệnh'},
+          h('select',{
+            value:printAgentPrinter,
+            onChange:e=>{
+              const value=e.target.value;
+              setPrintAgentPrinter(value);
+              window.scfSavePrintAgentSettings?.({agentId:printAgentId,printerRole:value});
+            }
+          },
+            h('option',{value:'x350',disabled:templateType==='100x100'},'X350B · tem 58×40'),
+            h('option',{value:'x420'},templateType==='100x100'?'X420B · tem 100×100':'X420B · tem 58×40'),
+            h('option',{value:'canon',disabled:true},'Canon 2900 · giấy A4')
+          )
         )
       ),
       h(Row,null,

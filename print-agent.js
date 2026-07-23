@@ -50,7 +50,7 @@ function scfSvgToJpegFile(svg,index,rotate180=false){
   });
 }
 
-async function scfQueueLabelPrint({agentId,label,title,paperWidthMm,paperHeightMm,svgs,rotate180=false}){
+async function scfQueueLabelPrint({agentId,printerRole='x350',label,title,paperWidthMm,paperHeightMm,svgs,rotate180=false}){
   const target=String(agentId||'SCF-PC-01').trim().toUpperCase();
   if(!target)throw new Error('Chưa nhập mã SCF Print Agent.');
   if(!Array.isArray(svgs)||!svgs.length)throw new Error('Chưa có tem để gửi in.');
@@ -68,6 +68,7 @@ async function scfQueueLabelPrint({agentId,label,title,paperWidthMm,paperHeightM
   const job={
     id:'PJ'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
     agentId:target,
+    printerRole:String(printerRole||'x350').toLowerCase(),
     label:String(label||title||'Tem SCF'),
     title:String(title||'In tem SCF'),
     paperWidthMm:Number(paperWidthMm)||58,
