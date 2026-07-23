@@ -399,6 +399,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
   const [buyerFilter,setBuyerFilter]=useState('');
   const [vehicleFilter,setVehicleFilter]=useState('');
   const [uploading,setUploading]=useState('');
+  const [quickCaptureStep,setQuickCaptureStep]=useState('meter');
   const normalizeText=s=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const normalizeVehicleKey=s=>String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
   const deptKey=normalizeText(currentUser?.dept);
@@ -452,10 +453,12 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
   const openAdd=()=>{
     setEdit(null);
     setForm(blankForm(defaultBuyerId));
+    setQuickCaptureStep('meter');
     setModal(true);
   };
   const openEdit=row=>{
     setEdit(row);
+    setQuickCaptureStep(!row.meterImage?'meter':!row.plateImage?'plate':'meter');
     setForm({
       buyerId:row.buyerId||'',
       buyerName:row.buyerName||'',
@@ -639,8 +642,10 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       }catch(e){
         window.showToast(e.message||'Đã lưu ảnh biển số nhưng chưa đọc được chữ trong ảnh.','warn');
       }
+      return true;
     }catch(e){
       window.showToast('Chưa tải được ảnh biển số.','error');
+      return false;
     }finally{
       setUploading('');
     }
@@ -673,53 +678,44 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
       }catch(e){
         window.showToast(e.message||'Đã lưu ảnh cây xăng nhưng chưa OCR được số liệu.','warn');
       }
+      return true;
     }catch(e){
       window.showToast('Chưa tải được ảnh cây xăng.','error');
+      return false;
     }finally{
       setUploading('');
     }
   };
   const captureBothFuelImages=()=>{
     if(uploading)return;
-    const makeInput=()=>{
-      const input=document.createElement('input');
-      input.type='file';
-      input.accept='image/*';
-      input.setAttribute('capture','environment');
-      input.style.display='none';
-      document.body.appendChild(input);
-      return input;
-    };
-    const plateInput=makeInput();
-    const meterInput=makeInput();
-    let done=false;
-    let plateFile=null;
-    const cleanup=()=>{
-      if(done)return;
-      done=true;
-      setTimeout(()=>{
-        plateInput.remove();
-        meterInput.remove();
-      },0);
-    };
-    const processCapturedFiles=async meterFile=>{
+    const step=quickCaptureStep;
+    const input=document.createElement('input');
+    input.type='file';
+    input.accept='image/*';
+    input.setAttribute('capture','environment');
+    input.style.display='none';
+    document.body.appendChild(input);
+    const cleanup=()=>setTimeout(()=>input.remove(),0);
+    input.addEventListener('change',async()=>{
+      const file=input.files?.[0]||null;
       cleanup();
-      if(plateFile)await pickPlateImage(plateFile);
-      if(meterFile)await pickMeterImage(meterFile);
-      else if(plateFile)window.showToast('Đã lưu ảnh biển số. Có thể chụp ảnh cây xăng sau nếu cần.','warn');
-    };
-    plateInput.addEventListener('change',()=>{
-      plateFile=plateInput.files?.[0]||null;
-      if(!plateFile){
-        cleanup();
-        return;
+      if(!file)return;
+      if(step==='meter'){
+        const ok=await pickMeterImage(file);
+        if(ok){
+          setQuickCaptureStep('plate');
+          window.showToast('Đã lưu ảnh cây xăng. Bấm “Chụp biển số” để chụp tiếp.','success');
+        }
+      }else{
+        const ok=await pickPlateImage(file);
+        if(ok){
+          setQuickCaptureStep('meter');
+          window.showToast('Đã chụp đủ 2 ảnh cho đơn xăng dầu.','success');
+        }
       }
-      meterInput.click();
     },{once:true});
-    plateInput.addEventListener('cancel',cleanup,{once:true});
-    meterInput.addEventListener('change',()=>{processCapturedFiles(meterInput.files?.[0]||null);},{once:true});
-    meterInput.addEventListener('cancel',()=>{processCapturedFiles(null);},{once:true});
-    plateInput.click();
+    input.addEventListener('cancel',cleanup,{once:true});
+    input.click();
   };
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-gas-station',style:{fontSize:20}}),'Đơn mua xăng dầu'),
@@ -817,9 +813,9 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
           h('div',{style:{display:'grid',gap:8}},
             h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
               form.plateImage&&h('button',{type:'button',onClick:()=>window.open(form.plateImage,'_blank'),style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-photo',style:{fontSize:14}}),'Xem ảnh'),
-              h('button',{type:'button',disabled:!!uploading,onClick:captureBothFuelImages,style:{fontSize:12,padding:'6px 12px'}},
-                h('i',{className:'ti '+(uploading?'ti-loader-2 spin':'ti-camera-plus'),style:{fontSize:14}}),
-                uploading?'Đang xử lý ảnh...':'Chụp nhanh cả 2 ảnh'
+              h('button',{type:'button',disabled:!!uploading,onClick:captureBothFuelImages,style:{fontSize:12,padding:'6px 12px',background:quickCaptureStep==='plate'?'#EAF3DE':'#fff',color:quickCaptureStep==='plate'?'#27500A':'inherit'}},
+                h('i',{className:'ti '+(uploading?'ti-loader-2 spin':quickCaptureStep==='meter'?'ti-gas-station':'ti-id'),style:{fontSize:14}}),
+                uploading?'Đang xử lý ảnh...':quickCaptureStep==='meter'?'Chụp Cây Xăng':'Chụp biển số'
               ),
               h('label',{style:{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',border:'1px solid var(--bd)',borderRadius:'var(--r)',cursor:busyPlate?'wait':'pointer',background:'#fff'}},
                 h('i',{className:'ti '+(busyPlate?'ti-loader-2 spin':'ti-id'),style:{fontSize:14}}),
