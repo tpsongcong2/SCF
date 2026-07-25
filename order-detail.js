@@ -1,5 +1,5 @@
 /* ─── ĐƠN HÀNG CHI TIẾT ─── */
-function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,currentUser,prodShifts,quotes,financeDebts,setFinanceDebts}){
+function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,currentUser,prodShifts,quotes,financeDebts,setFinanceDebts,menuHidden,setMenuHidden}){
   const todayVN=fmtDate();
   const todayISO=todayVN.split('/').reverse().join('-');
   const[periodMode,setPeriodMode]=useState('day');
@@ -13,6 +13,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const[driverF,setDriverF]=useState('all');
   const[pageSize,setPageSize]=useState(25);
   const[page,setPage]=useState(1);
+  const[mobileFiltersHidden,setMobileFiltersHidden]=useLS('scf_order_detail_mobile_filters_hidden',true);
 
   const cleanShiftName=name=>{
     const n=String(name||'').trim();
@@ -61,7 +62,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const isAccounting=deptKey.includes('ke toan');
   const cleanName=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
   const isOwnTrip=t=>!isDriver||String(t?.driverId||'')===String(currentUser?.id||'')||cleanName(t?.driverName)===cleanName(currentUser?.name);
-  const scopedTrips=isDriver?(trips||[]).filter(isOwnTrip):(trips||[]);
+  const scopedTrips=isDriver?(trips||[]).filter(t=>isOwnTrip(t)&&(!!t.driverDispatchedAt||['active','completion_pending','completed'].includes(t.status))):(trips||[]);
   const scopedTripIds=new Set(scopedTrips.map(t=>String(t.id)));
   const scopedOrderIds=new Set(scopedTrips.flatMap(t=>t.orderIds||[]).map(String));
   const scopedOrders=isDriver?(orders||[]).filter(o=>scopedOrderIds.has(String(o.id))&&scopedTripIds.has(String(tripForOrder(o)?.id||''))):(orders||[]);
@@ -200,7 +201,23 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const diff=totalProd-totalInvoice;
 
   return h('div',null,
-    h('div',{className:'card detail-filter-card',style:{marginBottom:'1rem'}},
+    h('div',{className:'detail-mobile-controls'},
+      h('button',{
+        type:'button',
+        onClick:()=>setMenuHidden&&setMenuHidden(!menuHidden),
+        title:menuHidden?'Hiện header và menu':'Ẩn header và menu'
+      },h('i',{className:'ti '+(menuHidden?'ti-layout-navbar-expand':'ti-layout-navbar-collapse')}),menuHidden?'Hiện menu':'Ẩn menu'),
+      h('button',{
+        type:'button',
+        className:mobileFiltersHidden?'bp':'',
+        onClick:()=>setMobileFiltersHidden(!mobileFiltersHidden),
+        title:mobileFiltersHidden?'Hiện bộ lọc đơn hàng':'Ẩn bộ lọc đơn hàng'
+      },h('i',{className:'ti '+(mobileFiltersHidden?'ti-filter':'ti-filter-off')}),mobileFiltersHidden?'Hiện bộ lọc':'Ẩn bộ lọc'),
+      mobileFiltersHidden&&h('span',{className:'detail-mobile-summary'},
+        vnDateFromISO(periodRange.from)+(periodRange.to!==periodRange.from?' — '+vnDateFromISO(periodRange.to):'')+' · '+totalOrders+' đơn'
+      )
+    ),
+    h('div',{className:'card detail-filter-card'+(mobileFiltersHidden?' mobile-collapsed':''),style:{marginBottom:'1rem'}},
       h('div',{className:'detail-filter-grid'},
         h(F,{label:'Thời gian'},h('select',{value:periodMode,onChange:e=>setPeriodMode(e.target.value)},h('option',{value:'day'},'Theo ngày'),h('option',{value:'week'},'Theo tuần'),h('option',{value:'month'},'Theo tháng'),h('option',{value:'range'},'Khoảng ngày'))),
         periodMode==='month'?h(F,{label:'Chọn tháng'},h('input',{type:'month',value:(anchorDate||todayISO).slice(0,7),onChange:e=>setAnchorDate((e.target.value||todayISO.slice(0,7))+'-01')})):

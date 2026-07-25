@@ -490,7 +490,8 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
   const canEditDeliveryOrder=canManageTrips||isAccounting;
   const cleanName=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
   const isOwnTrip=t=>!isDriver||t.driverId===currentUser.id||cleanName(t.driverName)===cleanName(currentUser.name);
-  const visibleTrips=trips.filter(isOwnTrip);
+  const isDispatchedToDriver=trip=>!!trip?.driverDispatchedAt||['active','completion_pending','completed'].includes(trip?.status);
+  const visibleTrips=trips.filter(t=>isOwnTrip(t)&&(!isDriver||isDispatchedToDriver(t)));
   let tSeq=trips.length+1;
   const orderStatusForTrip=s=>s==='planning'?'pending':s==='assigned'?'assigned':s==='active'?'delivering':['completion_pending','completed'].includes(s)?'done':'pending';
   const save=d=>{
@@ -552,6 +553,21 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
       if(status==='active')setOrders(p=>p.map(o=>(t.orderIds||[]).includes(o.id)?{...o,status:'delivering'}:o));
       if(status==='completion_pending'||status==='completed')setOrders(p=>p.map(o=>(t.orderIds||[]).includes(o.id)?{...o,status:'done'}:o));
     }
+  };
+  const dispatchTripToDriver=trip=>{
+    if(!canReviewTrips){window.showToast('Chỉ Admin hoặc kế toán được giao chuyến cho lái xe.','warn');return;}
+    if(!trip?.driverName&&!trip?.driverId){window.showToast('Hãy chọn lái xe trước khi giao chuyến.','warn');return;}
+    if(!['planning','assigned'].includes(trip.status)){window.showToast('Chuyến này không còn ở trạng thái có thể giao cho lái xe.','warn');return;}
+    const stamp=fmtDT();
+    setTrips(prev=>prev.map(t=>t.id===trip.id?{
+      ...t,
+      status:'assigned',
+      assignedAt:t.assignedAt||stamp,
+      driverDispatchedAt:stamp,
+      driverDispatchedBy:currentUser?.name||''
+    }:t));
+    setOrders(prev=>prev.map(o=>(trip.orderIds||[]).includes(o.id)?{...o,status:'assigned'}:o));
+    window.showToast('Đã giao chuyến cho '+(trip.driverName||'lái xe')+'. Lái xe đã có thể nhìn thấy và bấm Bắt đầu giao.','success');
   };
   const lineQty=l=>numFmt(l.qtyInvoice)||numFmt(l.qtyProd)||numFmt(l.qty)||numFmt(l.quantity)||0;
   const lineWeight=l=>{const prod=products?.find(p=>p.id===l.productId);const unit=String(l.unit||prod?.unit||'').trim().toLowerCase().replace(/[^a-z]/g,'');const qty=lineQty(l);if(unit==='kg'||unit==='kgs'||unit==='kilogram'||unit==='kilograms')return qty;const wpu=prod?.weightPerUnit||numFmt(l.weightPerUnit)||0;return wpu*qty;};
@@ -878,7 +894,8 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
               h('div',{style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:4}},
                 h('span',{style:{fontWeight:500}},trip.deliveryDate&&trip.shiftName?trip.deliveryDate+' — '+trip.shiftName:trip.id),
                 h('span',{style:{color:'var(--tx2)'}},trip.driverName||'—'),
-                h(StatusBadge,{s:trip.status})
+                h(StatusBadge,{s:trip.status}),
+                trip.driverDispatchedAt&&trip.status==='assigned'&&h('span',{className:'badge',style:{background:'#E1F5EE',color:'#0F6E56'}},'Đã giao LX')
               ),
               h('div',{style:{display:'flex',gap:16,fontSize:12,color:'var(--tx2)',flexWrap:'wrap'}},
                 trip.driverWork?h('span',null,h('i',{className:'ti ti-tools',style:{fontSize:12,marginRight:3}}),'Công: '+trip.driverWork):null,
@@ -887,7 +904,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
               )
             ),
             h('div',{className:'trip-card-actions',style:{display:'flex',gap:4},onClick:e=>e.stopPropagation()},
-              canManageTrips&&trip.status==='planning'&&h('button',{onClick:()=>updStatus(trip.id,'assigned'),style:{fontSize:11,padding:'4px 10px',background:'#E6F1FB',color:'#185FA5',border:'none',borderRadius:4}},'Giao lái xe'),
+              canReviewTrips&&['planning','assigned'].includes(trip.status)&&!trip.driverDispatchedAt&&h('button',{onClick:()=>dispatchTripToDriver(trip),style:{fontSize:11,padding:'4px 10px',background:'#E6F1FB',color:'#185FA5',border:'none',borderRadius:4}},'Giao lái xe'),
               isDriver&&isOwnTrip(trip)&&trip.status==='assigned'&&!completionLocked&&h('button',{onClick:()=>acknowledgeTrip(trip),style:{fontSize:11,padding:'4px 10px',background:'#EAF3DE',color:'#3B6D11',border:'none',borderRadius:4}},'Bắt đầu giao'),
               isDriver&&isOwnTrip(trip)&&trip.status==='active'&&!completionLocked&&h('button',{onClick:()=>driverCompleteTrip(trip),style:{fontSize:11,padding:'4px 10px',background:'#E1F5EE',color:'#0F6E56',border:'none',borderRadius:4}},'Giao hoàn thành'),
               canReviewTrips&&trip.status==='completion_pending'&&h('button',{onClick:()=>approveTripCompletion(trip),style:{fontSize:11,padding:'4px 10px',background:'#E1F5EE',color:'#0F6E56',border:'none',borderRadius:4}},'Kế toán duyệt'),

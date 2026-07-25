@@ -312,7 +312,7 @@ function App(){
         canAccess(cu.role,'intem',cu.permissions)&&page==='intem'&&h(IntemTab,{products,company}),
         canAccess(cu.role,'trips',cu.permissions,cu.dept)&&page==='trips'&&h(TripsTab,{trips,setTrips,orders,setOrders,employees,shifts,customers,products,quotes,financeDebts,setFinanceDebts,currentUser:cu}),
         canAccess(cu.role,'workreport_lx',cu.permissions,cu.dept)&&page==='workreport_lx'&&h(DriverTripWorkReportTab,{trips,orders,products,customers,currentUser:cu}),
-        canAccess(cu.role,'orderdetail',cu.permissions)&&page==='orderdetail'&&h(OrderDetailListTab,{orders,setOrders,products,customers,shifts,trips,currentUser:cu,prodShifts,quotes,financeDebts,setFinanceDebts}),
+        canAccess(cu.role,'orderdetail',cu.permissions)&&page==='orderdetail'&&h(OrderDetailListTab,{orders,setOrders,products,customers,shifts,trips,currentUser:cu,prodShifts,quotes,financeDebts,setFinanceDebts,menuHidden,setMenuHidden}),
         canAccess(cu.role,'salesreport',cu.permissions)&&page==='salesreport'&&h(SalesReportTab,{orders,customers,products,shifts:prodShifts,quotes}),
 canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(FinanceReportTab,{entries:financeEntries,setEntries:setFinanceEntries,debts:financeDebts,setDebts:setFinanceDebts,openings:financeOpenings,setOpenings:setFinanceOpenings,customers,nccs,currentUser:cu,orders,products,quotes,purchases,goodsPurchases}),
         canAccess(cu.role,'powdersales',cu.permissions)&&page==='powdersales'&&h(PowderSalesTab,{customers,trips,employees,setPage}),
