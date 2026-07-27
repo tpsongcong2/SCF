@@ -569,6 +569,25 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     setOrders(prev=>prev.map(o=>(trip.orderIds||[]).includes(o.id)?{...o,status:'assigned'}:o));
     window.showToast('Đã giao chuyến cho '+(trip.driverName||'lái xe')+'. Lái xe đã có thể nhìn thấy và bấm Bắt đầu giao.','success');
   };
+  const cancelDispatchToDriver=trip=>{
+    if(!canReviewTrips){window.showToast('Chỉ Admin hoặc kế toán được hủy giao lái xe.','warn');return;}
+    if(trip?.status!=='assigned'||!trip?.driverDispatchedAt){
+      window.showToast('Chỉ hủy được khi chuyến đã giao cho lái xe nhưng chưa bắt đầu giao.','warn');return;
+    }
+    if(!window.confirm('Hủy giao chuyến này cho '+(trip.driverName||'lái xe')+'? Lái xe sẽ không còn nhìn thấy chuyến.'))return;
+    const stamp=fmtDT();
+    setTrips(prev=>prev.map(t=>t.id===trip.id?{
+      ...t,
+      driverDispatchedAt:'',
+      driverDispatchedBy:'',
+      driverDispatchCancelledAt:stamp,
+      driverDispatchCancelledBy:currentUser?.name||'',
+      driverAcknowledgedAt:'',
+      startTime:''
+    }:t));
+    setOrders(prev=>prev.map(o=>(trip.orderIds||[]).includes(o.id)?{...o,status:'assigned'}:o));
+    window.showToast('Đã hủy giao lái xe. Chuyến vẫn được giữ ở danh sách đã xếp.','success');
+  };
   const lineQty=l=>numFmt(l.qtyInvoice)||numFmt(l.qtyProd)||numFmt(l.qty)||numFmt(l.quantity)||0;
   const lineWeight=l=>{const prod=products?.find(p=>p.id===l.productId);const unit=String(l.unit||prod?.unit||'').trim().toLowerCase().replace(/[^a-z]/g,'');const qty=lineQty(l);if(unit==='kg'||unit==='kgs'||unit==='kilogram'||unit==='kilograms')return qty;const wpu=prod?.weightPerUnit||numFmt(l.weightPerUnit)||0;return wpu*qty;};
   const orderWeight=o=>(o.lines||[]).reduce((s,l)=>s+lineWeight(l),0);
@@ -905,6 +924,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
             ),
             h('div',{className:'trip-card-actions',style:{display:'flex',gap:4},onClick:e=>e.stopPropagation()},
               canReviewTrips&&['planning','assigned'].includes(trip.status)&&!trip.driverDispatchedAt&&h('button',{onClick:()=>dispatchTripToDriver(trip),style:{fontSize:11,padding:'4px 10px',background:'#E6F1FB',color:'#185FA5',border:'none',borderRadius:4}},'Giao lái xe'),
+              canReviewTrips&&trip.status==='assigned'&&trip.driverDispatchedAt&&h('button',{'data-scf-action':'write',onClick:()=>cancelDispatchToDriver(trip),style:{fontSize:11,padding:'4px 10px',background:'#FCEBEB',color:'#A32D2D',border:'none',borderRadius:4}},'Hủy giao LX'),
               isDriver&&isOwnTrip(trip)&&trip.status==='assigned'&&!completionLocked&&h('button',{onClick:()=>acknowledgeTrip(trip),style:{fontSize:11,padding:'4px 10px',background:'#EAF3DE',color:'#3B6D11',border:'none',borderRadius:4}},'Bắt đầu giao'),
               isDriver&&isOwnTrip(trip)&&trip.status==='active'&&!completionLocked&&h('button',{onClick:()=>driverCompleteTrip(trip),style:{fontSize:11,padding:'4px 10px',background:'#E1F5EE',color:'#0F6E56',border:'none',borderRadius:4}},'Giao hoàn thành'),
               canReviewTrips&&trip.status==='completion_pending'&&h('button',{onClick:()=>approveTripCompletion(trip),style:{fontSize:11,padding:'4px 10px',background:'#E1F5EE',color:'#0F6E56',border:'none',borderRadius:4}},'Kế toán duyệt'),
