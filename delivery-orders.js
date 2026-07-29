@@ -394,6 +394,77 @@ function customerImportOrderIssues(order){
   return [...new Set(issues)];
 }
 
+function ImportProductSearch({products,value,onChange,suggestions=[]}){
+  const normalize=value=>String(value||'').trim().toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/\s+/g,' ');
+  const label=product=>[product?.code||product?.id,product?.name].filter(Boolean).join(' - ');
+  const selected=products.find(product=>String(product.id)===String(value));
+  const[query,setQuery]=useState(selected?label(selected):'');
+  const[searchText,setSearchText]=useState(selected?label(selected):'');
+  const[open,setOpen]=useState(false);
+  useEffect(()=>{
+    const text=selected?label(selected):'';
+    setQuery(text);
+    setSearchText(text);
+  },[value,selected?.id]);
+  useEffect(()=>{
+    const timer=setTimeout(()=>setSearchText(query),180);
+    return()=>clearTimeout(timer);
+  },[query]);
+  const score=(product,text)=>{
+    const needle=normalize(text);
+    if(!needle)return suggestions.findIndex(item=>String(item.product?.id)===String(product.id))>=0?2:1;
+    const name=normalize(product.name),code=normalize(product.code||product.id),haystack=(code+' '+name).trim();
+    if(code===needle||name===needle)return 100;
+    if(name.startsWith(needle)||code.startsWith(needle))return 90;
+    if(haystack.includes(needle))return 80;
+    const tokens=needle.split(' ').filter(Boolean);
+    const matched=tokens.filter(token=>haystack.includes(token)).length;
+    if(matched)return 50+(matched/tokens.length)*20;
+    let common=0;
+    for(let i=0;i<needle.length-1;i++)if(haystack.includes(needle.slice(i,i+2)))common++;
+    return needle.length>1?(common/(needle.length-1))*40:0;
+  };
+  const options=React.useMemo(()=>{
+    if(!open)return [];
+    return products.map(product=>({product,score:score(product,searchText)}))
+      .filter(item=>!searchText.trim()||item.score>10)
+      .sort((a,b)=>b.score-a.score||label(a.product).localeCompare(label(b.product),'vi',{numeric:true}))
+      .slice(0,30);
+  },[open,searchText,products]);
+  const choose=product=>{
+    setQuery(label(product));
+    onChange(product.id);
+    setOpen(false);
+  };
+  return h('div',{style:{position:'relative',width:'100%'}},
+    h('input',{
+      value:query,
+      onFocus:()=>setOpen(true),
+      onChange:e=>{setQuery(e.target.value);if(value)onChange('');setOpen(true);},
+      onBlur:()=>setTimeout(()=>setOpen(false),150),
+      placeholder:'Gõ tên hoặc mã sản phẩm gần giống...',
+      autoComplete:'off',
+      role:'combobox',
+      'aria-expanded':open,
+      style:{width:'100%',borderColor:value?'#52b788':'#D9534F'}
+    }),
+    open&&h('div',{style:{position:'absolute',left:0,right:0,top:'calc(100% + 3px)',zIndex:80,maxHeight:260,overflowY:'auto',background:'#fff',border:'1px solid var(--bd)',borderRadius:'var(--r)',boxShadow:'0 8px 24px rgba(0,0,0,.18)'}},
+      options.length
+        ?options.map(({product,score},optionIndex)=>h('button',{
+          key:String(product.id||product.code||'SP')+'-'+optionIndex,
+          type:'button',
+          onMouseDown:e=>{e.preventDefault();choose(product);},
+          style:{display:'block',width:'100%',padding:'8px 10px',textAlign:'left',background:String(product.id)===String(value)?'#EAF3DE':'#fff',border:'none',borderBottom:'1px solid #eee',cursor:'pointer',fontSize:13}
+        },
+          h('div',{style:{fontWeight:600}},label(product)),
+          searchText.trim()&&h('div',{style:{fontSize:10,color:'var(--tx2)'}},'Độ phù hợp '+Math.round(Math.min(100,score))+'%')
+        ))
+        :h('div',{style:{padding:'10px',fontSize:12,color:'var(--tx2)'}},'Không tìm thấy sản phẩm gần giống')
+    )
+  );
+}
+
 /* ─── IMPORT PREVIEW MODAL ─── */
 function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, products=[], prodShifts, onClose}) {
   const {newOrders=[], dupOrders=[], unknownPts=[], incompleteOrders=[], columnOffset=0} = data||{};
@@ -432,11 +503,12 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
     .replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D').replace(/đ/g,'d')
     .replace(/\s+/g,' ').toUpperCase();
   const productById=id=>products.find(p=>String(p.id)===String(id));
+  const productGroupKeyForLine=line=>normalizeProductKey(line?.productName)||('__EMPTY__'+String(line?.id||''));
   const unknownProductMap=new Map();
   newOrders.forEach(order=>(order.lines||[]).forEach(line=>{
     if(line.productId&&productById(line.productId))return;
     const rawName=String(line.productName||'').trim();
-    const key=normalizeProductKey(rawName)||('__EMPTY__'+String(line.id||uid()));
+    const key=productGroupKeyForLine(line);
     const current=unknownProductMap.get(key)||{key,rawName:rawName||'Chưa có tên sản phẩm',count:0,rows:new Set()};
     current.count++;
     current.rows.add(order._importRow||'?');
@@ -466,14 +538,18 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   const incompleteIssueMap=new Map(incompleteOrders.map(item=>[item.order.id,item.issues]));
   const candidateOrders=includeIncomplete?newOrders:newOrders.filter(o=>!incompleteIssueMap.has(o.id));
   const toImport = skipDups ? candidateOrders.filter(o=>!dupOrders.includes(o)) : candidateOrders;
+  const resolvedProductForLine=line=>productById(line?.productId)||productById(productAssign[productGroupKeyForLine(line)]);
+  const importableOrders=toImport.map(order=>({
+    ...order,
+    lines:(order.lines||[]).filter(line=>!!resolvedProductForLine(line))
+  })).filter(order=>order.lines.length>0);
 
   const doImport = () => {
-    if(!toImport.length){window.showToast('Không có đơn đủ điều kiện để import.','warn');return;}
     if(unresolvedProductGroups.length){
-      window.showToast('Còn '+unresolvedProductGroups.length+' sản phẩm chưa đối chiếu với danh mục. Hãy chọn sản phẩm tương ứng trước khi import.','warn');
-      return;
+      if(!confirm('Bạn vẫn bỏ qua các dòng thiếu sản phẩm ở trên?'))return;
     }
-    const selectedIncomplete=toImport.filter(o=>incompleteIssueMap.has(o.id));
+    if(!importableOrders.length){window.showToast('Không có dòng nào đã chọn được sản phẩm tương ứng để import.','warn');return;}
+    const selectedIncomplete=importableOrders.filter(o=>incompleteIssueMap.has(o.id));
     if(selectedIncomplete.length){
       const detail=selectedIncomplete.slice(0,8).map(o=>'• Dòng '+(o._importRow||'?')+' - '+(o.pointName||'Chưa có địa điểm')+': '+incompleteIssueMap.get(o.id).join(', ')).join('\n');
       const more=selectedIncomplete.length>8?'\n... và '+(selectedIncomplete.length-8)+' đơn khác.':'';
@@ -501,23 +577,22 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
       }
       // Cập nhật đơn hàng với thông tin khách hàng & điểm giao
       const cust = customers.find(c=>c.id===custId);
-      if(cust) toImport.forEach(o=>{
+      if(cust) importableOrders.forEach(o=>{
         if(o.pointName.trim().toUpperCase()===pt.toUpperCase()){
           o.customerId=cust.id; o.customer=cust.name;
           if(resolvedPointId){ o.pointId=resolvedPointId; o.pointName=resolvedPointName||pt; }
         }
       });
     });
-    const cleanOrders=toImport.map(o=>{
+    const cleanOrders=importableOrders.map(o=>{
       const {_importRow,...clean}=o;
       return {...clean,lines:(o.lines||[]).map(line=>{
-        const existing=productById(line.productId);
-        const mapped=existing||productById(productAssign[normalizeProductKey(line.productName)]);
-        return mapped?{...line,productId:mapped.id,productName:mapped.name,unit:mapped.unit||line.unit,weightPerUnit:mapped.weightPerUnit||0}:line;
+        const mapped=resolvedProductForLine(line);
+        return {...line,productId:mapped.id,productName:mapped.name,unit:mapped.unit||line.unit,weightPerUnit:mapped.weightPerUnit||0};
       })};
     });
     setOrders(p=>[...p,...cleanOrders]);
-    window.showToast('Đã import '+toImport.length+' đơn hàng ('+toImport.reduce((s,o)=>s+(o.lines||[]).length,0)+' dòng sản phẩm)!','success');
+    window.showToast('Đã import '+cleanOrders.length+' đơn hàng ('+cleanOrders.reduce((s,o)=>s+(o.lines||[]).length,0)+' dòng sản phẩm); các dòng không tìm được sản phẩm đã được bỏ qua.','success');
     onClose();
   };
 
@@ -541,7 +616,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
       ),
       unknownProductGroups.length>0&&h('div',{style:{background:'#FEE8E8',border:'1px solid #E06060',borderRadius:'var(--r)',padding:'8px 16px',fontSize:13}},
         h('div',{style:{fontWeight:600,color:'#A32D2D'}},unknownProductGroups.length+' sản phẩm chưa khớp'),
-        h('div',{style:{color:'#555'}},'Bắt buộc chọn sản phẩm trong danh mục')
+        h('div',{style:{color:'#555'}},'Dòng không chọn được sản phẩm sẽ được bỏ qua')
       ),
       incompleteOrders.length>0&&h('div',{style:{background:'#FDECEC',border:'1px solid #D9534F',borderRadius:'var(--r)',padding:'8px 16px',fontSize:13}},
         h('div',{style:{fontWeight:600,color:'#A32D2D'}},incompleteOrders.length+' đơn thiếu dữ liệu'),
@@ -551,7 +626,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
 
     unknownProductGroups.length>0&&h('div',{style:{background:'#FFF5F5',border:'1px solid #D9534F',borderRadius:'var(--r)',padding:'12px',marginBottom:'1rem'}},
       h('div',{style:{fontWeight:600,marginBottom:4,fontSize:14,color:'#A32D2D'}},'Đối chiếu sản phẩm chưa có trong danh mục'),
-      h('div',{style:{fontSize:12,color:'#6B1F1F',marginBottom:10}},'App sẽ không tạo hoặc import tên sản phẩm ngoài danh mục. Hãy chọn sản phẩm tương ứng; tên trong đơn sẽ được đổi sang đúng tên danh mục.'),
+      h('div',{style:{fontSize:12,color:'#6B1F1F',marginBottom:10}},'Dòng chọn được sản phẩm tương ứng sẽ được import và đổi sang đúng tên trong danh mục. Dòng không tìm được sản phẩm sẽ tự động bỏ qua.'),
       unknownProductGroups.map(group=>{
         const suggestions=productSuggestions[group.key]||[];
         return h('div',{key:group.key,style:{display:'grid',gridTemplateColumns:'minmax(180px,1fr) minmax(260px,1.5fr)',gap:10,alignItems:'center',padding:'8px 0',borderTop:'1px solid #f5c6c6'}},
@@ -560,16 +635,12 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
             h('div',{style:{fontSize:11,color:'var(--tx2)'}},group.count+' dòng · dòng Excel '+[...group.rows].join(', ')),
             suggestions[0]&&suggestions[0].score>=0.45&&h('div',{style:{fontSize:11,color:'#856404',marginTop:2}},'Gợi ý gần nhất: '+suggestions[0].product.name+' ('+Math.round(suggestions[0].score*100)+'%)')
           ),
-          h('select',{
+          h(ImportProductSearch,{
+            products:sortedProducts,
             value:productAssign[group.key]||'',
-            onChange:e=>setProductAssign(prev=>({...prev,[group.key]:e.target.value})),
-            style:{width:'100%',borderColor:productAssign[group.key]?'#52b788':'#D9534F'}
-          },
-            h('option',{value:''},'— Chọn sản phẩm tương ứng trong danh mục —'),
-            suggestions.filter(item=>item.score>=0.45).map(item=>h('option',{key:'suggest-'+item.product.id,value:item.product.id},'Gợi ý: '+(item.product.code?item.product.code+' - ':'')+item.product.name)),
-            h('option',{disabled:true},'──────────'),
-            sortedProducts.map(product=>h('option',{key:product.id,value:product.id},(product.code?product.code+' - ':'')+product.name))
-          )
+            suggestions,
+            onChange:productId=>setProductAssign(prev=>({...prev,[group.key]:productId}))
+          })
         );
       })
     ),
@@ -710,7 +781,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
             h('th',{key:c,style:{padding:'5px 8px',textAlign:'left',borderBottom:'1px solid var(--bd)',fontWeight:600}},c)
           )
         )),
-        h('tbody',null,toImport.map(o=>h('tr',{key:o.id},
+        h('tbody',null,importableOrders.map(o=>h('tr',{key:o.id},
           h('td',{style:{padding:'4px 8px'}},o.deliveryDate),
           h('td',{style:{padding:'4px 8px',fontWeight:500}},o.pointName),
           h('td',{style:{padding:'4px 8px'}},o.deliveryTime),
@@ -731,9 +802,9 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
 
     h(Row,null,
       h('button',{onClick:onClose},'Hủy'),
-      h('button',{className:'bp',onClick:doImport,disabled:!toImport.length||unresolvedProductGroups.length>0,style:{padding:'8px 20px'}},
+      h('button',{className:'bp',onClick:doImport,disabled:!toImport.length,style:{padding:'8px 20px'}},
         h('i',{className:'ti ti-file-import',style:{fontSize:14}}),
-        unresolvedProductGroups.length?' Còn '+unresolvedProductGroups.length+' SP chưa đối chiếu':' Import '+toImport.length+' đơn'
+        ' Import '+importableOrders.length+' đơn'
       )
     )
   );
