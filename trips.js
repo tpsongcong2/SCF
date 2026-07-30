@@ -619,7 +619,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
   const canEditQtyForTrip=trip=>{
     if(currentUser?.role==='admin'||isAccounting)return true;
     if(currentUser?.role==='manager')return tripAgeDays(trip)<2&&!['completion_pending','completed'].includes(trip.status);
-    return isDriver&&isOwnTrip(trip)&&trip.status==='active'&&!isDriverCompletionLocked(trip);
+    return isDriver&&isOwnTrip(trip)&&!!trip?.driverDispatchedAt&&['assigned','active'].includes(trip.status)&&!isDriverCompletionLocked(trip);
   };
   const canUploadProofForTrip=trip=>{
     if(currentUser?.role==='admin'||isAccounting)return true;
@@ -1000,17 +1000,26 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
               )
             ):h('p',{style:{fontSize:13,color:'var(--tx2)'}},'Chưa có đơn hàng.'),
             tripOrders.length&&isDriver&&h('div',{className:'mobile-only trip-driver-order-list'},
+              h('div',{className:'trip-driver-order-head'},
+                h('span',null,'Ngày'),
+                h('span',null,'Địa điểm'),
+                h('span',null,'Sản phẩm'),
+                h('span',null,'SL Đặt'),
+                h('span',null,'SL HĐ'),
+                h('span',null,'SL Giao'),
+                h('span',null,'Giờ')
+              ),
               tripOrders.map(o=>h('div',{key:'driver-trip-order-'+o.id,className:'trip-driver-order'},
                 h('div',{className:'trip-driver-order-main'},
-                  h('div',{className:'trip-driver-cell trip-driver-date'},h('b',null,'Ngày'),h('span',null,o.deliveryDate||trip.deliveryDate||'—')),
-                  h('div',{className:'trip-driver-cell trip-driver-point'},h('b',null,'Địa điểm'),h('span',null,o.pointName||o.customer||'—')),
-                  h('div',{className:'trip-driver-cell trip-driver-products'},h('b',null,'Sản phẩm'),h('div',null,(o.lines||[]).map((l,i)=>h('span',{key:l.id||i},l.productName||'Sản phẩm')))),
-                  h('div',{className:'trip-driver-cell trip-driver-qty'},h('b',null,'SL Đặt'),h('div',null,(o.lines||[]).map((l,i)=>h('span',{key:l.id||i},numFmt(l.qtyProd||0))))),
-                  h('div',{className:'trip-driver-cell trip-driver-qty'},h('b',null,'SL HĐ'),h('div',null,(o.lines||[]).map((l,i)=>h('span',{key:l.id||i},numFmt(l.qtyInvoice||0))))),
-                  h('div',{className:'trip-driver-cell trip-driver-delivered'},h('b',null,'SL Giao'),h('div',null,(o.lines||[]).map((l,i)=>canEditTripQty
+                  h('div',{className:'trip-driver-cell trip-driver-date'},h('span',null,o.deliveryDate||trip.deliveryDate||'—')),
+                  h('div',{className:'trip-driver-cell trip-driver-point'},h('span',null,o.pointName||o.customer||'—')),
+                  h('div',{className:'trip-driver-cell trip-driver-products'},h('div',null,(o.lines||[]).map((l,i)=>h('span',{key:l.id||i},l.productName||'Sản phẩm')))),
+                  h('div',{className:'trip-driver-cell trip-driver-qty'},h('div',null,(o.lines||[]).map((l,i)=>h('span',{key:l.id||i},numFmt(l.qtyProd||0))))),
+                  h('div',{className:'trip-driver-cell trip-driver-qty'},h('div',null,(o.lines||[]).map((l,i)=>h('span',{key:l.id||i},numFmt(l.qtyInvoice||0))))),
+                  h('div',{className:'trip-driver-cell trip-driver-delivered'},h('div',null,(o.lines||[]).map((l,i)=>canEditTripQty
                     ?h('input',{key:l.id||i,type:'number',min:0,step:'0.01',value:l.qtyDelivered??'',placeholder:String(numFmt(l.qtyInvoice||l.qtyProd||0)),onChange:e=>updateDeliveredQty(trip,o.id,l.id,e.target.value)})
                     :h('span',{key:l.id||i},l.qtyDelivered!==undefined&&l.qtyDelivered!==''?numFmt(l.qtyDelivered):'—')))),
-                  h('div',{className:'trip-driver-cell trip-driver-time'},h('b',null,'Giờ'),h('span',null,o.deliveryTime||'—'))
+                  h('div',{className:'trip-driver-cell trip-driver-time'},h('span',null,o.deliveryTime||'—'))
                 ),
                 h('div',{className:'trip-driver-order-review'},
                   h('div',{className:'trip-driver-invoice'},
