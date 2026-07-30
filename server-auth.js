@@ -24,3 +24,23 @@ async function getServerAuthSession(){
 async function serverLogout(){
   if(SCF_SERVER_AUTH_ENABLED&&sb)try{await sb.auth.signOut();}catch(e){console.warn('Server logout:',e.message);}
 }
+
+async function requestAdminPasswordReset(username){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ khôi phục mật khẩu.');
+  const{data,error}=await sb.functions.invoke('scf-auth',{
+    body:{action:'request_admin_reset',username:String(username||'').trim()}
+  });
+  if(error)throw new Error(data?.error||error.message||'Không thể gửi mã khôi phục.');
+  if(!data?.ok)throw new Error(data?.error||'Không thể gửi mã khôi phục.');
+  return data;
+}
+
+async function confirmAdminPasswordReset(username,code,newPassword){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ khôi phục mật khẩu.');
+  const{data,error}=await sb.functions.invoke('scf-auth',{
+    body:{action:'confirm_admin_reset',username:String(username||'').trim(),code:String(code||'').trim(),newPassword:String(newPassword||'')}
+  });
+  if(error)throw new Error(data?.error||error.message||'Không thể đặt lại mật khẩu.');
+  if(!data?.ok)throw new Error(data?.error||'Không thể đặt lại mật khẩu.');
+  return data;
+}

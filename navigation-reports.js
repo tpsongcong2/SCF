@@ -146,6 +146,15 @@ function PurchaseTab({purchases,setPurchases,nccs,setNCCs,materials,products,cu,
   const itemCatalog=isGoods?(products||[]):(materials||[]);
   let seq=purchases.length+1;
   const numMoney=v=>Number(String(v??'').replace(/[^\d-]/g,''))||0;
+  const formatQty=v=>{
+    const n=Number(v);
+    return Number.isFinite(n)?n.toLocaleString('vi-VN',{maximumFractionDigits:6}):'';
+  };
+  const parseQty=v=>{
+    const raw=String(v??'').trim().replace(/\s/g,'').replace(/\./g,'').replace(',','.');
+    const n=Number(raw);
+    return Number.isFinite(n)?n:0;
+  };
   const fmtPurchaseDate=s=>fmtAnyDate(s);
   const emptyLine=()=>({id:uid(),itemId:'',name:'',unit:'',qty:0,price:0,note:''});
   const findPurchaseItem=l=>{
@@ -332,7 +341,7 @@ function PurchaseTab({purchases,setPurchases,nccs,setNCCs,materials,products,cu,
           h('div',{style:{display:'grid',gap:6}},
             lines.map((line,idx)=>h('div',{key:o.id+'_'+(line.id||idx),style:{padding:'8px 10px',border:'1px solid var(--bd)',borderRadius:10,background:'#fff'}},
               h('div',{style:{fontWeight:600,fontSize:13}},line.name||'—'),
-              h('div',{className:'mobile-data-sub'},'SL: '+(line.qty??0)+' | Đơn giá: '+((Number(line.price)||0).toLocaleString('vi-VN'))+'đ')
+              h('div',{className:'mobile-data-sub'},'SL: '+((Number(line.qty)||0).toLocaleString('vi-VN'))+' | Đơn giá: '+((Number(line.price)||0).toLocaleString('vi-VN'))+'đ')
             ))
           ),
           h('div',{className:'mobile-data-actions'},
@@ -348,7 +357,7 @@ function PurchaseTab({purchases,setPurchases,nccs,setNCCs,materials,products,cu,
         r.isFirst&&h('td',{rowSpan:r.rowCount},fmtPurchaseDate(r.orderDate)),
         r.isFirst&&h('td',{rowSpan:r.rowCount},h('div',{style:{fontWeight:500}},r.nccName||'—')),
         h('td',null,r.lineName),
-        h('td',null,r.lineQty),
+        h('td',null,(Number(r.lineQty)||0).toLocaleString('vi-VN')),
         h('td',null,(Number(r.linePrice)||0).toLocaleString('vi-VN')+'đ'),
         h('td',null,h('span',{style:{fontWeight:500,color:'var(--pri)'}},r.lineTotal.toLocaleString('vi-VN')+'đ')),
         r.isFirst&&h('td',{rowSpan:r.rowCount},h('div',{style:{display:'flex',gap:2}},
@@ -372,9 +381,9 @@ function PurchaseTab({purchases,setPurchases,nccs,setNCCs,materials,products,cu,
         const lineTotal=(numFmt(line.qty)||0)*(numFmt(line.price)||0);
         return h('div',{key:line.id,className:'po-line-row'},
           h('select',{value:line.itemId,onChange:e=>{const it=allItems.find(x=>x.id===e.target.value)||{};upd(line.id,{...line,itemId:e.target.value,name:it.name||'',unit:it.unit||'',price:it.price||0});},style:{fontSize:13},title:itemLabel},h('option',{value:''},'— Chọn '+itemLabelLower+' —'),allItems.map(it=>h('option',{key:it.id,value:it.id},it.name))),
-          h('input',{type:'number',min:0,value:line.qty,onChange:e=>upd(line.id,{...line,qty:numFmt(e.target.value)}),style:{fontSize:13},placeholder:'Số lượng',title:'Số lượng'}),
+          h('input',{type:'text',inputMode:'decimal',value:formatQty(line.qty),onChange:e=>upd(line.id,{...line,qty:parseQty(e.target.value)}),style:{fontSize:13},placeholder:'Số lượng',title:'Số lượng'}),
           h(NumInput,{value:line.price,onChange:v=>upd(line.id,{...line,price:v}),style:{fontSize:13},placeholder:'Đơn giá',title:'Đơn giá'}),
-          h('input',{value:lineTotal,readOnly:true,style:{fontSize:13,background:'var(--bg2)',cursor:'default',fontWeight:600},placeholder:'Thành tiền',title:'Thành tiền'}),
+          h('input',{value:lineTotal.toLocaleString('vi-VN'),readOnly:true,style:{fontSize:13,background:'var(--bg2)',cursor:'default',fontWeight:600},placeholder:'Thành tiền',title:'Thành tiền'}),
           h('div',{style:{display:'flex',justifyContent:'center'}},
             h('button',{className:idx===0?'bp':'bdel',type:'button',onClick:()=>idx===0?addLine():delLine(line.id),style:idx===0?{padding:'7px 10px'}:{}},
               h('i',{className:'ti '+(idx===0?'ti-plus':'ti-trash'),style:{fontSize:14}}),

@@ -94,10 +94,6 @@ function WeatherWidget(){
             h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:2}},h('i',{className:'ti ti-droplet',style:{fontSize:12,marginRight:3}}),w.relative_humidity_2m+'% · ',h('i',{className:'ti ti-wind',style:{fontSize:12,marginRight:3,marginLeft:6}}),w.wind_speed_10m+' km/h')
           )
         ):h('span',{style:{color:'var(--tx2)',fontSize:13}},'Không có dữ liệu')
-      ),
-      w&&h('div',{style:{display:'flex',gap:8,alignItems:'center',fontSize:12,color:'var(--tx2)',lineHeight:1.8,flexShrink:0}},
-        h('div',null,h('i',{className:'ti ti-droplet',style:{fontSize:12,marginRight:3}}),w.relative_humidity_2m+'%'),
-        h('div',null,h('i',{className:'ti ti-wind',style:{fontSize:12,marginRight:3}}),w.wind_speed_10m+' km/h')
       )
     ),
     fc.length?h('div',{className:'weather-three-wrap',style:{marginTop:10,display:'grid',gridTemplateColumns:'1fr',gap:10}},
