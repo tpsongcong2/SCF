@@ -737,7 +737,9 @@ function normalizeUiSettings(raw){
     const cur=(src.scopes&&src.scopes[scope.key])||{};
     const size=Math.max(10,Math.min(28,Number(cur.size)||base.size));
     const mode=UI_FONT_MODE_OPTIONS.some(x=>x.value===cur.mode)?cur.mode:base.mode;
-    next.scopes[scope.key]={size,mode};
+    const requestedFamily=cur.fontFamily||cur.family||base.fontFamily||next.fontFamily;
+    const fontFamily=UI_FONT_FAMILY_OPTIONS.some(x=>x.value===requestedFamily)?requestedFamily:next.fontFamily;
+    next.scopes[scope.key]={size,mode,fontFamily};
   });
   return next;
 }
@@ -750,7 +752,7 @@ function uiSettingsToCssVars(raw){
     vars['--ui-'+scope.key+'-size']=cur.size+'px';
     vars['--ui-'+scope.key+'-weight']=meta.weight;
     vars['--ui-'+scope.key+'-style']=meta.style;
+    vars['--ui-'+scope.key+'-family']=cur.fontFamily||ui.fontFamily;
   });
   return vars;
 }
-

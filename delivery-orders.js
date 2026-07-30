@@ -2796,9 +2796,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
         h('table',{className:'delivery-orders-table'},
         h('colgroup',null,
-          h('col',{style:{width:135}}),
-          h('col',{style:{width:215}}),
+          h('col',{style:{width:95}}),
+          h('col',{style:{width:175}}),
           h('col',{style:{width:productColumnWidth}}),
+          h('col',{style:{width:85}}),
           h('col',{style:{width:85}}),
           h('col',{style:{width:85}}),
           h('col',{style:{width:75}}),
@@ -2823,6 +2824,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('th',{title:productColumnTitle},'Tên sản phẩm'),
           h('th',{className:'delivery-qty-head'},'SL ĐẶT'),
           h('th',{className:'delivery-qty-head'},'SL HĐ'),
+          h('th',{className:'delivery-qty-head'},'SL Giao'),
           h('th',{className:'delivery-center-head'},'Giờ'),
           h('th',{className:'delivery-center-head'},'Ca SX'),
           h('th',{className:'delivery-center-head'},'Hóa đơn'),
@@ -2831,9 +2833,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('th',null,'')
         )),
         h('tbody',null,list.length?orderTableRows.map((o,_i)=>{
-          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:11,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'5px 12px'}},(o.group?.mode==='trip'?'🚚 Chuyến: ':'📍 Khu vực: ')+(o.group?.label||'')));
+          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:12,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'5px 12px'}},(o.group?.mode==='trip'?'🚚 Chuyến: ':'📍 Khu vực: ')+(o.group?.label||'')));
           if(o._sub) return h('tr',{key:'os'+_i},
-            h('td',{colSpan:7,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng trên trang · '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg'),
+            h('td',{colSpan:8,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng trên trang · '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg'),
             h('td',{colSpan:4,style:{background:'#e8f5e9'}})
           );
           const ctx=o._ctx||orderContext(o);
@@ -2902,12 +2904,15 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                   title:'Chọn đơn '+(o.id||''),
                   style:{width:16,height:16,margin:0,flex:'0 0 auto',cursor:'pointer'}
                 }),
-                h('span',null,ctx.deliveryDate||'—')
+                h('span',{title:ctx.deliveryDate||''},(()=>{
+                  const parts=String(ctx.deliveryDate||'').split('/');
+                  return parts.length>=2?parts.slice(0,2).join('/'):ctx.deliveryDate||'—';
+                })())
               )
             ),
             h('td',null,h('div',{className:'delivery-point-name',title:ctx.pointName||''},ctx.pointName||'—')),
             // Gộp tên sản phẩm + số lượng để các dòng luôn thẳng hàng.
-            h('td',{colSpan:3,className:'delivery-product-qty-cell'},
+            h('td',{colSpan:4,className:'delivery-product-qty-cell'},
               h('div',{className:'delivery-product-qty-content',style:{'--delivery-product-column-width':productColumnWidth+'px'}},
                 planRows.length
                   ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-product-qty-row'},
@@ -2915,7 +2920,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                       h('div',{className:'delivery-product-name'},(pi+1)+'. '+row.productName)
                     ),
                     h('div',{className:'delivery-order-qty delivery-product-qty-value'},numFmt(row.line?.qtyProd).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2})),
-                    h('div',{className:'delivery-invoice-qty delivery-product-qty-value'},orderLineQty(row.line).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2}))
+                    h('div',{className:'delivery-invoice-qty delivery-product-qty-value'},orderLineQty(row.line).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2})),
+                    h('div',{className:'delivery-delivered-qty delivery-product-qty-value'},row.line?.qtyDelivered!==undefined&&row.line?.qtyDelivered!==''?numFmt(row.line.qtyDelivered).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2}):'—')
                   ))
                   :h('span',{style:{fontSize:11,color:'var(--tx2)'}},'—')
               )

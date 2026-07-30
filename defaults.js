@@ -79,15 +79,15 @@ const UI_FONT_SCOPE_OPTIONS=[
 const DEF_UI_SETTINGS={
   fontFamily:UI_FONT_FAMILY_OPTIONS[0].value,
   scopes:{
-    base:{size:14,mode:'normal'},
-    form:{size:14,mode:'normal'},
-    menu:{size:12,mode:'bold'},
-    button:{size:13,mode:'bold'},
-    table:{size:13,mode:'normal'},
-    orderqty:{size:13,mode:'bold'},
-    invoiceqty:{size:13,mode:'bold'},
-    header:{size:12,mode:'bold'},
-    badge:{size:11,mode:'bold'}
+    base:{size:14,mode:'normal',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    form:{size:14,mode:'normal',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    menu:{size:12,mode:'bold',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    button:{size:13,mode:'bold',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    table:{size:13,mode:'normal',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    orderqty:{size:13,mode:'bold',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    invoiceqty:{size:13,mode:'bold',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    header:{size:12,mode:'bold',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
+    badge:{size:11,mode:'bold',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value}
   }
 };
 const DEF_PRINT_TEMPLATE_SETTINGS={labelTemplates:[],orderTemplates:[]};

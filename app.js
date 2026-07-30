@@ -100,7 +100,35 @@ function App(){
   const[loading,setLoading]=useState(true);
   const[col,setCol]=useState(false);
   const[page,setPage]=useLS('scf_last_page','welcome');
+  const browserNavReadyRef=React.useRef(false);
+  const browserPopRef=React.useRef(false);
   const[serverAuthReady,setServerAuthReady]=useState(!SCF_SERVER_AUTH_ENABLED);
+  useEffect(()=>{
+    const onPopState=e=>{
+      browserPopRef.current=true;
+      setPage(e.state?.scfPage||'welcome');
+    };
+    window.addEventListener('popstate',onPopState);
+    return()=>window.removeEventListener('popstate',onPopState);
+  },[]);
+  useEffect(()=>{
+    if(!browserNavReadyRef.current){
+      history.replaceState({...history.state,scfPage:'welcome'},'');
+      if(page!=='welcome')history.pushState({...history.state,scfPage:page},'');
+      browserNavReadyRef.current=true;
+      return;
+    }
+    if(browserPopRef.current){
+      browserPopRef.current=false;
+      return;
+    }
+    history.pushState({...history.state,scfPage:page},'');
+  },[page]);
+  const goBackPage=()=>{
+    if(page==='welcome')return;
+    if(history.state?.scfPage===page)history.back();
+    else setPage('welcome');
+  };
   useEffect(()=>{
     if(!SCF_SERVER_AUTH_ENABLED)return;
     getServerAuthSession().then(serverSession=>{
@@ -237,7 +265,7 @@ function App(){
   const wips=['purchase','workreport_vp','workreport_sx','workreport_total','process_accounting','process_bun','process_pho','process_banhcuon','marketsales'];
   return h('div',{className:'layout'},
     h('div',{className:'main'},
-      !menuHidden&&h('div',{className:'topbar'},
+      !menuHidden&&h('div',{className:'topbar'+(page!=='welcome'?' mobile-subpage-topbar':'')},
         h('div',{className:'topbar-main'},
           h('div',{className:'topbar-brand'},
             h('img',{src:LOGO_SRC,className:'topbar-logo'}),
@@ -262,8 +290,14 @@ function App(){
         ),
         h(TopNav,{page,setPage,role:cu.role,perms:cu.permissions,dept:cu.dept})
       ),
+      page!=='welcome'&&h('div',{className:'mobile-page-backbar'},
+        h('button',{className:'mobile-page-back',onClick:goBackPage,'aria-label':'Quay lại trang trước'},
+          h('i',{className:'ti ti-arrow-left'}),h('span',null,'Quay lại')
+        ),
+        h('div',{className:'mobile-page-title'},PTITLES[page]||'SCF')
+      ),
       h('div',{
-        className:'content'+(menuHidden?' compact-top':'')+(readOnly?' scf-readonly':'')+(activeLevel!=='rwd'?' scf-no-delete':''),
+        className:'content'+(menuHidden?' compact-top':'')+(page!=='welcome'?' mobile-subpage-content':'')+(readOnly?' scf-readonly':'')+(activeLevel!=='rwd'?' scf-no-delete':''),
         onClickCapture:e=>guardPermissionAction(e,cu.role,page,cu.permLevels)
       },
         readOnly&&!['staff','driver'].includes(cu.role)&&h('div',{className:'scf-readonly-banner'},h('i',{className:'ti ti-eye',style:{fontSize:16}}),'Chế độ Chỉ xem — bạn có thể xem, tìm kiếm, lọc, in và xuất báo cáo nhưng không thể thay đổi dữ liệu.'),
@@ -322,7 +356,7 @@ canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(F
         canAccess(cu.role,'dbusage',cu.permissions)&&page==='dbusage'&&h(SupabaseUsageReportTab,{employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,goodsPurchases,quotes,orders,trips,attendance,advances,rewards,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}),
         wips.includes(page)&&h(PlaceholderTab,{title:PTITLES[page],icon:PICONS[page]||'ti-clock'})
       ),
-      h(MobileNav,{page,setPage,role:cu.role,perms:cu.permissions,dept:cu.dept})
+      page==='welcome'&&h(MobileNav,{page,setPage,role:cu.role,perms:cu.permissions,dept:cu.dept})
     ),
     cu.mustChangePw&&h(CpwModal,{
       emp:cu,cu,forced:true,onClose:()=>{},

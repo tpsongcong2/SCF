@@ -184,7 +184,7 @@ function AppearanceSettingsTab({uiSettings,setUiSettings}){
     const safe=normalizeUiSettings(f);
     const cur=safe.scopes[key];
     const meta=fontModeMeta(cur.mode);
-    return {fontFamily:safe.fontFamily,fontSize:cur.size,fontWeight:meta.weight,fontStyle:meta.style};
+    return {fontFamily:cur.fontFamily||safe.fontFamily,fontSize:cur.size,fontWeight:meta.weight,fontStyle:meta.style};
   };
   const save=()=>{
     setUiSettings(normalizeUiSettings(f));
@@ -210,7 +210,14 @@ function AppearanceSettingsTab({uiSettings,setUiSettings}){
       ),
       h('div',{className:'g2',style:{alignItems:'start'}},
         h(F,{label:'Loại chữ dùng chung'},
-          h('select',{value:f.fontFamily,onChange:e=>sf(prev=>({...prev,fontFamily:e.target.value}))},
+          h('select',{value:f.fontFamily,onChange:e=>{
+            const fontFamily=e.target.value;
+            sf(prev=>({
+              ...prev,
+              fontFamily,
+              scopes:Object.fromEntries(Object.entries(prev.scopes||{}).map(([key,value])=>[key,{...value,fontFamily}]))
+            }));
+          }},
             UI_FONT_FAMILY_OPTIONS.map(opt=>h('option',{key:opt.value,value:opt.value},opt.label))
           )
         ),
@@ -227,6 +234,7 @@ function AppearanceSettingsTab({uiSettings,setUiSettings}){
       h('div',{className:'tw'},
         h('table',null,
           h('thead',null,h('tr',null,
+            h('th',{style:{width:200}},'Font chữ'),
             h('th',null,'Vùng hiển thị'),
             h('th',{style:{width:110}},'Cỡ chữ'),
             h('th',{style:{width:170}},'Kiểu chữ'),
@@ -234,6 +242,11 @@ function AppearanceSettingsTab({uiSettings,setUiSettings}){
           )),
           h('tbody',null,
             UI_FONT_SCOPE_OPTIONS.map(scope=>h('tr',{key:scope.key},
+              h('td',null,
+                h('select',{value:f.scopes[scope.key].fontFamily||f.fontFamily,onChange:e=>setScope(scope.key,{fontFamily:e.target.value})},
+                  UI_FONT_FAMILY_OPTIONS.map(opt=>h('option',{key:opt.value,value:opt.value},opt.label))
+                )
+              ),
               h('td',null,
                 h('div',{style:{fontWeight:600}},scope.label),
                 h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:3}},scope.note)
