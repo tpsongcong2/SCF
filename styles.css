@@ -169,7 +169,32 @@ th{font-family:var(--ui-header-family)!important}
 .pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;color:var(--tx2);cursor:pointer}
 .welcome-grid{display:grid;grid-template-columns:1fr 360px;gap:1.25rem;align-items:start}
 .greet{background:linear-gradient(135deg,var(--pri) 0%,var(--pri2) 100%);border-radius:var(--rl);padding:1.5rem;color:#fff;margin-bottom:1.25rem}
+.birthday-announcement{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px;padding:11px 14px;border-radius:12px;text-align:center;background:rgba(255,255,255,.17);border:1px solid rgba(255,255,255,.32);animation:birthdayPulse 1.8s ease-in-out infinite}
+.birthday-party-icon{font-size:25px;display:inline-block;animation:birthdayBounce .8s ease-in-out infinite alternate}
+.birthday-party-icon:last-child{animation-delay:.25s}
+@keyframes birthdayPulse{50%{box-shadow:0 0 20px rgba(255,224,102,.45);background:rgba(255,255,255,.23)}}
+@keyframes birthdayBounce{to{transform:translateY(-5px) rotate(8deg) scale(1.12)}}
+.birthday-visual{height:260px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(160deg,#173f32,#2d6a4f 55%,#f4a261)}
+.birthday-visual-text{position:absolute;left:12px;right:12px;bottom:14px;text-align:center;color:#fff;font-size:16px;font-weight:700;text-shadow:0 2px 5px rgba(0,0,0,.45)}
+.birthday-balloons span{position:absolute;bottom:-45px;font-size:30px;left:calc(8% + var(--i)*14%);animation:balloonRise 4.8s ease-in infinite;animation-delay:calc(var(--i)*-.55s)}
+@keyframes balloonRise{0%{transform:translateY(0) rotate(-8deg);opacity:0}15%{opacity:1}100%{transform:translateY(-300px) rotate(12deg);opacity:.15}}
+.birthday-cake{display:flex;flex-direction:column;align-items:center;animation:cakeCelebrate 1.4s ease-in-out infinite alternate}
+.birthday-candle{font-size:30px;margin-bottom:-15px;z-index:1;filter:drop-shadow(0 0 9px #ffd166)}
+.birthday-cake-icon{font-size:92px;filter:drop-shadow(0 8px 8px rgba(0,0,0,.28))}
+@keyframes cakeCelebrate{to{transform:translateY(-6px) scale(1.04)}}
+.internal-emoji-picker{position:absolute;left:12px;bottom:calc(100% + 4px);z-index:20;width:min(360px,calc(100vw - 48px));display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:8px;background:#fff;border:1px solid var(--bd);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.16)}
+.internal-emoji-picker button{padding:6px 3px;border:0;background:transparent;font-size:21px;line-height:1;border-radius:7px}
+.internal-emoji-picker button:hover{background:var(--bg2);transform:scale(1.12)}
 .weather-card{background:#fff;border:.5px solid var(--bd);border-radius:var(--rl);padding:1.25rem;margin-bottom:1rem}
+.weather-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.weather-current-card{padding:11px 12px;border:1px solid var(--bd);border-radius:12px;background:linear-gradient(135deg,#fbfdfb,#f2f8f4);min-width:0}
+.weather-current-card>div:first-child{min-width:0!important}
+.weather-three-wrap{display:contents!important}
+@media(max-width:600px){
+  .weather-card{padding:8px;gap:6px}
+  .weather-current-card,.weather-three-wrap>div{padding:8px 6px!important}
+  .weather-current-card>div:first-child>div:nth-child(3)>span{font-size:27px!important}
+}
 .cal-card{background:#fff;border:.5px solid var(--bd);border-radius:var(--rl);padding:1rem}
 .cal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}

@@ -60,6 +60,8 @@ function App(){
   const[financeEntries,_sfe]=useState([]);
   const[financeDebts,_sfd]=useState([]);
   const[financeOpenings,_sfo]=useState([]);
+  const[companyNews,_snews]=useState([]);
+  const[internalMessages,_sim]=useState([]);
   window.__SCF_CUSTOMERS=customers||[];
   window.__SCF_PROD_SHIFTS=prodShifts||[];
   const setEmployees=mkSet('scf_employees',_se);
@@ -97,6 +99,21 @@ function App(){
   const setFinanceEntries=mkSet('scf_finance_entries',_sfe);
   const setFinanceDebts=mkSet('scf_finance_debts',_sfd);
   const setFinanceOpenings=mkSet('scf_finance_openings',_sfo);
+  const mkCommunitySet=(key,setter)=>valOrFn=>setter(prev=>{
+    const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;
+    dbSet(key,next);
+    return next;
+  });
+  const setCompanyNews=mkCommunitySet('scf_company_news',_snews);
+  const setInternalMessages=mkCommunitySet('scf_internal_messages',_sim);
+  const refreshCommunityData=React.useCallback(async()=>{
+    const[newsData,messageData]=await Promise.all([
+      dbGet('scf_company_news',[]),
+      dbGet('scf_internal_messages',[])
+    ]);
+    _snews(newsData||[]);
+    _sim(messageData||[]);
+  },[]);
   const[loading,setLoading]=useState(true);
   const[col,setCol]=useState(false);
   const[page,setPage]=useLS('scf_last_page','welcome');
@@ -141,7 +158,7 @@ function App(){
     const loadingGuard=setTimeout(()=>setLoading(false),8000);
     (async()=>{
       try{
-        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,nccg,pu,pg,q,fp,mo,o,t,a,adv,rw,lv,dp,ui,pts,pa,shData,psData,psrData,fe,fd,fo]=await Promise.all([
+        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,nccg,pu,pg,q,fp,mo,o,t,a,adv,rw,lv,dp,ui,pts,pa,shData,psData,psrData,fe,fd,fo,newsData,messageData]=await Promise.all([
           dbGet('scf_employees',DEF_EMPS),dbGet('scf_company',DEF_COMPANY),
           dbGet('scf_materials',DEF_MATERIALS),dbGet('scf_assets',[]),dbGet('scf_prodcats',DEF_PRODCATS),
           dbGet('scf_products',DEF_PRODUCTS),dbGet('scf_customers',DEF_CUSTOMERS),
@@ -153,10 +170,11 @@ function App(){
           dbGet('scf_advances',[]),dbGet('scf_rewards',[]),dbGet('scf_leaves',[]),dbGet('scf_depts',DEF_DEPTS),dbGet('scf_ui_settings',DEF_UI_SETTINGS),dbGet('scf_print_template_settings',DEF_PRINT_TEMPLATE_SETTINGS),dbGet('scf_prod_actuals',{}),
           dbGet('scf_shifts',D_SHIFTS),dbGet('scf_prod_shifts',DEF_PROD_SHIFTS),dbGet('scf_prod_shift_rules',DEF_PROD_SHIFT_RULES),
           dbGet('scf_finance_entries',[]),dbGet('scf_finance_debts',[]),dbGet('scf_finance_openings',[]),
+          dbGet('scf_company_news',[]),dbGet('scf_internal_messages',[]),
         ]);
         const normalizedOrders=normalizeOrdersForStorage(o||[]);
         const normalizedProducts=(p||[]).map(normalizeProductWeight);
-        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_snccg(nccg);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);
+        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_snccg(nccg);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);_snews(newsData||[]);_sim(messageData||[]);
         if(ordersNeedTimeNormalization(o||[]))dbSet('scf_orders',normalizedOrders);
         if((p||[]).some((item,index)=>Number(item?.weightPerUnit||0)!==Number(normalizedProducts[index]?.weightPerUnit||0)))dbSet('scf_products',normalizedProducts);
       }catch(err){console.warn(err);}finally{clearTimeout(loadingGuard);setLoading(false);}
@@ -307,7 +325,7 @@ function App(){
           h('p',{style:{fontSize:13,color:'var(--tx2)'}},'Tài khoản của bạn không có quyền xem trang này.'),
           h('button',{className:'bp',onClick:()=>setPage('welcome'),style:{marginTop:'1.5rem',padding:'8px 20px',display:'inline-flex'}},'Về trang chủ')
         ),
-        canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,company}),
+        canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,employees,company,uiSettings,news:companyNews,setNews:setCompanyNews,messages:internalMessages,setMessages:setInternalMessages,onRefresh:refreshCommunityData}),
         canAccess(cu.role,'company',cu.permissions)&&page==='company'&&h(CompanySettings,{company,setCompany}),
         canAccess(cu.role,'appearance',cu.permissions)&&page==='appearance'&&h(AppearanceSettingsTab,{uiSettings,setUiSettings}),
         canAccess(cu.role,'printtemplates',cu.permissions)&&page==='printtemplates'&&h(PrintTemplateSettingsTab,{templateSettings:printTemplateSettings,setTemplateSettings:setPrintTemplateSettings,products,customers}),

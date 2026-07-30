@@ -444,8 +444,9 @@ function ImportProductSearch({products,value,onChange,suggestions=[],prodCats=[]
   },[open,searchText,filteredProducts]);
   const choose=product=>{
     setQuery(label(product));
-    onChange(product.id);
     setOpen(false);
+    // Đóng danh sách và phản hồi ngay trên màn hình trước khi cập nhật modal lớn.
+    requestAnimationFrame(()=>onChange(product.id));
   };
   return h('div',{style:{position:'relative',width:'100%'}},
     showCategoryFilters&&h('div',{style:{display:'grid',gridTemplateColumns:productType==='HH'?'72px minmax(100px,1fr)':'1fr',gap:4,marginBottom:4}},
@@ -500,6 +501,14 @@ function ImportProductSearch({products,value,onChange,suggestions=[],prodCats=[]
     )
   );
 }
+const MemoImportProductSearch=React.memo(ImportProductSearch,(prev,next)=>
+  prev.products===next.products&&
+  prev.prodCats===next.prodCats&&
+  String(prev.value||'')===String(next.value||'')&&
+  prev.suggestions===next.suggestions&&
+  prev.showCategoryFilters===next.showCategoryFilters&&
+  prev.compact===next.compact
+);
 
 /* ─── IMPORT PREVIEW MODAL ─── */
 function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, products=[], prodCats=[], prodShifts, onClose}) {
@@ -510,6 +519,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   const [addToCustomer, setAddToCustomer] = React.useState({}); // pointName -> bool
   const [ptArea, setPtArea] = React.useState({}); // pointName -> area
   const [ptMerge, setPtMerge] = React.useState({}); // pointName -> existingPointId (gộp vào điểm có sẵn)
+  const [skipPoint, setSkipPoint] = React.useState({}); // pointName -> bỏ qua toàn bộ đơn thuộc địa điểm
   const [productAssign, setProductAssign] = React.useState({}); // tên SP import -> productId trong danh mục
 
   // Hàm tính độ tương đồng tên (Levenshtein đơn giản)
@@ -552,12 +562,18 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   }));
   const unknownProductGroups=[...unknownProductMap.values()];
   const unresolvedProductGroups=unknownProductGroups.filter(group=>!productById(productAssign[group.key]));
-  const sortedProducts=[...products].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi'));
-  const productSuggestions={};
-  unknownProductGroups.forEach(group=>{
-    productSuggestions[group.key]=sortedProducts.map(product=>({product,score:similarity(group.rawName,product.name)}))
-      .sort((a,b)=>b.score-a.score).slice(0,3);
-  });
+  const sortedProducts=React.useMemo(
+    ()=>[...products].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi')),
+    [products]
+  );
+  const productSuggestions=React.useMemo(()=>{
+    const result={};
+    unknownProductGroups.forEach(group=>{
+      result[group.key]=sortedProducts.map(product=>({product,score:similarity(group.rawName,product.name)}))
+        .sort((a,b)=>b.score-a.score).slice(0,3);
+    });
+    return result;
+  },[newOrders,sortedProducts]);
 
   // Tìm địa điểm gần giống (>= 75%) trong tất cả khách hàng
   const allExistingPts = customers.flatMap(c=>(c.points||[]).map(p=>({...p, custId:c.id, custName:c.name})));
@@ -575,15 +591,15 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   const candidateOrders=includeIncomplete?newOrders:newOrders.filter(o=>!incompleteIssueMap.has(o.id));
   const toImport = skipDups ? candidateOrders.filter(o=>!dupOrders.includes(o)) : candidateOrders;
   const resolvedProductForLine=line=>productById(line?.productId)||productById(productAssign[productGroupKeyForLine(line)]);
-  const importableOrders=toImport.map(order=>({
+  const importableOrders=toImport.filter(order=>!skipPoint[order.pointName]).map(order=>({
     ...order,
     lines:(order.lines||[]).filter(line=>!!resolvedProductForLine(line))
   })).filter(order=>order.lines.length>0);
-  const unresolvedPoints=unknownPts.filter(pt=>
+  const unresolvedPoints=unknownPts.filter(pt=>!skipPoint[pt]&&(
     !ptAssign[pt]||
     (!ptMerge[pt]&&!addToCustomer[pt])||
     (addToCustomer[pt]&&!ptArea[pt])
-  );
+  ));
 
   const doImport = () => {
     if(unresolvedProductGroups.length){
@@ -691,7 +707,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
             h('div',{style:{fontSize:11,color:'var(--tx2)'}},group.count+' dòng · dòng Excel '+[...group.rows].join(', ')),
             suggestions[0]&&suggestions[0].score>=0.45&&h('div',{style:{fontSize:11,color:'#856404',marginTop:2}},'Gợi ý gần nhất: '+suggestions[0].product.name+' ('+Math.round(suggestions[0].score*100)+'%)')
           ),
-          h(ImportProductSearch,{
+          h(MemoImportProductSearch,{
             products:sortedProducts,
             prodCats,
             value:productAssign[group.key]||'',
@@ -743,19 +759,28 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
       unknownPts.map(pt=>{
         const similar = similarMap[pt]||[];
         const isMerging = !!ptMerge[pt];
+        const isSkipped=!!skipPoint[pt];
         const selectedCustomer=customers.find(c=>String(c.id)===String(ptAssign[pt]||''));
         const customerPoints=selectedCustomer?.points||[];
-        return h('div',{key:pt,style:{padding:'8px 0',borderBottom:'1px solid #f5c6c6'}},
+        return h('div',{key:pt,style:{padding:'8px 0',borderBottom:'1px solid #f5c6c6',opacity:isSkipped?0.7:1}},
           // Tên địa điểm + badge gần giống
           h('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:6}},
             h('span',{style:{fontWeight:600,fontSize:13}},pt),
             similar.length>0&&h('span',{style:{fontSize:11,background:'#FFF3CD',color:'#856404',
               border:'1px solid #FFC107',borderRadius:10,padding:'1px 8px'}},
               '⚠ có '+similar.length+' địa điểm gần giống'
-            )
+            ),
+            h('button',{
+              type:'button',
+              onClick:()=>setSkipPoint(prev=>({...prev,[pt]:!prev[pt]})),
+              style:{marginLeft:'auto',padding:'4px 9px',fontSize:11,borderRadius:'var(--r)',border:'1px solid '+(isSkipped?'#52b788':'#D9534F'),background:isSkipped?'#EAF3DE':'#fff',color:isSkipped?'#216E4E':'#A32D2D',fontWeight:600}
+            },isSkipped?'↩ Chọn lại':'⊘ Bỏ qua địa điểm này')
+          ),
+          isSkipped&&h('div',{style:{padding:'8px 10px',background:'#F2F4F3',borderRadius:'var(--r)',fontSize:12,color:'var(--tx2)'}},
+            'Các đơn thuộc địa điểm này sẽ không được import.'
           ),
           // Gợi ý gần giống chỉ để tham khảo, không tự chọn/gộp.
-          similar.length>0&&h('div',{style:{background:'#FFFBF0',border:'1px solid #FFC107',
+          !isSkipped&&similar.length>0&&h('div',{style:{background:'#FFFBF0',border:'1px solid #FFC107',
             borderRadius:'var(--r)',padding:'8px 10px',marginBottom:6}},
             h('div',{style:{fontSize:12,fontWeight:600,color:'#856404',marginBottom:6}},
               '🔍 Địa điểm gần giống để tham khảo:'
@@ -775,7 +800,7 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
             ))
           ),
           // Bước 1: chọn khách hàng. Bước 2: chọn địa điểm của khách hàng hoặc tạo mới.
-          h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+          !isSkipped&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
             h('select',{
               value:ptAssign[pt]||'',
               onChange:e=>{

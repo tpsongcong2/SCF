@@ -78,6 +78,7 @@ const UI_FONT_SCOPE_OPTIONS=[
 ];
 const DEF_UI_SETTINGS={
   fontFamily:UI_FONT_FAMILY_OPTIONS[0].value,
+  birthdayEffect:'fireworks',
   scopes:{
     base:{size:14,mode:'normal',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},
     form:{size:14,mode:'normal',fontFamily:UI_FONT_FAMILY_OPTIONS[0].value},

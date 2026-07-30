@@ -730,7 +730,12 @@ function resolveProductLabelPackRule(product,name){
 }
 function normalizeUiSettings(raw){
   const src=raw||{};
-  const next={fontFamily:src.fontFamily||DEF_UI_SETTINGS.fontFamily,scopes:{}};
+  const birthdayEffects=['fireworks','balloons','cake','none'];
+  const next={
+    fontFamily:src.fontFamily||DEF_UI_SETTINGS.fontFamily,
+    birthdayEffect:birthdayEffects.includes(src.birthdayEffect)?src.birthdayEffect:(DEF_UI_SETTINGS.birthdayEffect||'fireworks'),
+    scopes:{}
+  };
   if(!UI_FONT_FAMILY_OPTIONS.some(x=>x.value===next.fontFamily)) next.fontFamily=DEF_UI_SETTINGS.fontFamily;
   UI_FONT_SCOPE_OPTIONS.forEach(scope=>{
     const base=DEF_UI_SETTINGS.scopes[scope.key]||{size:14,mode:'normal'};

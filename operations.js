@@ -49,6 +49,20 @@ function BirthdayScene({name}){
   },[]);
   return h('div',{className:'scene'},h('canvas',{ref,style:{display:'block',width:'100%',height:260,background:'#0a140f'}}));
 }
+function BirthdayVisual({name,effect='fireworks'}){
+  if(effect==='fireworks')return h(BirthdayScene,{name});
+  if(effect==='none')return h(SunsetScene,null);
+  return h('div',{className:'scene birthday-visual '+effect},
+    effect==='balloons'&&h('div',{className:'birthday-balloons','aria-hidden':'true'},
+      ['🎈','🎈','🎉','🎊','🎈','✨','🎈'].map((icon,index)=>h('span',{key:index,style:{'--i':index}},icon))
+    ),
+    effect==='cake'&&h('div',{className:'birthday-cake','aria-hidden':'true'},
+      h('div',{className:'birthday-candle'},'🕯️'),
+      h('div',{className:'birthday-cake-icon'},'🎂')
+    ),
+    h('div',{className:'birthday-visual-text'},'Chúc mừng sinh nhật ',name,'!')
+  );
+}
 function WeatherWidget(){
   const[w,sw]=useState(null);const[fc,sf]=useState([]);const[ld,sl]=useState(true);
   useEffect(()=>{
@@ -67,7 +81,7 @@ function WeatherWidget(){
   const WC2={0:['ti-sun','Trời quang','#f8c30f'],1:['ti-cloud','Ít mây','#93c5fd'],2:['ti-cloud','Có mây','#94a3b8'],3:['ti-cloud','Nhiều mây','#64748b'],45:['ti-mist','Sương mù','#94a3b8'],51:['ti-cloud-rain','Mưa phùn','#60a5fa'],61:['ti-cloud-rain','Mưa nhẹ','#60a5fa'],63:['ti-cloud-rain','Mưa','#3b82f6'],65:['ti-cloud-rain','Mưa to','#1d4ed8'],80:['ti-cloud-rain','Mưa rào','#3b82f6'],95:['ti-cloud-storm','Dông','#6d28d9']};
   const inf=w?(WC2[w.weather_code]||WC2[Math.floor(w.weather_code/10)*10]||WC2[0]):null;
   return h('div',{className:'weather-card'},
-    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}},
+    h('div',{className:'weather-current-card',style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}},
       h('div',{style:{minWidth:220,flex:1}},
         h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},h('i',{className:'ti ti-map-pin',style:{fontSize:11,marginRight:3}}),W_CITY),
         h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:6}},'Hôm nay'),
@@ -86,7 +100,7 @@ function WeatherWidget(){
         h('div',null,h('i',{className:'ti ti-wind',style:{fontSize:12,marginRight:3}}),w.wind_speed_10m+' km/h')
       )
     ),
-    fc.length?h('div',{style:{marginTop:10,display:'grid',gridTemplateColumns:'1fr',gap:10}},
+    fc.length?h('div',{className:'weather-three-wrap',style:{marginTop:10,display:'grid',gridTemplateColumns:'1fr',gap:10}},
       fc.map((d,i)=>{
         const f=WC2[d.code]||WC2[Math.floor((d.code||0)/10)*10]||WC2[0];
         const dt=new Date(d.date+'T00:00:00');
@@ -126,7 +140,107 @@ function CalendarWidget(){
     )
   );
 }
-function WelcomePage({emp,company}){
+function CommunityPanel({emp,news=[],setNews,messages=[],setMessages,onRefresh}){
+  const[tab,setTab]=useState('news');
+  const[text,setText]=useState('');
+  const[showEmoji,setShowEmoji]=useState(false);
+  const emojiOptions=['😀','😄','😁','😂','😊','😍','🥰','😎','🤔','😮','😢','😭','😡','👍','👎','👏','🙏','👌','✅','❤️','🎉','🎂','💪','📌','📣','🚚','📦','☕'];
+  const deptKey=String(emp?.dept||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const canPostNews=['admin','manager'].includes(emp?.role)||deptKey.includes('ke toan');
+  const canDeleteMessages=emp?.role==='admin';
+  useEffect(()=>{
+    if(!onRefresh)return;
+    const timer=setInterval(()=>onRefresh().catch(()=>{}),7000);
+    return()=>clearInterval(timer);
+  },[onRefresh]);
+  const formatTime=value=>{
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime()))return '';
+    return date.toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  };
+  const send=()=>{
+    const content=String(text||'').trim();
+    if(!content)return;
+    const item={id:'COM'+uid(),content,authorId:emp?.id||'',authorName:emp?.name||'Nhân viên',createdAt:new Date().toISOString()};
+    if(tab==='news'){
+      if(!canPostNews)return;
+      setNews(prev=>[item,...(prev||[])].slice(0,100));
+    }else{
+      setMessages(prev=>[...(prev||[]),item].slice(-300));
+    }
+    setText('');
+    setShowEmoji(false);
+  };
+  const removeMessage=async item=>{
+    if(!canDeleteMessages||!item)return;
+    const message='Bạn có chắc muốn xóa tin nhắn này?';
+    const ok=window.scfConfirm
+      ?await window.scfConfirm(message,'Xóa tin nhắn',true)
+      :window.confirm(message);
+    if(!ok)return;
+    setMessages(prev=>(prev||[]).filter(row=>String(row.id)!==String(item.id)));
+  };
+  const rows=tab==='news'?[...(news||[])].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))):
+    [...(messages||[])].sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))).slice(-80);
+  return h('div',{className:'card',style:{padding:0,overflow:'hidden',marginTop:18}},
+    h('div',{style:{display:'flex',alignItems:'center',gap:6,padding:'10px 12px',borderBottom:'1px solid var(--bd)',background:'var(--bg2)'}},
+      h('button',{type:'button',className:tab==='news'?'bp':'',onClick:()=>{setTab('news');setText('');setShowEmoji(false);},style:{padding:'7px 12px'}},
+        h('i',{className:'ti ti-news',style:{fontSize:15}}),'Tin tức'
+      ),
+      h('button',{type:'button',className:tab==='chat'?'bp':'',onClick:()=>{setTab('chat');setText('');setShowEmoji(false);},style:{padding:'7px 12px'}},
+        h('i',{className:'ti ti-messages',style:{fontSize:15}}),'Tin nhắn nội bộ'
+      ),
+      h('button',{type:'button',onClick:()=>onRefresh&&onRefresh(),title:'Làm mới',style:{marginLeft:'auto',padding:'6px 9px'}},
+        h('i',{className:'ti ti-refresh',style:{fontSize:14}})
+      )
+    ),
+    h('div',{style:{maxHeight:360,overflowY:'auto',padding:'10px 12px',background:'#fff'}},
+      rows.length?rows.map(item=>h('div',{key:item.id,style:{padding:'9px 10px',marginBottom:7,border:'1px solid var(--bd)',borderRadius:'var(--r)',background:tab==='news'?'#FFFDF2':(String(item.authorId)===String(emp?.id)?'#EAF3DE':'#F8FAF9')}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,marginBottom:4}},
+          h('strong',{style:{fontSize:12,color:'var(--pri3)'}},item.authorName||'Nhân viên'),
+          h('div',{style:{display:'flex',alignItems:'center',gap:7}},
+            h('span',{style:{fontSize:10,color:'var(--tx2)',whiteSpace:'nowrap'}},formatTime(item.createdAt)),
+            tab==='chat'&&canDeleteMessages&&h('button',{
+              type:'button',
+              className:'bi',
+              title:'Xóa tin nhắn',
+              onClick:()=>removeMessage(item),
+              style:{padding:3,color:'var(--danger)'}
+            },h('i',{className:'ti ti-trash',style:{fontSize:14}}))
+          )
+        ),
+        h('div',{style:{fontSize:13,whiteSpace:'pre-wrap',overflowWrap:'anywhere'}},item.content)
+      )):h('div',{style:{padding:'24px 10px',textAlign:'center',color:'var(--tx2)',fontSize:13}},
+        tab==='news'?'Chưa có tin tức nội bộ.':'Chưa có tin nhắn. Hãy bắt đầu trao đổi công việc.'
+      )
+    ),
+    (tab==='chat'||canPostNews)&&h('div',{style:{display:'flex',gap:8,padding:'10px 12px',borderTop:'1px solid var(--bd)',background:'var(--card)',position:'relative'}},
+      tab==='chat'&&h('button',{
+        type:'button',
+        onClick:()=>setShowEmoji(value=>!value),
+        title:'Chọn biểu tượng cảm xúc',
+        style:{alignSelf:'stretch',padding:'8px 11px',fontSize:21}
+      },'😊'),
+      tab==='chat'&&showEmoji&&h('div',{className:'internal-emoji-picker'},
+        emojiOptions.map(emoji=>h('button',{
+          key:emoji,
+          type:'button',
+          onClick:()=>{setText(value=>value+emoji);setShowEmoji(false);},
+          title:'Thêm '+emoji
+        },emoji))
+      ),
+      h('textarea',{value:text,onChange:e=>setText(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}},rows:2,placeholder:tab==='news'?'Nhập nội dung tin tức...':'Nhập tin nhắn công việc...',style:{flex:1,minHeight:42,resize:'vertical'}}),
+      h('button',{type:'button',className:'bp',onClick:send,disabled:!String(text||'').trim(),style:{alignSelf:'stretch',padding:'8px 16px'}},
+        h('i',{className:'ti ti-send',style:{fontSize:15}}),tab==='news'?'Đăng tin':'Gửi'
+      )
+    ),
+    tab==='news'&&!canPostNews&&h('div',{style:{padding:'9px 12px',borderTop:'1px solid var(--bd)',fontSize:11,color:'var(--tx2)'}},'Tin tức do Admin hoặc Quản lý đăng.')
+  );
+}
+function WelcomePage({emp,employees=[],company,uiSettings,news,setNews,messages,setMessages,onRefresh}){
+  const birthdayEmployees=(employees||[]).filter(person=>person&&person.name&&isBirthday(person.birthday));
+  const birthdayNames=birthdayEmployees.map(person=>person.name).join(', ');
+  const hasBirthday=birthdayEmployees.length>0;
   const bd=isBirthday(emp&&emp.birthday);
   const now=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
   const gr=greeting();
@@ -146,12 +260,20 @@ function WelcomePage({emp,company}){
           h('div',{style:{marginTop:3}},h('i',{className:'ti ti-clock',style:{fontSize:12,marginRight:4}}),now)
         )
       ),
-      
+      hasBirthday&&h('div',{className:'birthday-announcement'},
+        h('span',{className:'birthday-party-icon'},'🎉'),
+        h('div',null,
+          h('div',{style:{fontWeight:700,fontSize:16}},'🎂 Chúc mừng sinh nhật '+birthdayNames+'!'),
+          h('div',{style:{fontSize:12,opacity:.9,marginTop:2}},'Chúc bạn tuổi mới nhiều sức khỏe, niềm vui và thành công!')
+        ),
+        h('span',{className:'birthday-party-icon'},'🎊')
+      )
     ),
     h('div',{className:'welcome-grid'},
-      h('div',null,h(WeatherWidget,null),h(CalendarWidget,null)),
-      bd?h(BirthdayScene,{name:emp&&emp.name||''}):h(SunsetScene,null)
-    )
+      h('div',null,h(WeatherWidget,null)),
+      hasBirthday?h(BirthdayVisual,{name:birthdayNames,effect:normalizeUiSettings(uiSettings).birthdayEffect}):h(SunsetScene,null)
+    ),
+    h(CommunityPanel,{emp,news,setNews,messages,setMessages,onRefresh})
   );
 }
 function CompanySettings({company,setCompany}){
@@ -226,6 +348,22 @@ function AppearanceSettingsTab({uiSettings,setUiSettings}){
           h('div',{style:{...previewStyle('base'),marginBottom:5}},'Mẫu nội dung với font ',fontFamilyLabel(f.fontFamily)),
           h('div',{style:{...previewStyle('menu'),marginBottom:5}},'Menu / Cài đặt / Cài đặt giao diện'),
           h('div',{style:{...previewStyle('badge'),display:'inline-flex',padding:'4px 10px',background:'#fff',borderRadius:999,border:'1px solid var(--bd)'}},'Đang hoạt động')
+        )
+      )
+    ),
+    h('div',{className:'card',style:{marginBottom:'1rem'}},
+      h('div',{style:{fontWeight:600,color:'var(--pri3)',marginBottom:10}},'Hiệu ứng chúc mừng sinh nhật'),
+      h('div',{className:'g2',style:{alignItems:'end'}},
+        h(F,{label:'Hình thức hoạt náo'},
+          h('select',{value:f.birthdayEffect||'fireworks',onChange:e=>sf(prev=>({...prev,birthdayEffect:e.target.value}))},
+            h('option',{value:'fireworks'},'Bắn pháo hoa'),
+            h('option',{value:'balloons'},'Bóng bay và confetti'),
+            h('option',{value:'cake'},'Bánh sinh nhật và nến'),
+            h('option',{value:'none'},'Không dùng hiệu ứng')
+          )
+        ),
+        h('div',{style:{padding:'10px 12px',background:'var(--bg2)',borderRadius:'var(--r)',fontSize:12,color:'var(--tx2)'}},
+          'Hiệu ứng chỉ chạy trên trang Thời tiết trong đúng ngày sinh nhật nên không làm nặng đáng kể webapp.'
         )
       )
     ),
