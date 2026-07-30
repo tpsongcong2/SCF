@@ -29,7 +29,9 @@ function normalizeTimeInput(t){
   return String(Math.min(23,Number(m[1]))).padStart(2,'0')+':'+String(Math.min(59,Number(m[2]))).padStart(2,'0');
 }
 function normalizeCustomerImportTime(t){
-  const raw=String(t??'').trim();
+  const raw=String(t??'').trim()
+    .replace(/\s*(?:giờ|gio)\s*/gi,'H')
+    .replace(/\s+/g,'');
   if(!raw)return '';
   const normalized=normalizeTimeInput(raw);
   return normalized.replace(/^0(?=\d:)/,'');
