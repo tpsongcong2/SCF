@@ -187,7 +187,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   };
   const updateDeliveredQty=(orderId,lineId,value)=>{
     const order=(orders||[]).find(o=>String(o.id)===String(orderId));
-    if(!order||!canEditDeliveredForOrder(order)){window.showToast('Bạn không có quyền sửa số lượng đã giao của chuyến này.','warn');return;}
+    if(!order||!canEditDeliveredForOrder(order))return;
     const qty=numFmt(value);
     const nextOrders=(orders||[]).map(o=>o.id===orderId?{...o,lines:(o.lines||[]).map(l=>l.id===lineId?{...l,qtyDelivered:qty,deliveredAt:fmtDT(),deliveredBy:currentUser?.name||''}:l)}:o);
     setOrders&&setOrders(nextOrders);

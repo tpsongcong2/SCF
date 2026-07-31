@@ -449,7 +449,6 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
     setEmpId(currentUser.id);
     setPreview('');
     setCap(null);
-    window.showToast('Nhân viên chỉ được chấm công cho chính mình.','warn');
     return false;
   };
   const buildFaceTemplate=()=>cap?{hash:[...(cap.faceHash||[])],descriptor:[...(cap.faceDescriptor||[])],model:cap.faceModel||'',detectionScore:cap.faceDetectionScore||0,image:cap.image||'',updatedAt:fmtDT(),updatedBy:currentUser.name}:null;
@@ -764,7 +763,7 @@ function AttendanceTab({section='punch',attendance,setAttendance,employees,setEm
     );
   }
   if(section==='settings'){
-    if(!isAdmin)return h('div',{className:'empty-st'},'Chỉ Admin được mở Cài đặt chấm công.');
+    if(!isAdmin)return null;
     return h('div',{className:'attendance-settings-page'},
       h('div',{className:'ptitle'},h('i',{className:'ti ti-settings'}),'Cài đặt chấm công'),
       h('div',{className:'att-grid'},

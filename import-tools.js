@@ -646,7 +646,7 @@ function TopNav({page,setPage,role,perms,dept}){
   );
 }
 
-function MobileNav({page,setPage,role,perms,dept}){
+function MobileNav({page,setPage,role,perms,dept,onLogout}){
   const[open,setOpen]=useState(false);
   const groups=[]; let cur=null;
   NAV.forEach(item=>{
@@ -681,7 +681,16 @@ function MobileNav({page,setPage,role,perms,dept}){
               h('span',null,item.label)
             ))
           )
-        ))
+        )),
+        h('div',{className:'mobile-nav-section'},
+          h('div',{className:'mobile-nav-section-title'},'Tài khoản'),
+          h('div',{className:'mobile-nav-grid'},
+            h('button',{className:'mobile-nav-link mobile-nav-logout',onClick:()=>onLogout&&onLogout()},
+              h('i',{className:'ti ti-logout'}),
+              h('span',null,'Đăng xuất')
+            )
+          )
+        )
       )
     ),
     h('nav',{className:'mobile-nav','aria-label':'Điều hướng nhanh',style:{gridTemplateColumns:'repeat('+items.length+',1fr)'}},

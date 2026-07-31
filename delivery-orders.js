@@ -2282,7 +2282,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     });
   };
   const deleteSelectedOrders=()=>{
-    if(!isAdmin){window.showToast('Chỉ Admin được xóa nhiều đơn hàng.','error');return;}
+    if(!isAdmin)return;
     const keys=selectedOrderKeys;
     if(!keys.length){window.showToast('Chưa chọn đơn hàng cần xóa.','warning');return;}
     const message='Bạn sắp xóa vĩnh viễn '+keys.length+' đơn hàng đã chọn.\nCác đơn này cũng sẽ được gỡ khỏi chuyến liên quan.\n\nThao tác không thể hoàn tác. Tiếp tục xóa?';

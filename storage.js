@@ -66,7 +66,6 @@ async function dbSet(key,val){
 function mkSet(key,setter){return valOrFn=>{
   const access=window.__SCF_ACCESS_CONTEXT;
   if(access?.readOnly){
-    window.showToast&&window.showToast('Bạn đang ở chế độ Chỉ xem, không thể thay đổi dữ liệu.','warn');
     return;
   }
   setter(prev=>{const nextRaw=typeof valOrFn==='function'?valOrFn(prev):valOrFn;const next=key==='scf_orders'?normalizeOrdersForStorage(nextRaw):nextRaw;dbSet(key,next);return next;});

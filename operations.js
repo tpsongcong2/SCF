@@ -144,6 +144,7 @@ function CommunityPanel({emp,news=[],setNews,messages=[],setMessages,onRefresh})
   const deptKey=String(emp?.dept||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const canPostNews=['admin','manager'].includes(emp?.role)||deptKey.includes('ke toan');
   const canDeleteMessages=emp?.role==='admin';
+  const canDeleteNews=emp?.role==='admin';
   useEffect(()=>{
     if(!onRefresh)return;
     const timer=setInterval(()=>onRefresh().catch(()=>{}),7000);
@@ -176,6 +177,15 @@ function CommunityPanel({emp,news=[],setNews,messages=[],setMessages,onRefresh})
     if(!ok)return;
     setMessages(prev=>(prev||[]).filter(row=>String(row.id)!==String(item.id)));
   };
+  const removeNews=async item=>{
+    if(!canDeleteNews||!item)return;
+    const message='Bạn có chắc muốn xóa tin tức này?';
+    const ok=window.scfConfirm
+      ?await window.scfConfirm(message,'Xóa tin tức',true)
+      :window.confirm(message);
+    if(!ok)return;
+    setNews(prev=>(prev||[]).filter(row=>String(row.id)!==String(item.id)));
+  };
   const rows=tab==='news'?[...(news||[])].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))):
     [...(messages||[])].sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))).slice(-80);
   return h('div',{className:'card',style:{padding:0,overflow:'hidden',marginTop:18}},
@@ -196,11 +206,11 @@ function CommunityPanel({emp,news=[],setNews,messages=[],setMessages,onRefresh})
           h('strong',{style:{fontSize:12,color:'var(--pri3)'}},item.authorName||'Nhân viên'),
           h('div',{style:{display:'flex',alignItems:'center',gap:7}},
             h('span',{style:{fontSize:10,color:'var(--tx2)',whiteSpace:'nowrap'}},formatTime(item.createdAt)),
-            tab==='chat'&&canDeleteMessages&&h('button',{
+            ((tab==='chat'&&canDeleteMessages)||(tab==='news'&&canDeleteNews))&&h('button',{
               type:'button',
               className:'bi',
-              title:'Xóa tin nhắn',
-              onClick:()=>removeMessage(item),
+              title:tab==='news'?'Xóa tin tức':'Xóa tin nhắn',
+              onClick:()=>tab==='news'?removeNews(item):removeMessage(item),
               style:{padding:3,color:'var(--danger)'}
             },h('i',{className:'ti ti-trash',style:{fontSize:14}}))
           )
@@ -229,8 +239,7 @@ function CommunityPanel({emp,news=[],setNews,messages=[],setMessages,onRefresh})
       h('button',{type:'button',className:'bp',onClick:send,disabled:!String(text||'').trim(),style:{alignSelf:'stretch',padding:'8px 16px'}},
         h('i',{className:'ti ti-send',style:{fontSize:15}}),tab==='news'?'Đăng tin':'Gửi'
       )
-    ),
-    tab==='news'&&!canPostNews&&h('div',{style:{padding:'9px 12px',borderTop:'1px solid var(--bd)',fontSize:11,color:'var(--tx2)'}},'Tin tức do Admin hoặc Quản lý đăng.')
+    )
   );
 }
 function WelcomePage({emp,employees=[],company,uiSettings,news,setNews,messages,setMessages,onRefresh}){

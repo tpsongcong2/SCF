@@ -281,6 +281,7 @@ function App(){
   const readOnly=activeLevel==='r';
   window.__SCF_ACCESS_CONTEXT={role:cu.role,page,level:activeLevel,readOnly};
   const wips=['purchase','workreport_vp','workreport_sx','workreport_total','process_accounting','process_bun','process_pho','process_banhcuon','marketsales'];
+  const logout=async()=>{await serverLogout();setSession(null);if(SCF_SERVER_AUTH_ENABLED)location.reload();};
   return h('div',{className:'layout'},
     h('div',{className:'main'},
       !menuHidden&&h('div',{className:'topbar'+(page!=='welcome'?' mobile-subpage-topbar':'')},
@@ -303,7 +304,7 @@ function App(){
                 h('span',{style:{fontSize:11,color:'rgba(255,255,255,.78)'}},cu.dept)
               )
             ),
-            h('button',{className:'topbar-logout',onClick:async()=>{await serverLogout();setSession(null);if(SCF_SERVER_AUTH_ENABLED)location.reload();},style:{fontSize:12,padding:'5px 10px',color:'#A32D2D',borderColor:'#F7C1C1'},title:'Đăng xuất','aria-label':'Đăng xuất'},h('i',{className:'ti ti-logout',style:{fontSize:14}}),h('span',{className:'topbar-logout-label'},'Đăng xuất'))
+            h('button',{className:'topbar-logout',onClick:logout,style:{fontSize:12,padding:'5px 10px',color:'#A32D2D',borderColor:'#F7C1C1'},title:'Đăng xuất','aria-label':'Đăng xuất'},h('i',{className:'ti ti-logout',style:{fontSize:14}}),h('span',{className:'topbar-logout-label'},'Đăng xuất'))
           )
         ),
         h(TopNav,{page,setPage,role:cu.role,perms:cu.permissions,dept:cu.dept})
@@ -318,13 +319,6 @@ function App(){
         className:'content'+(menuHidden?' compact-top':'')+(page!=='welcome'?' mobile-subpage-content':'')+(readOnly?' scf-readonly':'')+(activeLevel!=='rwd'?' scf-no-delete':''),
         onClickCapture:e=>guardPermissionAction(e,cu.role,page,cu.permLevels)
       },
-        readOnly&&!['staff','driver'].includes(cu.role)&&h('div',{className:'scf-readonly-banner'},h('i',{className:'ti ti-eye',style:{fontSize:16}}),'Chế độ Chỉ xem — bạn có thể xem, tìm kiếm, lọc, in và xuất báo cáo nhưng không thể thay đổi dữ liệu.'),
-        !canAccess(cu.role,page,cu.permissions,cu.dept)&&h('div',{style:{textAlign:'center',padding:'4rem 2rem'}},
-          h('i',{className:'ti ti-lock',style:{fontSize:64,display:'block',marginBottom:'1rem',color:'#f8c30f'}}),
-          h('h2',{style:{fontSize:18,fontWeight:500,marginBottom:8}},'Không có quyền truy cập'),
-          h('p',{style:{fontSize:13,color:'var(--tx2)'}},'Tài khoản của bạn không có quyền xem trang này.'),
-          h('button',{className:'bp',onClick:()=>setPage('welcome'),style:{marginTop:'1.5rem',padding:'8px 20px',display:'inline-flex'}},'Về trang chủ')
-        ),
         canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,employees,company,uiSettings,news:companyNews,setNews:setCompanyNews,messages:internalMessages,setMessages:setInternalMessages,onRefresh:refreshCommunityData}),
         canAccess(cu.role,'company',cu.permissions)&&page==='company'&&h(CompanySettings,{company,setCompany}),
         canAccess(cu.role,'appearance',cu.permissions)&&page==='appearance'&&h(AppearanceSettingsTab,{uiSettings,setUiSettings}),
@@ -374,7 +368,7 @@ canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(F
         canAccess(cu.role,'dbusage',cu.permissions)&&page==='dbusage'&&h(SupabaseUsageReportTab,{employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,goodsPurchases,quotes,orders,trips,attendance,advances,rewards,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}),
         wips.includes(page)&&h(PlaceholderTab,{title:PTITLES[page],icon:PICONS[page]||'ti-clock'})
       ),
-      page==='welcome'&&h(MobileNav,{page,setPage,role:cu.role,perms:cu.permissions,dept:cu.dept})
+      page==='welcome'&&h(MobileNav,{page,setPage,role:cu.role,perms:cu.permissions,dept:cu.dept,onLogout:logout})
     ),
     cu.mustChangePw&&h(CpwModal,{
       emp:cu,cu,forced:true,onClose:()=>{},

@@ -115,5 +115,4 @@ function guardPermissionAction(e,role,page,lvls){
   const blocked=(action==='delete'&&!canDel(role,page,lvls))||(action==='write'&&!canWrite(role,page,lvls));
   if(!blocked)return;
   e.preventDefault();e.stopPropagation();
-  window.showToast&&window.showToast(action==='delete'?'Bạn không có quyền xóa dữ liệu ở mục này.':'Bạn đang ở chế độ Chỉ xem, không thể thay đổi dữ liệu.','warn');
 }

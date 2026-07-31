@@ -378,7 +378,7 @@ th{font-family:var(--ui-header-family)!important}
   .mobile-page-back{flex:0 0 auto;min-height:36px;padding:6px 10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff}
   .mobile-page-back i{font-size:18px}
   .mobile-page-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:700}
-  .topbar-logout{width:34px;min-width:34px;padding:5px!important}
+  .topbar-logout{display:none!important}
   .topbar-logout-label{display:none}
   .content{padding:12px 12px calc(78px + env(safe-area-inset-bottom));max-width:none;width:100%;overflow:hidden}
   .content.compact-top{padding-top:12px;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
@@ -404,6 +404,8 @@ th{font-family:var(--ui-header-family)!important}
   .mobile-nav-link i{font-size:23px;color:var(--pri)}
   .mobile-nav-link span{width:100%;font-size:11px;line-height:1.2;white-space:normal}
   .mobile-nav-link.on{background:#dff0e7;color:var(--pri3);box-shadow:inset 0 0 0 1px #9bc8af}
+  .mobile-nav-logout{color:#a32d2d;background:#fff3f1;box-shadow:inset 0 0 0 1px #f1c2bc}
+  .mobile-nav-logout i{color:#a32d2d}
   .ptitle{font-size:17px;margin-bottom:14px;line-height:1.25}
   .card,.weather-card,.cal-card,.greet{padding:12px;border-radius:10px}
   .welcome-grid,.report-grid-2,.g2,.g3,.g4{grid-template-columns:1fr!important}

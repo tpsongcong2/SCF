@@ -456,7 +456,7 @@ function DriverTripWorkReportTab({trips,orders,products,customers,currentUser}){
         !isDriver&&h('label',null,h('span',null,'Lái xe'),h('select',{value:driverFilter,onChange:event=>setDriverFilter(event.target.value)},h('option',{value:''},'Tất cả lái xe'),driverNames.map(name=>h('option',{key:name,value:name},name)))),
         !isDriver&&h('label',null,h('span',null,'Khu vực'),h('select',{value:areaFilter,onChange:event=>setAreaFilter(event.target.value)},h('option',{value:''},'Tất cả khu vực'),areaNames.map(area=>h('option',{key:area,value:area},area))))
       ),
-      isDriver&&h('div',{style:{marginTop:10,padding:'9px 12px',borderRadius:'var(--r)',background:'#EAF3DE',color:'#27500A',fontSize:13}},h('i',{className:'ti ti-lock',style:{marginRight:6}}),'Chỉ hiển thị các chuyến được giao cho ',h('b',null,currentUser?.name||'tài khoản này'),'.')
+      null
     ),
     h('div',{className:'card'},
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}},
@@ -555,7 +555,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     }
   };
   const dispatchTripToDriver=trip=>{
-    if(!canReviewTrips){window.showToast('Chỉ Admin hoặc kế toán được giao chuyến cho lái xe.','warn');return;}
+    if(!canReviewTrips)return;
     if(!trip?.driverName&&!trip?.driverId){window.showToast('Hãy chọn lái xe trước khi giao chuyến.','warn');return;}
     if(!['planning','assigned'].includes(trip.status)){window.showToast('Chuyến này không còn ở trạng thái có thể giao cho lái xe.','warn');return;}
     const stamp=fmtDT();
@@ -570,7 +570,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     window.showToast('Đã giao chuyến cho '+(trip.driverName||'lái xe')+'. Lái xe đã có thể nhìn thấy và bấm Bắt đầu giao.','success');
   };
   const cancelDispatchToDriver=trip=>{
-    if(!canReviewTrips){window.showToast('Chỉ Admin hoặc kế toán được hủy giao lái xe.','warn');return;}
+    if(!canReviewTrips)return;
     if(trip?.status!=='assigned'||!trip?.driverDispatchedAt){
       window.showToast('Chỉ hủy được khi chuyến đã giao cho lái xe nhưng chưa bắt đầu giao.','warn');return;
     }
@@ -702,7 +702,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     window.showToast('Đã tạo doanh thu theo SL thực giao, công nợ theo SL HĐ và gửi chuyến sang kế toán duyệt.','success');
   };
   const approveTripCompletion=trip=>{
-    if(!canReviewTrips){window.showToast('Chỉ kế toán hoặc Admin được duyệt hoàn thành.','warn');return;}
+    if(!canReviewTrips)return;
     if(trip.status!=='completion_pending'){window.showToast('Chuyến chưa chờ kế toán duyệt.','warn');return;}
     const check=approvalIssues(trip);
     if(check.issues.length){window.showToast('Chưa thể duyệt: '+check.issues.join('; ')+'.','warn');return;}
@@ -811,7 +811,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     setTrips(prev=>prev.map(t=>t.id===trip.id?{...t,summaryInvoiceImage:'',summaryInvoiceImageName:'',summaryInvoiceUploadedAt:'',summaryInvoiceUploadedBy:'',summaryInvoiceReviewStatus:'',summaryInvoiceReviewReason:'',summaryInvoiceReviewedAt:'',summaryInvoiceReviewedBy:'',summaryInvoiceRemovedAt:fmtDT()}:t));
   };
   const updateDeliveredQty=(trip,orderId,lineId,value)=>{
-    if(!canEditQtyForTrip(trip)){window.showToast('Số lượng giao đã khóa; chỉ kế toán hoặc Admin được sửa.','warn');return;}
+    if(!canEditQtyForTrip(trip))return;
     const qty=numFmt(value);
     const nextOrders=orders.map(o=>o.id===orderId?{...o,lines:(o.lines||[]).map(l=>l.id===lineId?{...l,qtyDelivered:qty,deliveredAt:fmtDT(),deliveredBy:currentUser?.name||''}:l)}:o);
     setOrders(nextOrders);
@@ -821,7 +821,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     }
   };
   const createTripForSelection=()=>{
-    if(!canManageTrips){window.showToast('Tài khoản lái xe chỉ xem chuyến được giao.','info');return;}
+    if(!canManageTrips)return;
     if(!fDate){window.showToast('Vui lòng chọn ngày giao trước khi tạo chuyến!','warn');return;}
     if(!fShift){window.showToast('Vui lòng chọn ca giao hàng!','warn');return;}
     const sh=(shifts||[]).find(x=>x.id===fShift);
