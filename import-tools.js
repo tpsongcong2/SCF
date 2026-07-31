@@ -569,6 +569,7 @@ const NAV=[
   {key:'purchasereport',icon:'ti-chart-bar',label:'Báo cáo MH'},
   {key:'maintreport',icon:'ti-tool',label:'Báo cáo sửa chữa'},
   {key:'materialusage',icon:'ti-chart-histogram',label:'Báo cáo NVL tồn và tiêu dùng'},
+  {key:'syncreport',icon:'ti-cloud-data-connection',label:'Đồng bộ dữ liệu'},
   {key:'dbusage',icon:'ti-database',label:'Dung lượng Supabase'},
   {sec:'Bảo dưỡng'},
   {key:'maint_vehicle',icon:'ti-car',label:'Bảo dưỡng xe'},

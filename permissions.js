@@ -50,6 +50,7 @@ const PAGE_ACCESS = {
   maintreport:['admin','manager'],
   materialusage:['admin','manager','staff'],
   powderdebtreport:['admin','manager','staff'],
+  syncreport:['admin','manager'],
   dbusage:['admin','manager'],
   maint_vehicle:['admin','manager','staff'],
   maint_machine:['admin','manager','staff'],

@@ -22,6 +22,10 @@ function writeSyncQueue(queue){
 }
 function setSyncState(status,detail=''){
   const pending=Object.keys(readSyncQueue()).length;
+  if(pending&&(status==='idle'||status==='synced')){
+    status='error';
+    detail=detail||('Còn '+pending+' nhóm dữ liệu chờ đồng bộ');
+  }
   window.__SCF_SYNC_STATE={status,detail,pending,updatedAt:new Date().toISOString()};
   window.dispatchEvent(new CustomEvent('scf-sync-state',{detail:window.__SCF_SYNC_STATE}));
 }
@@ -36,6 +40,21 @@ window.scfClearSensitiveLocalData=function(){
   setSyncState(navigator.onLine?'idle':'offline');
 };
 window.scfGetSyncState=function(){return window.__SCF_SYNC_STATE||{status:navigator.onLine?'idle':'offline',pending:0};};
+window.scfGetSyncReport=function(){
+  const queue=readSyncQueue();
+  const labels={
+    scf_employees:'Nhân viên',scf_orders:'Đơn giao hàng',scf_trips:'Chuyến giao hàng',scf_attendance:'Chấm công',
+    scf_advances:'Ứng lương',scf_rewards:'Thưởng phạt',scf_leaves:'Nghỉ phép',scf_finance_entries:'Dòng tiền',
+    scf_finance_debts:'Công nợ',scf_finance_openings:'Số dư đầu kỳ',scf_internal_messages:'Tin nhắn nội bộ',scf_tasks:'Giao việc',
+    scf_customers:'Khách hàng',scf_products:'Sản phẩm',scf_materials:'Nguyên vật liệu',scf_quotes:'Báo giá'
+  };
+  return {
+    ...window.scfGetSyncState(),
+    online:navigator.onLine,
+    serverReady:!!sb,
+    items:Object.entries(queue).map(([key,item])=>({key,label:labels[key]||key.replace(/^scf_/,'').replaceAll('_',' '),updatedAt:item?.updatedAt||''}))
+  };
+};
 function withRemoteTimeout(promise,ms=DB_REMOTE_TIMEOUT_MS){
   let timer;
   const timeout=new Promise((_,reject)=>{

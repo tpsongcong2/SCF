@@ -1864,6 +1864,62 @@ function PowderDebtReportTab({customers}){
   );
 }
 
+function SyncDataReportTab(){
+  const readReport=()=>window.scfGetSyncReport?window.scfGetSyncReport():{status:navigator.onLine?'idle':'offline',pending:0,online:navigator.onLine,serverReady:false,items:[]};
+  const[report,setReport]=useState(readReport);
+  const[busy,setBusy]=useState(false);
+  useEffect(()=>{
+    const update=()=>setReport(readReport());
+    window.addEventListener('scf-sync-state',update);
+    window.addEventListener('online',update);
+    window.addEventListener('offline',update);
+    return()=>{window.removeEventListener('scf-sync-state',update);window.removeEventListener('online',update);window.removeEventListener('offline',update);};
+  },[]);
+  const retry=async()=>{
+    if(busy)return;
+    setBusy(true);
+    try{await window.scfFlushPendingWrites?.();}
+    finally{setBusy(false);setReport(readReport());}
+  };
+  const pending=Number(report.pending)||0;
+  const healthy=report.online&&report.serverReady&&!pending&&report.status!=='error';
+  const statusLabel=!report.online?'Ngoại tuyến':pending?'Chờ đồng bộ ('+pending+')':report.status==='syncing'?'Đang đồng bộ':'Đã đồng bộ';
+  const statusColor=healthy?'#0F6E56':report.status==='syncing'?'#185FA5':'#8A5A00';
+  const formatTime=value=>{
+    if(!value)return '—';
+    const date=new Date(value);
+    return Number.isNaN(date.getTime())?'—':date.toLocaleString('vi-VN');
+  };
+  return h('div',null,
+    h('div',{className:'ptitle'},h('i',{className:'ti ti-cloud-data-connection',style:{fontSize:20}}),'Đồng bộ dữ liệu'),
+    h('div',{className:'g3',style:{marginBottom:'1rem'}},
+      h('div',{className:'sc'},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:5}},'TRẠNG THÁI'),h('div',{style:{fontSize:18,fontWeight:700,color:statusColor}},statusLabel)),
+      h('div',{className:'sc'},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:5}},'KẾT NỐI MẠNG'),h('div',{style:{fontSize:18,fontWeight:700,color:report.online?'#0F6E56':'#A32D2D'}},report.online?'Đang trực tuyến':'Mất kết nối')),
+      h('div',{className:'sc'},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:5}},'MÁY CHỦ DỮ LIỆU'),h('div',{style:{fontSize:18,fontWeight:700,color:report.serverReady?'#0F6E56':'#A32D2D'}},report.serverReady?'Sẵn sàng':'Chưa kết nối'))
+    ),
+    h('div',{className:'card'},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:12}},
+        h('div',null,
+          h('div',{style:{fontWeight:700,color:'var(--pri3)'}},pending?'Dữ liệu đang chờ gửi':'Không có dữ liệu chờ'),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:3}},pending?'Mỗi dòng là một nhóm dữ liệu, không phải số bản ghi.':'Các thay đổi trên máy này đã được gửi lên máy chủ.')
+        ),
+        h('button',{className:'bp',type:'button',onClick:retry,disabled:busy||!report.online||!report.serverReady},
+          h('i',{className:'ti '+(busy?'ti-refresh spin':'ti-cloud-upload')}),busy?'Đang thử lại...':'Đồng bộ lại'
+        )
+      ),
+      pending?h('div',{className:'tw'},h('table',null,
+        h('thead',null,h('tr',null,h('th',null,'Nhóm dữ liệu'),h('th',null,'Thời điểm đưa vào hàng chờ'),h('th',null,'Tình trạng'))),
+        h('tbody',null,(report.items||[]).map(item=>h('tr',{key:item.key},
+          h('td',null,h('b',null,item.label)),
+          h('td',null,formatTime(item.updatedAt)),
+          h('td',null,h('span',{className:'badge',style:{background:'#FFF3CD',color:'#8A5A00'}},'Chờ đồng bộ'))
+        )))
+      )):h('div',{className:'empty-st',style:{padding:'2rem 1rem'}},h('i',{className:'ti ti-circle-check',style:{fontSize:28,color:'#0F6E56',display:'block',marginBottom:7}}),'Dữ liệu đã được đồng bộ đầy đủ.'),
+      report.detail&&h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:10}},'Thông tin gần nhất: '+report.detail)
+    )
+  );
+}
+
 function SupabaseUsageReportTab({employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,goodsPurchases,quotes,orders,trips,attendance,advances,rewards,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}) {
   const [maintenanceVehicle,setMaintenanceVehicle]=useState([]);
   const [maintenanceMachine,setMaintenanceMachine]=useState([]);
