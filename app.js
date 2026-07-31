@@ -22,6 +22,24 @@ const PICONS = {
   maint_vehicle:'ti-car', maint_machine:'ti-settings'
 };
 
+function SyncStatus(){
+  const[state,setState]=useState(()=>window.scfGetSyncState?window.scfGetSyncState():{status:navigator.onLine?'idle':'offline',pending:0});
+  useEffect(()=>{
+    const update=e=>setState(e.detail||window.scfGetSyncState());
+    window.addEventListener('scf-sync-state',update);
+    return()=>window.removeEventListener('scf-sync-state',update);
+  },[]);
+  const map={
+    idle:['Đã kết nối','ti-cloud-check'],synced:['Đã đồng bộ','ti-cloud-check'],syncing:['Đang đồng bộ','ti-refresh'],
+    offline:['Ngoại tuyến','ti-cloud-off'],error:['Chờ đồng bộ','ti-alert-triangle']
+  };
+  const item=map[state?.status]||map.idle;
+  const label=state?.pending?item[0]+' ('+state.pending+')':item[0];
+  return h('span',{className:'sync-status sync-'+(state?.status||'idle'),title:state?.detail||label,'aria-live':'polite'},
+    h('i',{className:'ti '+item[1]+(state?.status==='syncing'?' spin':'')}),label
+  );
+}
+
 function App(){
   const[session,setSession]=useLS('scf_session',null);
   const[menuHidden,setMenuHidden]=useLS('scf_topnav_hidden',false);
@@ -266,13 +284,14 @@ function App(){
     if(employees.some(employee=>employee.role!=='admin'&&String(employee.username||'').toLowerCase()===username.toLowerCase())){
       throw new Error('Tên đăng nhập này đang được nhân viên khác sử dụng.');
     }
+    const passwordHash=await hashPassword(password);
     let found=false;
     const next=employees.map(employee=>{
       if(employee.role!=='admin'||found)return employee;
       found=true;
-      return {...employee,username,password,mustChangePw:false,updatedBy:'Thiết lập ban đầu',updatedAt:fmtDT()};
+      return {...employee,username,password:passwordHash,mustChangePw:false,updatedBy:'Thiết lập ban đầu',updatedAt:fmtDT()};
     });
-    if(!found)next.push({...DEF_EMPS[0],username,password,updatedBy:'Thiết lập ban đầu',updatedAt:fmtDT()});
+    if(!found)next.push({...DEF_EMPS[0],username,password:passwordHash,updatedBy:'Thiết lập ban đầu',updatedAt:fmtDT()});
     _se(next);
     await dbSet('scf_employees',next);
     window.showToast&&window.showToast('Đã tạo tài khoản Admin. Hãy đăng nhập để tiếp tục.','success');
@@ -283,7 +302,7 @@ function App(){
   const readOnly=activeLevel==='r';
   window.__SCF_ACCESS_CONTEXT={role:cu.role,page,level:activeLevel,readOnly};
   const wips=['purchase','workreport_vp','workreport_sx','workreport_total','process_accounting','process_bun','process_pho','process_banhcuon','marketsales'];
-  const logout=async()=>{await serverLogout();setSession(null);if(SCF_SERVER_AUTH_ENABLED)location.reload();};
+  const logout=async()=>{await serverLogout();window.scfClearSensitiveLocalData&&window.scfClearSensitiveLocalData();setSession(null);if(SCF_SERVER_AUTH_ENABLED)location.reload();};
   return h('div',{className:'layout'},
     h('div',{className:'main'},
       !menuHidden&&h('div',{className:'topbar'+(page!=='welcome'?' mobile-subpage-topbar':'')},
@@ -294,7 +313,7 @@ function App(){
               h('div',{className:'topbar-company'},company?.name||'SCF'),
               h('div',{className:'topbar-meta'},
                 h('span',null,'Menu'),
-                sb&&h('span',{style:{width:7,height:7,borderRadius:'50%',background:'#52b788',display:'inline-block'},title:'Đã kết nối Supabase'})
+                sb&&h(SyncStatus)
               )
             )
           ),
@@ -375,9 +394,12 @@ canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(F
     ),
     cu.mustChangePw&&h(CpwModal,{
       emp:cu,cu,forced:true,onClose:()=>{},
-      onSave:(password)=>setEmployees(list=>list.map(employee=>employee.id===cu.id
-        ?{...employee,password,mustChangePw:false,updatedBy:cu.name,updatedAt:fmtDT()}
-        :employee))
+      onSave:(password)=>{
+        const update=list=>list.map(employee=>employee.id===cu.id
+          ?{...employee,password,mustChangePw:false,updatedBy:cu.name,updatedAt:fmtDT()}
+          :employee);
+        return SCF_SERVER_AUTH_ENABLED?_se(update):setEmployees(update);
+      }
     })
   );
 }
@@ -394,9 +416,16 @@ try {
   } catch(e) {
     console.error('React mount error:', e);
     const el = document.getElementById('app');
-    if(el) el.innerHTML='<div style="padding:2rem;font-family:monospace;background:#fff;min-height:100vh"><h2 style="color:#A32D2D">LOI RENDER: '+e.message+'</h2><pre style="font-size:11px;margin-top:1rem;white-space:pre-wrap">'+e.stack+'</pre></div>';
-    else document.body.innerHTML='<pre style="color:red;padding:2rem">LOI: app div not found!\n'+e.stack+'</pre>';
+    const target=el||document.body;target.replaceChildren();
+    const wrap=document.createElement('div');wrap.style.cssText='padding:2rem;font-family:sans-serif;background:#fff;min-height:100vh;color:#A32D2D';
+    const heading=document.createElement('h2');heading.textContent='Không thể hiển thị ứng dụng';
+    const detail=document.createElement('p');detail.textContent=String(e?.message||'Đã xảy ra lỗi không xác định.');
+    wrap.append(heading,detail);target.appendChild(wrap);
   }
 } catch(e) {
-  document.getElementById('app').innerHTML = '<div style="padding:2rem;color:#A32D2D;font-family:monospace;background:#fff;min-height:100vh"><h2>Loi render SCF App</h2><p style="margin-top:1rem">'+e.message+'</p><pre style="margin-top:1rem;font-size:11px;opacity:.6">'+e.stack+'</pre></div>';
+  const target=document.getElementById('app')||document.body;target.replaceChildren();
+  const wrap=document.createElement('div');wrap.style.cssText='padding:2rem;color:#A32D2D;font-family:sans-serif;background:#fff;min-height:100vh';
+  const heading=document.createElement('h2');heading.textContent='Lỗi hiển thị SCF App';
+  const detail=document.createElement('p');detail.style.marginTop='1rem';detail.textContent=String(e?.message||'Đã xảy ra lỗi không xác định.');
+  wrap.append(heading,detail);target.appendChild(wrap);
 }

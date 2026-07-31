@@ -10,7 +10,7 @@
 4. Thử gọi function bằng tài khoản Admin hiện tại. Lần đăng nhập đầu tiên sẽ tạo tài khoản Supabase Auth tương ứng nhưng người dùng vẫn nhập tên đăng nhập cũ.
 5. Đổi `SCF_SERVER_AUTH_ENABLED=false` thành `true` trong `server-auth.js`, rồi phát hành website.
 6. Đăng nhập thử trên `https://scfood.vn`. Không kiểm tra bước này bằng `file:///...` vì chính sách CORS chỉ cho phép tên miền website.
-7. Chỉ sau khi bước 6 thành công, chạy `supabase/migrations/20260713_part5_02_lock_kv.sql`. Từ thời điểm này khóa publishable vẫn xuất hiện trong web nhưng người chưa đăng nhập không thể đọc `kv_store`.
+7. Chỉ sau khi bước 6 thành công, chạy `supabase/migrations/20260731_role_based_kv_rls.sql`. Migration này thay thế chính sách khóa cũ, chặn người chưa đăng nhập, không cho trình duyệt đọc trực tiếp `scf_employees`, giới hạn khóa được ghi theo vai trò và khóa thao tác ảnh đối với tài khoản ẩn danh.
 8. Kiểm tra lại: đăng xuất, mở cửa sổ ẩn danh, xác nhận dữ liệu không tải; sau đó đăng nhập lại và thử thêm/sửa một bản ghi.
 
 ## Cơ chế chuyển tiếp
@@ -24,7 +24,7 @@
 ## Không được làm
 
 - Không đưa `SUPABASE_SERVICE_ROLE_KEY` vào `storage.js`, `server-auth.js` hoặc bất kỳ file web nào.
-- Không chạy file khóa `02_lock_kv.sql` trước khi Edge Function và chế độ đăng nhập máy chủ hoạt động.
+- Không chạy migration `20260731_role_based_kv_rls.sql` trước khi Edge Function mới và chế độ đăng nhập máy chủ hoạt động.
 - Không bật `SCF_SERVER_AUTH_ENABLED` trên bản đang dùng nếu chưa sao lưu dữ liệu.
 
 Tài liệu tham khảo: https://supabase.com/docs/guides/functions, https://supabase.com/docs/guides/database/postgres/row-level-security

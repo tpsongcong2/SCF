@@ -319,7 +319,7 @@ function ProdOrdersTab({prodOrders,setProdOrders,products,currentUser}){
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[filter,sf]=useState('all');const[q,sq]=useState('');
   let pSeq=prodOrders.length+1;
   const save=d=>{if(edit)setProdOrders(p=>p.map(x=>x.id===edit.id?d:x));else{const id='SX'+String(pSeq++).toString().padStart(4,'0');setProdOrders(p=>[...p,{...d,id,createdBy:currentUser.name,createdAt:fmtDT()}]);}sm(null);se(null);};
-  const del=id=>{if(confirm('Xóa đơn sản xuất?'))setProdOrders(p=>p.filter(x=>x.id!==id));};
+  const del=id=>window.scfConfirm('Bạn có chắc muốn xóa đơn sản xuất này?','Xóa đơn sản xuất',true).then(ok=>ok&&setProdOrders(p=>p.filter(x=>x.id!==id)));
   const sts=[['all','Tất cả'],['planning','Kế hoạch'],['in_progress','Đang SX'],['done','Hoàn thành']];
   const list=prodOrders.filter(x=>(filter==='all'||x.status===filter)&&(!q||x.id.toLowerCase().includes(q.toLowerCase())||x.date.includes(q)));
   const statusMap={planning:['#E6F1FB','#185FA5','Kế hoạch'],in_progress:['#FAEEDA','#854F0B','Đang SX'],done:['#EAF3DE','#3B6D11','Hoàn thành'],cancelled:['#FCEBEB','#A32D2D','Hủy']};
@@ -483,4 +483,3 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
-

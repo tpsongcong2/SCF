@@ -1,8 +1,37 @@
 // Bat loi JS - hien thi thay vi trang trang
 
 window.onerror = function(msg, src, line) {
-  document.getElementById('app').innerHTML = '<div style="padding:2rem;color:#A32D2D;background:#fff;min-height:100vh;font-family:sans-serif"><h2>Loi khoi dong SCF App</h2><p>' + msg + '</p><p style="margin-top:.5rem;color:#666;font-size:13px">Dong: ' + line + '</p></div>';
+  const app=document.getElementById('app');
+  if(!app)return false;
+  app.replaceChildren();
+  const wrap=document.createElement('div');
+  wrap.style.cssText='padding:2rem;color:#A32D2D;background:#fff;min-height:100vh;font-family:sans-serif';
+  const heading=document.createElement('h2');heading.textContent='Lỗi khởi động SCF App';
+  const detail=document.createElement('p');detail.textContent=String(msg||'Đã xảy ra lỗi không xác định.');
+  const location=document.createElement('p');location.style.cssText='margin-top:.5rem;color:#666;font-size:13px';location.textContent='Dòng: '+String(line||'');
+  wrap.append(heading,detail,location);app.appendChild(wrap);
   return false;
+};
+
+const SCF_EXTERNAL_SCRIPTS={
+  tesseract:'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
+  faceapi:'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js'
+};
+const scfScriptPromises={};
+window.scfLoadExternalScript=function(name){
+  const src=SCF_EXTERNAL_SCRIPTS[name];
+  if(!src)return Promise.reject(new Error('Thư viện không được hỗ trợ: '+name));
+  const globalName=name==='tesseract'?'Tesseract':'faceapi';
+  if(window[globalName])return Promise.resolve(window[globalName]);
+  if(scfScriptPromises[name])return scfScriptPromises[name];
+  scfScriptPromises[name]=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=src;script.crossOrigin='anonymous';script.async=true;
+    script.onload=()=>window[globalName]?resolve(window[globalName]):reject(new Error('Không khởi tạo được '+name));
+    script.onerror=()=>reject(new Error('Không tải được '+name+'. Hãy kiểm tra kết nối mạng.'));
+    document.head.appendChild(script);
+  }).catch(error=>{delete scfScriptPromises[name];throw error;});
+  return scfScriptPromises[name];
 };
 
 // ── TOAST & DIALOG SYSTEM ──
@@ -16,10 +45,13 @@ window.onerror = function(msg, src, line) {
     const icons={success:'ti-circle-check',error:'ti-alert-circle',warn:'ti-alert-triangle',info:'ti-info-circle'};
     const el=document.createElement('div');
     el.className='scf-toast '+type;
-    el.innerHTML='<i class="ti '+icons[type]+'"></i><span class="scf-toast-msg">'+msg+'</span><button class="scf-toast-close" onclick="this.parentElement.remove()">×</button>';
+    const icon=document.createElement('i');icon.className='ti '+(icons[type]||icons.info);
+    const text=document.createElement('span');text.className='scf-toast-msg';text.textContent=String(msg??'');
+    const close=document.createElement('button');close.className='scf-toast-close';close.type='button';close.setAttribute('aria-label','Đóng thông báo');close.textContent='×';
+    el.append(icon,text,close);
     getContainer().appendChild(el);
     const tid=setTimeout(()=>{el.style.animation='toastOut .2s ease forwards';setTimeout(()=>el.remove(),200);},duration);
-    el.querySelector('.scf-toast-close').addEventListener('click',()=>clearTimeout(tid));
+    close.addEventListener('click',()=>{clearTimeout(tid);el.remove();});
   };
   // Override native alert & confirm with styled versions
   const _origAlert=window.alert;
@@ -31,11 +63,20 @@ window.onerror = function(msg, src, line) {
       const dtype=isDanger?'danger':'warn';
       const dicon=isDanger?'ti-alert-triangle':'ti-help-circle';
       const dcolor=isDanger?'#A32D2D':'#854F0B';
-      ov.innerHTML='<div class="scf-dialog"><div class="scf-dialog-icon '+dtype+'"><i class="ti '+dicon+'" style="font-size:20px;color:'+dcolor+'"></i></div><h3>'+(title||'Xác nhận')+'</h3><p>'+msg+'</p><div class="scf-dialog-btns"><button id="scf-d-cancel" style="padding:8px 16px">Hủy</button><button id="scf-d-ok" class="bp" style="padding:8px 18px;background:'+(isDanger?'#A32D2D':'var(--pri)')+'!important">'+(isDanger?'Xóa':'Đồng ý')+'</button></div></div>';
+      const dialog=document.createElement('div');dialog.className='scf-dialog';dialog.setAttribute('role','alertdialog');dialog.setAttribute('aria-modal','true');
+      const iconWrap=document.createElement('div');iconWrap.className='scf-dialog-icon '+dtype;
+      const icon=document.createElement('i');icon.className='ti '+dicon;icon.style.cssText='font-size:20px;color:'+dcolor;iconWrap.appendChild(icon);
+      const heading=document.createElement('h3');heading.textContent=String(title||'Xác nhận');
+      const message=document.createElement('p');message.textContent=String(msg??'');
+      const buttons=document.createElement('div');buttons.className='scf-dialog-btns';
+      const cancel=document.createElement('button');cancel.id='scf-d-cancel';cancel.type='button';cancel.style.cssText='padding:8px 16px';cancel.textContent='Hủy';
+      const ok=document.createElement('button');ok.id='scf-d-ok';ok.type='button';ok.className='bp';ok.style.cssText='padding:8px 18px;background:'+(isDanger?'#A32D2D':'var(--pri)')+'!important';ok.textContent=isDanger?'Xóa':'Đồng ý';
+      buttons.append(cancel,ok);dialog.append(iconWrap,heading,message,buttons);ov.appendChild(dialog);
       document.body.appendChild(ov);
-      ov.querySelector('#scf-d-cancel').onclick=()=>{ov.remove();resolve(false);};
-      ov.querySelector('#scf-d-ok').onclick=()=>{ov.remove();resolve(true);};
+      cancel.onclick=()=>{ov.remove();resolve(false);};
+      ok.onclick=()=>{ov.remove();resolve(true);};
       ov.addEventListener('click',e=>{if(e.target===ov){ov.remove();resolve(false);}});
+      cancel.focus();
     });
   };
 })();

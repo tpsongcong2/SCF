@@ -1,4 +1,4 @@
-const CACHE = 'scf-v163';
+const CACHE = 'scf-v164';
 const ASSETS = [
   './',
   './index.html',
@@ -50,6 +50,14 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Chỉ cache tài nguyên tĩnh cùng origin. Không cache API, Supabase hay CDN.
+  if (url.origin !== self.location.origin) return;
+  const isStaticAsset = ASSETS.some(asset => {
+    const assetUrl = new URL(asset, self.location.href);
+    return assetUrl.pathname === url.pathname;
+  });
+  if (!isStaticAsset) return;
   // Network first - luôn lấy bản mới nhất
   e.respondWith(
     fetch(e.request)

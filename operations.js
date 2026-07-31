@@ -964,7 +964,7 @@ function EmpForm({emp,employees,depts,cu,cu2,onSave,onClose}){
     setBusy(true);
     const gender=normalizeGenderValue(f.gender,f.female);
     try{
-      const password=f.password||'';
+      const password=f.password?await hashPassword(f.password):'';
       onSave({...f,password,gender,female:gender==='female',updatedBy:cu.name,updatedAt:fmtDT()});
     }catch(e){window.showToast(e.message||'Không thể lưu mật khẩu.','error');}
     finally{setBusy(false);}
@@ -1081,12 +1081,17 @@ function CpwModal({emp,cu,onSave,onClose,forced=false}){
   };
   const submit=async()=>{
     if(busy)return;
-    if(cu.role!=='admin'&&!(await verifyPassword(op,emp.password))){window.showToast('Mật khẩu cũ không đúng!','error');return;}
+    if(!SCF_SERVER_AUTH_ENABLED&&cu.role!=='admin'&&!(await verifyPassword(op,emp.password))){window.showToast('Mật khẩu cũ không đúng!','error');return;}
     if(np.length<PASSWORD_MIN_LENGTH){window.showToast('Mật khẩu phải có ít nhất '+PASSWORD_MIN_LENGTH+' ký tự!','warn');return;}
     if(np!==cp){window.showToast('Mật khẩu xác nhận không khớp!','error');return;}
     setBusy(true);
     try{
-      await onSave(np,{mustChangePw:isAdminReset});
+      if(SCF_SERVER_AUTH_ENABLED){
+        await serverChangePassword(emp.id,op,np,isAdminReset);
+        await onSave('',{mustChangePw:isAdminReset});
+      }else{
+        await onSave(await hashPassword(np),{mustChangePw:isAdminReset});
+      }
       window.showToast(isAdminReset?'Đã đặt mật khẩu tạm. Nhân viên phải đổi mật khẩu khi đăng nhập.':'Đã đổi mật khẩu.','success');
     }
     catch(e){window.showToast(e.message||'Không thể mã hóa mật khẩu.','error');}
@@ -1116,7 +1121,9 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
   const[sortBy,setSortBy]=useState('id'); // id | role | dept
   const[fRole,setFRole]=useState('');
   const[fDept,setFDept]=useState('');
-  const canEdit=cu.role==='admin'||cu.role==='manager';
+  // Hồ sơ nhân viên, vai trò và mật khẩu chỉ được thay đổi bởi Admin.
+  // Manager vẫn có thể xem danh sách theo PAGE_ACCESS nhưng không ghi trực tiếp.
+  const canEdit=cu.role==='admin';
   const ROLE_ORDER={admin:0,manager:1,staff:2,driver:3};
   const fmtGender=v=>genderLabel(v?.gender,v?.female);
   const parseGenderValue=v=>{

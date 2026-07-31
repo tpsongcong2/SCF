@@ -525,13 +525,13 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     }
     sm(null);se(null);
   };
-  const del=id=>{
+  const del=async id=>{
     const t=trips.find(x=>x.id===id);
     if(!t)return;
     if(['active','completion_pending','completed'].includes(t.status)){
       window.showToast('Chuyến đã bắt đầu nên không thể xóa.','warn');return;
     }
-    if(!confirm('Xóa chuyến giao?'))return;
+    if(!await window.scfConfirm('Bạn có chắc muốn xóa chuyến giao này?','Xóa chuyến giao',true))return;
     setOrders(p=>p.map(o=>(t.orderIds||[]).includes(o.id)?{...o,tripId:null,status:'pending'}:o));
     setTrips(p=>p.filter(x=>x.id!==id));
   };
@@ -768,9 +768,9 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     inp.onchange=e=>saveOrderInvoiceImage(order,e.target.files&&e.target.files[0]);
     inp.click();
   };
-  const removeOrderInvoiceImage=order=>{
+  const removeOrderInvoiceImage=async order=>{
     if(!order?.invoiceImage)return;
-    if(!window.confirm('Xóa ảnh hóa đơn của đơn '+(order.id||'')+'?\nĐơn hàng vẫn được giữ nguyên.'))return;
+    if(!await window.scfConfirm('Xóa ảnh hóa đơn của đơn '+(order.id||'')+'?\nĐơn hàng vẫn được giữ nguyên.','Xóa ảnh hóa đơn',true))return;
     setOrders(prev=>prev.map(x=>x.id===order.id?{
       ...x,
       invoiceImage:'',
@@ -805,9 +805,9 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,customers,pr
     setTrips(prev=>prev.map(t=>t.id===trip.id?{...t,summaryInvoiceReviewStatus:approved?'approved':'rejected',summaryInvoiceReviewReason:reason,summaryInvoiceReviewedAt:stamp,summaryInvoiceReviewedBy:currentUser?.name||''}:t));
     window.showToast(approved?'Đã duyệt hóa đơn tổng.':'Đã trả lại hóa đơn tổng cho lái xe tải lại.','success');
   };
-  const removeTripSummaryInvoice=trip=>{
+  const removeTripSummaryInvoice=async trip=>{
     if(!trip?.summaryInvoiceImage)return;
-    if(!window.confirm('Xóa hóa đơn tổng của chuyến '+trip.id+'?'))return;
+    if(!await window.scfConfirm('Xóa hóa đơn tổng của chuyến '+trip.id+'?','Xóa hóa đơn tổng',true))return;
     setTrips(prev=>prev.map(t=>t.id===trip.id?{...t,summaryInvoiceImage:'',summaryInvoiceImageName:'',summaryInvoiceUploadedAt:'',summaryInvoiceUploadedBy:'',summaryInvoiceReviewStatus:'',summaryInvoiceReviewReason:'',summaryInvoiceReviewedAt:'',summaryInvoiceReviewedBy:'',summaryInvoiceRemovedAt:fmtDT()}:t));
   };
   const updateDeliveredQty=(trip,orderId,lineId,value)=>{

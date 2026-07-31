@@ -141,9 +141,9 @@ function FinanceEntryForm({entry,direction,customers,nccs,currentUser,onSave,onC
     const reader=new FileReader();
     reader.onload=()=>setTransferPreview(reader.result);
     reader.readAsDataURL(file);
-    if(!window.Tesseract){window.showToast('Chưa tải được bộ đọc ảnh OCR. Hãy kiểm tra mạng rồi thử lại.','error');return;}
     setOcrBusy(true);setOcrProgress('Đang chuẩn bị đọc ảnh...');
     try{
+      if(!window.Tesseract)await window.scfLoadExternalScript('tesseract');
       const result=await Tesseract.recognize(file,'vie+eng',{logger:m=>{
         if(m.status==='recognizing text')setOcrProgress('Đang đọc ảnh '+Math.round((m.progress||0)*100)+'%');
       }});

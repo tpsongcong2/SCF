@@ -124,6 +124,8 @@ td{padding:9px 12px;border-top:.5px solid var(--bd);vertical-align:middle}
 .topbar-title{min-width:0}
 .topbar-company{font-weight:700;font-size:13px;line-height:1.1;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .topbar-meta{display:flex;align-items:center;gap:7px;font-size:11px;color:rgba(255,255,255,.78);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync-status{display:inline-flex;align-items:center;gap:4px;color:rgba(255,255,255,.82)}
+.sync-status i{font-size:12px}.sync-offline,.sync-error{color:#ffd7a1}.sync-syncing{color:#d8f3dc}
 .topbar-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .topbar-user{font-size:11px;text-align:right;line-height:1.15}
 .topbar-user-name{font-weight:600;font-size:12px}

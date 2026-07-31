@@ -435,7 +435,7 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
     else setProdShifts(p=>[...p,{...data,id:'PSH'+uid()}]);
     sm(null);
   };
-  const del=sh=>{if(confirm('Xóa ca "'+sh.name+'"?'))setProdShifts(p=>p.filter(s=>s.id!==sh.id));};
+  const del=sh=>window.scfConfirm('Bạn có chắc muốn xóa ca "'+sh.name+'"?','Xóa ca sản xuất',true).then(ok=>ok&&setProdShifts(p=>p.filter(s=>s.id!==sh.id)));
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-clock-play',style:{fontSize:20}}),'Cài đặt ca SX + ca GH tự động'),
     h('div',{style:{marginBottom:'1rem',padding:'12px 16px',background:'#EAF4EF',borderRadius:'var(--r)',fontSize:13}},

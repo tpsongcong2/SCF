@@ -142,7 +142,7 @@ let faceAiModelsPromise=null;
 function ensureFaceAiModels(){
   if(faceAiModelsPromise)return faceAiModelsPromise;
   faceAiModelsPromise=(async()=>{
-    if(!window.faceapi)throw new Error('Chưa tải được thư viện AI khuôn mặt. Kiểm tra kết nối mạng.');
+    if(!window.faceapi)await window.scfLoadExternalScript('faceapi');
     await Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(FACE_AI_MODEL_URL),
       faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_AI_MODEL_URL),

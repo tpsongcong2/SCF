@@ -358,7 +358,7 @@ function QuotesTab({quotes,setQuotes,customers,products,currentUser}){
     else setQuotes(prev=>{const customer=customers.find(c=>c.id===d.customerId)||{id:d.customerId,name:d.customer};const id=nextQuoteId(prev,customer,d.dateFrom);return[...prev,{...d,id}];});
     sm(null);se(null);setPreselectedCustomerId('');
   };
-  const del=id=>{if(confirm('Xóa báo giá?'))setQuotes(p=>p.filter(x=>x.id!==id));};
+  const del=id=>window.scfConfirm('Bạn có chắc muốn xóa báo giá này?','Xóa báo giá',true).then(ok=>ok&&setQuotes(p=>p.filter(x=>x.id!==id)));
   const sts=[['all','Tất cả'],['draft','Nháp'],['sent','Đã gửi'],['approved','Đã duyệt'],['expired','Hết hạn']];
   const toIsoDate=value=>{
     const s=String(value||'').trim();

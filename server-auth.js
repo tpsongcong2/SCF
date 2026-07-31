@@ -25,6 +25,29 @@ async function serverLogout(){
   if(SCF_SERVER_AUTH_ENABLED&&sb)try{await sb.auth.signOut();}catch(e){console.warn('Server logout:',e.message);}
 }
 
+async function serverLoadEmployees(){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ nhân viên.');
+  const{data,error}=await sb.functions.invoke('scf-auth',{body:{action:'load_employees'}});
+  if(error||!Array.isArray(data?.employees))throw new Error(data?.error||error?.message||'Không tải được danh sách nhân viên.');
+  return data.employees;
+}
+
+async function serverSaveEmployees(employees){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ nhân viên.');
+  const{data,error}=await sb.functions.invoke('scf-auth',{body:{action:'save_employees',employees}});
+  if(error||!data?.ok)throw new Error(data?.error||error?.message||'Không lưu được danh sách nhân viên.');
+  return data.employees||employees;
+}
+
+async function serverChangePassword(employeeId,currentPassword,newPassword,adminReset=false){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ đổi mật khẩu.');
+  const{data,error}=await sb.functions.invoke('scf-auth',{
+    body:{action:'change_password',employeeId:String(employeeId||''),currentPassword:String(currentPassword||''),newPassword:String(newPassword||''),adminReset:!!adminReset}
+  });
+  if(error||!data?.ok)throw new Error(data?.error||error?.message||'Không đổi được mật khẩu.');
+  return data;
+}
+
 async function requestAdminPasswordReset(username){
   if(!sb)throw new Error('Chưa kết nối được máy chủ khôi phục mật khẩu.');
   const{data,error}=await sb.functions.invoke('scf-auth',{

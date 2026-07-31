@@ -53,7 +53,7 @@ function ShiftsTab({shifts,setShifts,employees=[],trips=[],setTrips}) {
     }));
     sm(null);se(null);
   };
-  const del=id=>{if(confirm('Xóa ca giao hàng?'))setShifts(p=>p.filter(x=>x.id!==id));};
+  const del=id=>window.scfConfirm('Bạn có chắc muốn xóa ca giao hàng này?','Xóa ca giao hàng',true).then(ok=>ok&&setShifts(p=>p.filter(x=>x.id!==id)));
   const naturalCompare=(a,b)=>String(a||'').localeCompare(String(b||''),'vi',{numeric:true,sensitivity:'base'});
   const timeValue=value=>{
     const match=String(value||'').match(/(\d{1,2})(?::(\d{1,2}))?/);

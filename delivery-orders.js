@@ -1092,9 +1092,9 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,o
   };
   const runOcr=async()=>{
     if(!file){window.showToast('Hãy chọn hoặc kéo ảnh vào trước.','warn');return;}
-    if(!window.Tesseract){window.showToast('Chưa tải được thư viện OCR. Kiểm tra mạng.','error');return;}
     setBusy(true);setProgress('Đang đọc ảnh...');
     try{
+      if(!window.Tesseract)await window.scfLoadExternalScript('tesseract');
       const res=await Tesseract.recognize(file,'vie+eng',{logger:m=>{if(m.status)setProgress(m.status+(m.progress?(' '+Math.round(m.progress*100)+'%'):''));}});
       const txt=res?.data?.text||'';
       setText(txt);
@@ -1891,9 +1891,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     inp.onchange=e=>saveInvoiceImage(order,e.target.files&&e.target.files[0]);
     inp.click();
   };
-  const removeInvoiceImage=order=>{
+  const removeInvoiceImage=async order=>{
     if(!order?.invoiceImage)return;
-    if(!window.confirm('Xóa ảnh hóa đơn của đơn '+(order.id||'')+'?\nĐơn hàng và các thông tin khác vẫn được giữ nguyên.'))return;
+    if(!await window.scfConfirm('Xóa ảnh hóa đơn của đơn '+(order.id||'')+'?\nĐơn hàng và các thông tin khác vẫn được giữ nguyên.','Xóa ảnh hóa đơn',true))return;
     setOrders(prev=>prev.map(x=>x.id===order.id?{
       ...x,
       invoiceImage:'',
@@ -1906,8 +1906,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     setInvoiceView(prev=>prev?.id===order.id?null:prev);
     window.showToast('Đã xóa ảnh hóa đơn của đơn '+(order.id||'')+'.','success');
   };
-  const del=id=>{
-    if(confirm('Xóa đơn hàng?'))applyOrdersAndTripSync(p=>p.filter(x=>x.id!==id));
+  const del=async id=>{
+    if(await window.scfConfirm('Bạn có chắc muốn xóa đơn hàng này?','Xóa đơn hàng',true))applyOrdersAndTripSync(p=>p.filter(x=>x.id!==id));
   };
   const sts=[['all','Tất cả'],['pending','Chờ xếp'],['assigned','Đã xếp'],['delivering','Đang giao'],['done','Đã giao'],['failed','Giao lỗi'],['cancelled','Hủy']];
   const getArea=o=>{

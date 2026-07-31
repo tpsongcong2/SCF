@@ -561,7 +561,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
     };
   };
   const recognizeTextFromImage=async file=>{
-    if(!window.Tesseract)throw new Error('Chưa tải được thư viện OCR. Kiểm tra mạng.');
+    if(!window.Tesseract)await window.scfLoadExternalScript('tesseract');
     const img=await resizeImageFile(file,1800,.9);
     const res=await Tesseract.recognize(img.dataUrl,'vie+eng');
     return String(res?.data?.text||'');
