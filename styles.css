@@ -168,6 +168,7 @@ th{font-family:var(--ui-header-family)!important}
 .pw-wrap input{padding-right:36px}
 .pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;padding:4px;color:var(--tx2);cursor:pointer}
 .welcome-grid{display:grid;grid-template-columns:1fr 360px;gap:1.25rem;align-items:start}
+.welcome-grid.weather-only{grid-template-columns:1fr}
 .greet{background:linear-gradient(135deg,var(--pri) 0%,var(--pri2) 100%);border-radius:var(--rl);padding:1.5rem;color:#fff;margin-bottom:1.25rem}
 .birthday-announcement{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px;padding:11px 14px;border-radius:12px;text-align:center;background:rgba(255,255,255,.17);border:1px solid rgba(255,255,255,.32);animation:birthdayPulse 1.8s ease-in-out infinite}
 .birthday-party-icon{font-size:25px;display:inline-block;animation:birthdayBounce .8s ease-in-out infinite alternate}
@@ -379,16 +380,16 @@ th{font-family:var(--ui-header-family)!important}
   .mobile-page-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:700}
   .topbar-logout{width:34px;min-width:34px;padding:5px!important}
   .topbar-logout-label{display:none}
-  .content{padding:74px 12px 12px;max-width:none;width:100%;overflow:hidden}
-  .content.compact-top{padding-top:74px;padding-bottom:8px}
+  .content{padding:12px 12px calc(78px + env(safe-area-inset-bottom));max-width:none;width:100%;overflow:hidden}
+  .content.compact-top{padding-top:12px;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
   .content.mobile-subpage-content,.content.mobile-subpage-content.compact-top{padding-top:10px}
-  .mobile-nav{display:grid;position:fixed;left:0;right:0;top:46px;bottom:auto;z-index:220;min-height:56px;padding:5px 8px;background:rgba(255,255,255,.98);border-bottom:1px solid var(--bd2);box-shadow:0 5px 18px rgba(18,60,45,.12);gap:4px}
+  .mobile-nav{display:grid;position:fixed;left:0;right:0;top:auto;bottom:0;z-index:220;min-height:58px;padding:5px 8px calc(5px + env(safe-area-inset-bottom));background:rgba(255,255,255,.98);border-top:1px solid var(--bd2);box-shadow:0 -5px 18px rgba(18,60,45,.12);gap:4px}
   .mobile-nav-btn{min-width:0;width:100%;height:46px;min-height:46px;padding:0;border:0;background:transparent;color:var(--tx2);border-radius:12px;justify-content:center;position:relative}
   .mobile-nav-btn i{font-size:24px}
   .mobile-nav-btn.on{color:var(--pri);background:#e5f2eb}
   .mobile-nav-btn.on::after{content:'';position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:var(--acc)}
   .mobile-nav-backdrop{display:block;position:fixed;inset:0;z-index:205;background:rgba(8,25,18,.45);backdrop-filter:blur(2px)}
-  .mobile-nav-sheet{display:flex;position:fixed;left:8px;right:8px;top:108px;bottom:8px;z-index:210;max-height:calc(100vh - 116px);flex-direction:column;background:#fff;border:1px solid var(--bd);border-radius:18px;box-shadow:0 12px 36px rgba(18,60,45,.22);overflow:hidden}
+  .mobile-nav-sheet{display:flex;position:fixed;left:8px;right:8px;top:8px;bottom:calc(68px + env(safe-area-inset-bottom));z-index:210;max-height:calc(100vh - 76px - env(safe-area-inset-bottom));flex-direction:column;background:#fff;border:1px solid var(--bd);border-radius:18px;box-shadow:0 12px 36px rgba(18,60,45,.22);overflow:hidden}
   .mobile-nav-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 15px 11px;border-bottom:1px solid var(--bd);background:#f7faf8}
   .mobile-nav-sheet-head b{display:block;font-size:16px;color:var(--pri3)}
   .mobile-nav-sheet-head span{display:block;margin-top:2px;font-size:11px;color:var(--tx2)}
@@ -482,7 +483,7 @@ th{font-family:var(--ui-header-family)!important}
   .att-punch-sticky .bp{width:100%;justify-content:center;min-height:44px}
 }
 @media(max-width:480px){
-  .content{padding:72px 8px 10px}
+  .content{padding:10px 8px calc(76px + env(safe-area-inset-bottom))}
   .topbar{padding:0}
   .topbar div[style*="text-align: right"]{display:none}
   .card,.weather-card,.cal-card,.greet{padding:10px}

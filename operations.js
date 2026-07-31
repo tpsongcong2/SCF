@@ -51,7 +51,7 @@ function BirthdayScene({name}){
 }
 function BirthdayVisual({name,effect='fireworks'}){
   if(effect==='fireworks')return h(BirthdayScene,{name});
-  if(effect==='none')return h(SunsetScene,null);
+  if(effect==='none')return null;
   return h('div',{className:'scene birthday-visual '+effect},
     effect==='balloons'&&h('div',{className:'birthday-balloons','aria-hidden':'true'},
       ['🎈','🎈','🎉','🎊','🎈','✨','🎈'].map((icon,index)=>h('span',{key:index,style:{'--i':index}},icon))
@@ -265,9 +265,9 @@ function WelcomePage({emp,employees=[],company,uiSettings,news,setNews,messages,
         h('span',{className:'birthday-party-icon'},'🎊')
       )
     ),
-    h('div',{className:'welcome-grid'},
+    h('div',{className:'welcome-grid'+(hasBirthday?'':' weather-only')},
       h('div',null,h(WeatherWidget,null)),
-      hasBirthday?h(BirthdayVisual,{name:birthdayNames,effect:normalizeUiSettings(uiSettings).birthdayEffect}):h(SunsetScene,null)
+      hasBirthday&&h(BirthdayVisual,{name:birthdayNames,effect:normalizeUiSettings(uiSettings).birthdayEffect})
     ),
     h(CommunityPanel,{emp,news,setNews,messages,setMessages,onRefresh})
   );
