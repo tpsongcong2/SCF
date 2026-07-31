@@ -248,7 +248,8 @@ function DeliveryRulesTab({items=[],setItems,currentUser}){
   const[open,setOpen]=useState(false);
   const[viewImage,setViewImage]=useState('');
   const[uploading,setUploading]=useState(false);
-  const canManage=['admin','manager'].includes(currentUser?.role);
+  const deptKey=String(currentUser?.dept||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const canManage=currentUser?.role==='admin'||deptKey.includes('ke toan');
   const isAdmin=currentUser?.role==='admin';
   const sorted=[...(items||[])].sort((a,b)=>String(b.publishDate||b.createdAt||'').localeCompare(String(a.publishDate||a.createdAt||'')));
   const openCreate=()=>{setForm(empty());setOpen(true);};
