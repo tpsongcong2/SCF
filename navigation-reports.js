@@ -1890,6 +1890,12 @@ function SyncDataReportTab(){
     const date=new Date(value);
     return Number.isNaN(date.getTime())?'—':date.toLocaleString('vi-VN');
   };
+  const formatBytes=value=>{
+    const bytes=Number(value)||0;
+    if(bytes>=1024*1024)return (bytes/1024/1024).toFixed(2)+' MB';
+    if(bytes>=1024)return (bytes/1024).toFixed(1)+' KB';
+    return bytes+' B';
+  };
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-cloud-data-connection',style:{fontSize:20}}),'Đồng bộ dữ liệu'),
     h('div',{className:'g3',style:{marginBottom:'1rem'}},
@@ -1908,9 +1914,11 @@ function SyncDataReportTab(){
         )
       ),
       pending?h('div',{className:'tw'},h('table',null,
-        h('thead',null,h('tr',null,h('th',null,'Nhóm dữ liệu'),h('th',null,'Thời điểm đưa vào hàng chờ'),h('th',null,'Tình trạng'))),
+        h('thead',null,h('tr',null,h('th',null,'Nhóm dữ liệu'),h('th',null,'Dung lượng gửi'),h('th',null,'Số lần thử lại'),h('th',null,'Thời điểm đưa vào hàng chờ'),h('th',null,'Tình trạng'))),
         h('tbody',null,(report.items||[]).map(item=>h('tr',{key:item.key},
           h('td',null,h('b',null,item.label)),
+          h('td',null,formatBytes(item.bytes)),
+          h('td',null,item.attempts||0),
           h('td',null,formatTime(item.updatedAt)),
           h('td',null,h('span',{className:'badge',style:{background:'#FFF3CD',color:'#8A5A00'}},'Chờ đồng bộ'))
         )))

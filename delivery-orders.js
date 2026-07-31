@@ -267,8 +267,8 @@ function OrderForm({order,customers,products,quotes,employees,currentUser,prodSh
       ),
       f.customerId&&h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:4}},(f.customer||'')+(f.area?' · Khu vực: '+f.area:''))
     )),
-    h('div',{className:'order-form-main-grid',style:{display:'grid',gridTemplateColumns:'90px 100px 100px 90px 90px 1fr',gap:'0 8px'}},
-      h(F,{label:'Ngày giao'},h('input',{value:f.deliveryDate,onChange:e=>s('deliveryDate',e.target.value),placeholder:'DD/MM/YY'})),
+    h('div',{className:'order-form-main-grid',style:{display:'grid',gridTemplateColumns:'140px 100px 100px 90px 90px 1fr',gap:'0 8px'}},
+      h(F,{label:'Ngày giao'},h('input',{type:'date',value:toIsoDate(f.deliveryDate),onChange:e=>s('deliveryDate',e.target.value?vnDateFromISO(e.target.value):''),title:'Chọn ngày giao'})),
       h(F,{label:'Giờ giao'},h('input',{value:f.deliveryTime,onChange:e=>s('deliveryTime',e.target.value),placeholder:'08:00'})),
       h(F,{label:'Trạng thái'},h('select',{value:f.status,onChange:e=>s('status',e.target.value),style:{fontSize:12}},
         [['pending','Chờ xếp'],['assigned','Đã xếp'],['delivering','Đang giao'],['done','Đã giao'],['failed','Giao lỗi'],['cancelled','Hủy']].map(([v,l])=>h('option',{key:v,value:v},l))

@@ -234,8 +234,12 @@ function isGoodsProduct(prod,prodCats){
   const cat=prodCats?.find(c=>c.id===prod?.catId);
   const text=((prod?.type||prod?.kind||prod?.code||'')+' '+(cat?.name||'')+' '+(cat?.desc||'')).toLowerCase();
   const plain=text.normalize?text.normalize('NFD').replace(/[\u0300-\u036f]/g,''):text;
+  const normalize=s=>String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const explicitType=normalize(prod?.type||prod?.kind);
+  const categoryName=normalize(cat?.name);
   const code=String(prod?.code||'').trim().toUpperCase();
-  return plain.includes('hang hoa')||plain.includes('hanghoa')||code.startsWith('HH')||code.startsWith('H-');
+  if(explicitType==='TP'||explicitType.includes('THANH PHAM')||categoryName==='TP'||categoryName.includes('THANH PHAM')||code.startsWith('TP'))return false;
+  return explicitType==='HH'||explicitType.includes('HANG HOA')||categoryName==='HH'||categoryName.includes('HANG HOA')||plain.includes('hang hoa')||plain.includes('hanghoa')||code.startsWith('HH')||code.startsWith('H-');
 }
 function productCategoryId(prod,prodCats){
   const normalize=s=>String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
