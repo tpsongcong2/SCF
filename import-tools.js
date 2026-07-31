@@ -548,6 +548,7 @@ const NAV=[
   {key:'workcats',icon:'ti-checklist',label:'Danh mục công việc'},
   {key:'shifts',icon:'ti-clock',label:'Ca giao hàng'},
   {sec:'Bán hàng'},
+  {key:'deliveryrules',icon:'ti-clipboard-text',label:'Quy định giao hàng'},
   {key:'quotes',icon:'ti-file-invoice',label:'Báo giá'},
   {key:'delivery',icon:'ti-truck-delivery',label:'Đơn giao hàng'},
   {key:'intem',icon:'ti-printer',label:'Intem'},

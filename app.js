@@ -1,6 +1,6 @@
 /* ─── APP ROOT ─── */
 const PTITLES = {
-  welcome:'Thời tiết', company:'Thông tin công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động',
+  welcome:'Thời tiết', company:'Thông tin công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
   backup:'Backup dữ liệu', materials:'Nguyên vật liệu', assets:'Danh mục tài sản', products:'Sản phẩm', depts:'Bộ phận',
   customers:'Khách hàng', workcats:'Danh mục công việc', tasks:'Giao việc', shifts:'Ca giao hàng',
   workreport_vp:'Công kế toán', workreport_sx:'Công sản xuất', workreport_lx:'Công lái xe', workreport_total:'Tổng công',
@@ -62,6 +62,7 @@ function App(){
   const[financeOpenings,_sfo]=useState([]);
   const[companyNews,_snews]=useState([]);
   const[internalMessages,_sim]=useState([]);
+  const[deliveryRules,_sdr]=useState([]);
   window.__SCF_CUSTOMERS=customers||[];
   window.__SCF_PROD_SHIFTS=prodShifts||[];
   const setEmployees=mkSet('scf_employees',_se);
@@ -106,6 +107,7 @@ function App(){
   });
   const setCompanyNews=mkCommunitySet('scf_company_news',_snews);
   const setInternalMessages=mkCommunitySet('scf_internal_messages',_sim);
+  const setDeliveryRules=mkCommunitySet('scf_delivery_rules',_sdr);
   const refreshCommunityData=React.useCallback(async()=>{
     const[newsData,messageData]=await Promise.all([
       dbGet('scf_company_news',[]),
@@ -158,7 +160,7 @@ function App(){
     const loadingGuard=setTimeout(()=>setLoading(false),8000);
     (async()=>{
       try{
-        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,nccg,pu,pg,q,fp,mo,o,t,a,adv,rw,lv,dp,ui,pts,pa,shData,psData,psrData,fe,fd,fo,newsData,messageData]=await Promise.all([
+        const[e,c,m,assetData,pc,p,cu,ar,wc,tk,ncc,nccg,pu,pg,q,fp,mo,o,t,a,adv,rw,lv,dp,ui,pts,pa,shData,psData,psrData,fe,fd,fo,newsData,messageData,deliveryRulesData]=await Promise.all([
           dbGet('scf_employees',DEF_EMPS),dbGet('scf_company',DEF_COMPANY),
           dbGet('scf_materials',DEF_MATERIALS),dbGet('scf_assets',[]),dbGet('scf_prodcats',DEF_PRODCATS),
           dbGet('scf_products',DEF_PRODUCTS),dbGet('scf_customers',DEF_CUSTOMERS),
@@ -170,11 +172,11 @@ function App(){
           dbGet('scf_advances',[]),dbGet('scf_rewards',[]),dbGet('scf_leaves',[]),dbGet('scf_depts',DEF_DEPTS),dbGet('scf_ui_settings',DEF_UI_SETTINGS),dbGet('scf_print_template_settings',DEF_PRINT_TEMPLATE_SETTINGS),dbGet('scf_prod_actuals',{}),
           dbGet('scf_shifts',D_SHIFTS),dbGet('scf_prod_shifts',DEF_PROD_SHIFTS),dbGet('scf_prod_shift_rules',DEF_PROD_SHIFT_RULES),
           dbGet('scf_finance_entries',[]),dbGet('scf_finance_debts',[]),dbGet('scf_finance_openings',[]),
-          dbGet('scf_company_news',[]),dbGet('scf_internal_messages',[]),
+          dbGet('scf_company_news',[]),dbGet('scf_internal_messages',[]),dbGet('scf_delivery_rules',[]),
         ]);
         const normalizedOrders=normalizeOrdersForStorage(o||[]);
         const normalizedProducts=(p||[]).map(normalizeProductWeight);
-        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_snccg(nccg);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);_snews(newsData||[]);_sim(messageData||[]);
+        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_snccg(nccg);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_slv(lv);_sdp(dp);_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);_snews(newsData||[]);_sim(messageData||[]);_sdr(deliveryRulesData||[]);
         if(ordersNeedTimeNormalization(o||[]))dbSet('scf_orders',normalizedOrders);
         if((p||[]).some((item,index)=>Number(item?.weightPerUnit||0)!==Number(normalizedProducts[index]?.weightPerUnit||0)))dbSet('scf_products',normalizedProducts);
       }catch(err){console.warn(err);}finally{clearTimeout(loadingGuard);setLoading(false);}
@@ -338,6 +340,7 @@ function App(){
         canAccess(cu.role,'customers',cu.permissions)&&page==='customers'&&h(CustomersTab,{customers,setCustomers,shifts,orders,areas,cu}),
         canAccess(cu.role,'areas',cu.permissions)&&page==='areas'&&h(AreasTab,{areas,setAreas,customers,setCustomers,orders}),
         canAccess(cu.role,'prodshifts',cu.permissions)&&page==='prodshifts'&&h(ProdShiftsTab,{prodShifts,setProdShifts,prodShiftRules,setProdShiftRules,orders,customers,shifts}),
+        canAccess(cu.role,'deliveryrules',cu.permissions)&&page==='deliveryrules'&&h(DeliveryRulesTab,{items:deliveryRules,setItems:setDeliveryRules,currentUser:cu}),
         canAccess(cu.role,'workcats',cu.permissions)&&page==='workcats'&&h(WorkCatsTab,{workcats,setWorkcats,depts}),
         canAccess(cu.role,'tasks',cu.permissions)&&page==='tasks'&&h(TasksTab,{tasks,setTasks,workcats,employees,currentUser:cu}),
         canAccess(cu.role,'nccs',cu.permissions)&&page==='nccs'&&h(NCCTab,{nccs,setNCCs,purchases,setPurchases,title:'Nhà CC NVL',fileName:'Nha_CC_NVL'}),

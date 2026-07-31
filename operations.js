@@ -242,6 +242,89 @@ function CommunityPanel({emp,news=[],setNews,messages=[],setMessages,onRefresh})
     )
   );
 }
+function DeliveryRulesTab({items=[],setItems,currentUser}){
+  const empty=()=>({id:'',publishDate:new Date().toISOString().slice(0,10),content:'',images:[]});
+  const[form,setForm]=useState(empty);
+  const[open,setOpen]=useState(false);
+  const[viewImage,setViewImage]=useState('');
+  const[uploading,setUploading]=useState(false);
+  const canManage=['admin','manager'].includes(currentUser?.role);
+  const isAdmin=currentUser?.role==='admin';
+  const sorted=[...(items||[])].sort((a,b)=>String(b.publishDate||b.createdAt||'').localeCompare(String(a.publishDate||a.createdAt||'')));
+  const openCreate=()=>{setForm(empty());setOpen(true);};
+  const openEdit=item=>{setForm({...item,images:[...(item.images||[])]});setOpen(true);};
+  const addImages=async files=>{
+    const picked=[...(files||[])].filter(Boolean);
+    if(!picked.length)return;
+    setUploading(true);
+    try{
+      const next=[];
+      for(const file of picked)next.push(await uploadPhoto(file,'delivery-rules',{max:1100,quality:.7}));
+      setForm(prev=>({...prev,images:[...(prev.images||[]),...next]}));
+    }catch(err){window.showToast('Không đọc được ảnh. Vui lòng chọn lại.','warn');}
+    finally{setUploading(false);}
+  };
+  const save=()=>{
+    const content=String(form.content||'').trim();
+    if(!form.publishDate||!content){window.showToast('Vui lòng nhập ngày đăng và nội dung quy định.','warn');return;}
+    const now=new Date().toISOString();
+    if(form.id){
+      setItems(prev=>(prev||[]).map(row=>row.id===form.id?{...row,...form,content,updatedAt:now}:row));
+    }else{
+      setItems(prev=>[{...form,id:'DR'+uid(),content,authorId:currentUser?.id||'',authorName:currentUser?.name||'Quản trị',createdAt:now,updatedAt:now},...(prev||[])]);
+    }
+    setOpen(false);
+  };
+  const remove=async item=>{
+    const ok=window.scfConfirm?await window.scfConfirm('Bạn có chắc muốn xóa quy định này?','Xóa quy định',true):window.confirm('Bạn có chắc muốn xóa quy định này?');
+    if(ok)setItems(prev=>(prev||[]).filter(row=>row.id!==item.id));
+  };
+  const dateLabel=value=>{
+    const parts=String(value||'').split('-');
+    return parts.length===3?parts.reverse().join('/'):value||'';
+  };
+  return h('div',null,
+    h('div',{className:'ptitle'},h('i',{className:'ti ti-clipboard-text',style:{fontSize:20}}),'Quy định giao hàng'),
+    h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:14,flexWrap:'wrap'}},
+      h('div',{style:{color:'var(--tx2)',fontSize:13}},'Thông báo các quy định giao hàng mới nhất đến nhân viên.'),
+      canManage&&h('button',{type:'button',className:'bp',onClick:openCreate},h('i',{className:'ti ti-plus'}),' Đăng quy định')
+    ),
+    sorted.length?h('div',{className:'delivery-rule-list'},sorted.map(item=>h('article',{key:item.id,className:'card delivery-rule-card'},
+      h('div',{className:'delivery-rule-head'},
+        h('div',null,
+          h('div',{className:'delivery-rule-date'},h('i',{className:'ti ti-calendar'}),' Ngày đăng: ',dateLabel(item.publishDate)),
+          item.authorName&&h('div',{className:'delivery-rule-author'},'Người đăng: '+item.authorName)
+        ),
+        canManage&&h('div',{style:{display:'flex',gap:6}},
+          h('button',{type:'button',className:'bi',title:'Sửa',onClick:()=>openEdit(item)},h('i',{className:'ti ti-edit'})),
+          isAdmin&&h('button',{type:'button',className:'bi',title:'Xóa',onClick:()=>remove(item),style:{color:'var(--danger)'}},h('i',{className:'ti ti-trash'}))
+        )
+      ),
+      h('div',{className:'delivery-rule-content'},item.content),
+      !!(item.images||[]).length&&h('div',{className:'delivery-rule-images'},(item.images||[]).map((src,index)=>h('button',{type:'button',key:index,className:'delivery-rule-image',onClick:()=>setViewImage(src)},h('img',{src,alt:'Ảnh quy định '+(index+1)}))))
+    ))):h('div',{className:'empty'},h('i',{className:'ti ti-clipboard-text'}),h('div',null,'Chưa có quy định giao hàng nào.')),
+    open&&h(Modal,{title:form.id?'Sửa quy định giao hàng':'Đăng quy định giao hàng',lg:true,onClose:()=>setOpen(false)},
+      h('div',{className:'form-grid'},
+        h(F,{label:'Ngày đăng *'},h('input',{type:'date',value:form.publishDate||'',onChange:e=>setForm(prev=>({...prev,publishDate:e.target.value}))})),
+        h(F,{label:'Nội dung *',full:true},h('textarea',{rows:7,value:form.content||'',placeholder:'Nhập nội dung quy định giao hàng...',onChange:e=>setForm(prev=>({...prev,content:e.target.value}))})),
+        h(F,{label:'Hình ảnh',full:true},
+          h('div',null,
+            h('label',{className:'btn',style:{display:'inline-flex',cursor:'pointer'}},h('i',{className:'ti ti-photo-plus'}),uploading?' Đang xử lý ảnh...':' Chọn ảnh',h('input',{type:'file',accept:'image/*',multiple:true,disabled:uploading,onChange:e=>addImages(e.target.files),style:{display:'none'}})),
+            !!(form.images||[]).length&&h('div',{className:'delivery-rule-images edit'},
+              (form.images||[]).map((src,index)=>h('div',{key:index,className:'delivery-rule-image-wrap'},
+                h('img',{src,alt:'Ảnh '+(index+1)}),
+                h('button',{type:'button',className:'bi',title:'Bỏ ảnh',onClick:()=>setForm(prev=>({...prev,images:prev.images.filter((_,i)=>i!==index)}))},h('i',{className:'ti ti-x'}))
+              ))
+            )
+          )
+        )
+      ),
+      h('div',{className:'modal-actions'},h('button',{type:'button',onClick:()=>setOpen(false)},'Hủy'),h('button',{type:'button',className:'bp',disabled:uploading,onClick:save},h('i',{className:'ti ti-device-floppy'}),' Lưu quy định'))
+    ),
+    viewImage&&h('div',{className:'delivery-rule-lightbox',onClick:()=>setViewImage('')},h('button',{type:'button',className:'delivery-rule-lightbox-close',onClick:()=>setViewImage('')},'×'),h('img',{src:viewImage,alt:'Xem ảnh quy định',onClick:e=>e.stopPropagation()}))
+  );
+}
+
 function WelcomePage({emp,employees=[],company,uiSettings,news,setNews,messages,setMessages,onRefresh}){
   const birthdayEmployees=(employees||[]).filter(person=>person&&person.name&&isBirthday(person.birthday));
   const birthdayNames=birthdayEmployees.map(person=>person.name).join(', ');

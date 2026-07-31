@@ -19,6 +19,7 @@ const PAGE_ACCESS = {
   customers:    ['admin','manager','staff'],
   areas:        ['admin','manager','staff'],
   prodshifts:   ['admin','manager','staff'],
+  deliveryrules:['admin','manager','staff','driver'],
   workcats:     ['admin','manager'],
   tasks:        ['admin','manager','staff','driver'],
   workreport_vp:['admin','manager','staff'],
