@@ -2231,6 +2231,11 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const areaCmp=(ga.sortText||'zzz').localeCompare(gb.sortText||'zzz','vi');
       if(areaCmp!==0)return areaCmp;
     }
+    // Giữ cách gom nhóm theo khu vực/chuyến, nhưng trong từng nhóm luôn xếp ngày giao tăng dần.
+    const aDeliveryDate=deliveryOrderDateKey(a._ctx.deliveryDate);
+    const bDeliveryDate=deliveryOrderDateKey(b._ctx.deliveryDate);
+    const deliveryDateCmp=(aDeliveryDate??Number.MAX_SAFE_INTEGER)-(bDeliveryDate??Number.MAX_SAFE_INTEGER);
+    if(deliveryDateCmp!==0)return deliveryDateCmp;
     if(sortMode==='trip'){
       const timeCmp=(a._ctx.deliveryTime||'').localeCompare(b._ctx.deliveryTime||'');
       if(timeCmp!==0)return timeCmp;
