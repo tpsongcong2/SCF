@@ -1971,6 +1971,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const area=getArea(ctx);
     const options=tripOptionsForOrder(ctx);
     if(!options.length||!preferredDate)return null;
+    // Ca SX đã cấu hình một ca giao hàng cụ thể thì phải ưu tiên tuyệt đối ca đó.
+    // Khu vực của điểm giao chỉ dùng làm phương án ghép khi ca SX không chỉ định ca giao.
+    if(preferredShiftId||preferredShiftName){
+      const shiftOptions=options.filter(t=>tripMatchesShift(t,preferredShiftId,preferredShiftName));
+      const byDate=shiftOptions.filter(t=>t.deliveryDate===preferredDate);
+      if(!byDate.length)return null;
+      return [...byDate].sort((a,b)=>{
+        const currentScore=t=>String(t.id||'')===String(o.tripId||'')?20:0;
+        return currentScore(b)-currentScore(a)||(String(a.id||'').localeCompare(String(b.id||''),'vi'));
+      })[0]||null;
+    }
     const sameAreaOptions=area?options.filter(t=>tripMatchesArea(t,area)):[];
     if(sameAreaOptions.length){
       const byDate=preferredDate?sameAreaOptions.filter(t=>t.deliveryDate===preferredDate):sameAreaOptions;
@@ -1986,19 +1997,6 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     // Đơn đã có khu vực thì chỉ được ghép vào chuyến đúng khu vực.
     // Không lấy một chuyến khác cùng ngày làm phương án dự phòng.
     if(area)return null;
-    const shiftOptions=(preferredShiftId||preferredShiftName)?options.filter(t=>tripMatchesShift(t,preferredShiftId,preferredShiftName)):[]; 
-    if(shiftOptions.length){
-      const byDate=preferredDate?shiftOptions.filter(t=>t.deliveryDate===preferredDate):shiftOptions;
-      if(preferredDate&&!byDate.length)return null;
-      return [...byDate].sort((a,b)=>{
-        const ad=parseAnyDate(a.deliveryDate||''),bd=parseAnyDate(b.deliveryDate||'');
-        const byDate=(bd?.getTime?.()||0)-(ad?.getTime?.()||0);
-        if(byDate)return byDate;
-        const score=t=>(t.id===o.tripId?20:0);
-        return score(b)-score(a)||(String(a.id||'').localeCompare(String(b.id||''),'vi'));
-      })[0]||null;
-    }
-    if(preferredShiftId||preferredShiftName)return null;
     const candidates=preferredDate?options.filter(t=>t.deliveryDate===preferredDate):options;
     if(!candidates.length)return null;
     return [...candidates].sort((a,b)=>{
@@ -2343,6 +2341,44 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     setBulkSelected({});
     window.showToast('Đã xóa '+keys.length+' đơn hàng.','success');
   };
+  const updateOrderProductNames=async()=>{
+    if(!isAdmin)return;
+    const targetKeys=new Set(selectedOrderKeys.length?selectedOrderKeys:list.map(orderRowKey));
+    const productById=new Map((products||[]).filter(p=>p?.id).map(p=>[String(p.id),p]));
+    const eligibleStatuses=new Set(['pending','assigned']);
+    let orderCount=0,lineCount=0;
+    (orders||[]).forEach((order,index)=>{
+      if(!targetKeys.has(allOrderRowKeys[index])||!eligibleStatuses.has(order.status||'pending'))return;
+      let changed=false;
+      (order.lines||[]).forEach(line=>{
+        const product=productById.get(String(line.productId||''));
+        if(product&&String(product.name||'').trim()&&String(line.productName||'').trim()!==String(product.name||'').trim()){
+          lineCount++;changed=true;
+        }
+      });
+      if(changed)orderCount++;
+    });
+    if(!lineCount){window.showToast('Không có tên sản phẩm nào cần cập nhật trong phạm vi đã chọn.','info');return;}
+    const scopeText=selectedOrderKeys.length?(selectedOrderKeys.length+' đơn đã chọn'):'danh sách đang lọc';
+    const ok=await window.scfConfirm('Cập nhật '+lineCount+' dòng sản phẩm trong '+orderCount+' đơn thuộc '+scopeText+'?\n\nChỉ đơn Chờ xếp và Đã xếp được cập nhật. Đơn đã giao hoặc đã hủy sẽ được giữ nguyên.','Cập nhật tên sản phẩm');
+    if(!ok)return;
+    applyOrdersAndTripSync(prev=>{
+      const prevKeys=deliveryOrderRecordKeys(prev);
+      return prev.map((order,index)=>{
+        if(!targetKeys.has(prevKeys[index])||!eligibleStatuses.has(order.status||'pending'))return order;
+        let changed=false;
+        const lines=(order.lines||[]).map(line=>{
+          const product=productById.get(String(line.productId||''));
+          const nextName=String(product?.name||'').trim();
+          if(!nextName||String(line.productName||'').trim()===nextName)return line;
+          changed=true;
+          return {...line,productName:nextName};
+        });
+        return changed?{...order,lines,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:order;
+      });
+    });
+    window.showToast('Đã cập nhật tên cho '+lineCount+' dòng sản phẩm trong '+orderCount+' đơn.','success');
+  };
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const labelPackRule=line=>{
     const product=(products||[]).find(p=>String(p.id||'')===String(line?.productId||''))||null;
@@ -2633,6 +2669,11 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             title:'Cập nhật lại ca SX, ngày SX, giờ SX, chuyến xe, ngày in tem và giờ in tem cho các đơn đang dùng tự động trong danh sách đang lọc',
             style:{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:5,background:'#2d6a4f',color:'#fff',border:'none',borderRadius:'var(--r)',cursor:'pointer'}
           },h('i',{className:'ti ti-refresh',style:{fontSize:14}}),'Cập nhật SX + chuyến'),
+          isAdmin&&h('button',{
+            onClick:updateOrderProductNames,
+            title:selectedOrderKeys.length?'Cập nhật tên sản phẩm cho các đơn đã chọn':'Cập nhật tên sản phẩm cho đơn Chờ xếp/Đã xếp trong danh sách đang lọc',
+            style:{padding:'6px 12px',fontSize:12,display:'flex',alignItems:'center',gap:5,background:'#0f766e',color:'#fff',border:'none',borderRadius:'var(--r)',cursor:'pointer'}
+          },h('i',{className:'ti ti-package-import',style:{fontSize:14}}),'Cập nhật tên SP'+(selectedOrderKeys.length?' ('+selectedOrderKeys.length+')':'')),
           h('button',{
             title:'Import đơn hàng từ file Excel của khách hàng',
             onClick:()=>document.getElementById('import-from-customer-hidden')?.click(),
