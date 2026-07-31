@@ -275,7 +275,9 @@ function App(){
     if(cu&&!canAccess(cu.role,page,cu.permissions,cu.dept))setPage('welcome');
   },[cu?.id,cu?.role,cu?.dept,page]);
   if(loading)return h('div',{className:'load-screen'},
-    h('img',{src:LOGO_SRC,style:{width:80,height:80,marginBottom:12,borderRadius:12}}),
+    h('div',{className:'load-logo-shell'},
+      h('img',{src:'icon-192.png',className:'load-logo',alt:'Logo Thực Phẩm Sông Công'})
+    ),
     h('div',{style:{fontSize:17,fontWeight:600,color:'var(--pri3)',marginBottom:4}},'Thực Phẩm Sông Công'),
     h('div',{style:{fontSize:13,color:'var(--pri2)',display:'flex',alignItems:'center',gap:6}},h('i',{className:'ti ti-loader-2 spin',style:{fontSize:16}}),'Đang tải dữ liệu...')
   );

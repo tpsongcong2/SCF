@@ -193,8 +193,9 @@ function addDaysVN(dateStr,offset){
 }
 function getOrderTripDateOffset(order,prodShifts){
   const manualShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):null;
+  const storedAutoShift=order?.prodShiftAssignMode!=='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId&&s.active!==false):null;
   const autoShift=getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
-  const shift=manualShift||autoShift;
+  const shift=manualShift||storedAutoShift||autoShift;
   return shift==null?null:Number(shift.tripDateOffset??0);
 }
 function getOrderTripDate(order,prodShifts){
@@ -205,13 +206,15 @@ function getOrderTripDate(order,prodShifts){
 }
 function getOrderTripShiftId(order,prodShifts){
   const manualShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):null;
+  const storedAutoShift=order?.prodShiftAssignMode!=='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId&&s.active!==false):null;
   const autoShift=getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
-  return String((manualShift||autoShift)?.tripShiftId||'');
+  return String((manualShift||storedAutoShift||autoShift)?.tripShiftId||'');
 }
 function getOrderTripShiftName(order,prodShifts){
   const manualShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):null;
+  const storedAutoShift=order?.prodShiftAssignMode!=='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId&&s.active!==false):null;
   const autoShift=getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
-  return String((manualShift||autoShift)?.tripShiftName||'');
+  return String((manualShift||storedAutoShift||autoShift)?.tripShiftName||'');
 }
 function prodShiftDisplay(sh){
   if(!sh)return sh;

@@ -42,6 +42,11 @@ button:hover{background:var(--bg2)}
 .detail-orders-wrap tbody tr.area-sticky td{position:sticky;top:36px;z-index:4}
 .detail-mobile-controls{display:none}
 .delivery-page{display:flex;flex-direction:column;min-height:calc(100vh - 150px)}
+@media(min-width:769px){
+  .delivery-page{width:calc(100% + 3rem);margin-left:-1.5rem;margin-right:-1.5rem}
+  .delivery-page .delivery-sticky-head{padding-left:0;padding-right:0}
+  .delivery-orders-table th:last-child,.delivery-orders-table td:last-child{padding-left:4px;padding-right:4px}
+}
 .delivery-body{flex:1;min-height:0;display:flex;flex-direction:column}
 .delivery-sticky-head{position:sticky;top:88px;z-index:45;background:var(--bg);padding-bottom:8px}
 .delivery-pagination{display:inline-flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid var(--bd);border-radius:999px;background:#fff;white-space:nowrap}
@@ -213,6 +218,8 @@ th{font-family:var(--ui-header-family)!important}
 .mclose{background:none;border:none;font-size:20px;color:var(--tx2);padding:4px;line-height:1}
 .divider{border:none;border-top:.5px solid var(--bd);margin:.75rem 0}
 .load-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);gap:12px}
+.load-logo-shell{width:96px;height:96px;margin-bottom:4px;border-radius:50%;overflow:hidden;background:var(--pri3);box-shadow:0 0 0 4px #fff,0 8px 28px rgba(18,60,45,.22)}
+.load-logo{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
 .chip-admin{background:#EDE9FE;color:#5B21B6}.chip-manager{background:#E6F1FB;color:#185FA5}
 .chip-staff{background:#EAF3DE;color:#3B6D11}.chip-driver{background:#FAEEDA;color:#854F0B}
 .ptrow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg2);border-radius:var(--r);margin-bottom:6px}
@@ -610,7 +617,7 @@ tbody tr:hover td{background:var(--bg)}
 /* Print button */
 @media print{.sb,.topbar,.mobile-nav,.mobile-nav-backdrop,.mobile-nav-sheet,.mobile-page-backbar,.filter-row,.ptitle button{display:none!important}}
 /* Loading screen animation */
-.load-screen img{animation:pulse 1.5s ease infinite}
+.load-screen .load-logo-shell{animation:pulse 1.5s ease infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 /* Better empty state */
 .empty-st{display:flex;flex-direction:column;align-items:center;gap:8px}

@@ -2106,10 +2106,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   });
   const statusCount=value=>value==='all'?statusScope.length:statusScope.filter(order=>order.status===value).length;
   const updateAutoProductionTimes=()=>{
-    const targetIds=new Set(list.filter(o=>o.status!=='cancelled'&&o.tripAssignMode!=='manual'&&o.prodShiftAssignMode!=='manual').map(o=>o.id));
+    const targetRowKeys=new Set(list.filter(o=>o.status!=='cancelled'&&o.tripAssignMode!=='manual'&&o.prodShiftAssignMode!=='manual').map(orderRowKey));
     let changed=0,lineChanged=0,miss=0,timeChanged=0;
-    const nextOrders=orders.map(o=>{
-      if(!targetIds.has(o.id))return o;
+    const nextOrders=orders.map((o,index)=>{
+      if(!targetRowKeys.has(allOrderRowKeys[index]))return o;
       const rawDeliveryTime=String(o.deliveryTime??'').trim();
       const normalizedDeliveryTime=/h/i.test(rawDeliveryTime)?normalizeCustomerImportTime(rawDeliveryTime):rawDeliveryTime;
       const deliveryTimeChanged=normalizedDeliveryTime!==rawDeliveryTime;
@@ -2994,7 +2994,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('col',{style:{width:80}}),
           h('col',{style:{width:110}}),
           h('col',null),
-          h('col',{style:{width:90}})
+          h('col',{style:{width:126}})
         ),
         h('thead',null,h('tr',null,
           h('th',null,
