@@ -2037,7 +2037,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       applyOrdersAndTripSync(prev=>prev.map(x=>x.id===order.id?{...x,tripAssignMode:'manual',tripId:currentTripId,status:currentTripId?'assigned':'pending'}:x));
       return;
     }
-    applyOrdersAndTripSync(prev=>prev.map(x=>x.id===order.id?{...x,tripAssignMode:'auto'}:x));
+    const autoTrip=autoTripForOrder({...order,tripId:null,tripAssignMode:'auto'});
+    applyOrdersAndTripSync(prev=>prev.map(x=>x.id===order.id?{...x,tripAssignMode:'auto',tripId:autoTrip?.id||null,status:autoTrip?'assigned':'pending'}:x));
   };
   const assignTripManually=(order,newTripId)=>{
     applyOrdersAndTripSync(prev=>prev.map(x=>x.id===order.id?{...x,tripAssignMode:'manual',tripId:newTripId||null,status:newTripId?'assigned':'pending'}:x));
@@ -2195,7 +2196,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const ctx=o._ctx||orderContext(o);
     const tripMode=o.tripAssignMode==='manual'?'manual':'auto';
     const storedTrip=ctx.tripId?tripById.get(String(ctx.tripId)):null;
-    const autoTrip=storedTrip||autoTripForOrder(ctx);
+    const autoTrip=tripMode==='manual'?storedTrip:autoTripForOrder({...ctx,tripId:null});
     const manualTrip=storedTrip||null;
     const effectiveTrip=tripMode==='manual'?(manualTrip||autoTrip||null):autoTrip;
     const preferredTripDate=getOrderTripDate(ctx,prodShifts||[])||'';
