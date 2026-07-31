@@ -266,6 +266,8 @@ th{font-family:var(--ui-header-family)!important}
 .delivery-mobile-more-menu button{width:100%;text-align:left;border:0;background:transparent;padding:8px;border-radius:7px}
 .delivery-mobile-more-menu button:hover{background:var(--bg2)}
 .delivery-mobile-more-menu .danger,.delivery-mobile-delete{color:#A32D2D}
+.delivery-empty-state{display:grid;justify-items:center;gap:10px}
+.delivery-empty-state button{font-weight:700;color:var(--pri);border-color:rgba(37,112,82,.28)}
 .delivery-mobile-products{display:grid;gap:4px;border:1px solid var(--bd);border-radius:10px;padding:6px 9px;background:#fff}
 .delivery-mobile-product-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;font-size:12px;line-height:1.35}
 .delivery-mobile-product-row+.delivery-mobile-product-row{border-top:1px dashed var(--bd);padding-top:4px}
