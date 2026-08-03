@@ -63,10 +63,18 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const isAccounting=deptKey.includes('ke toan');
   const cleanName=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
   const isOwnTrip=t=>!isDriver||String(t?.driverId||'')===String(currentUser?.id||'')||cleanName(t?.driverName)===cleanName(currentUser?.name);
-  const scopedTrips=isDriver?(trips||[]).filter(t=>isOwnTrip(t)&&(!!t.driverDispatchedAt||['active','completion_pending','completed'].includes(t.status))):(trips||[]);
+  const scopedTrips=isDriver?(trips||[]).filter(t=>isOwnTrip(t)&&t.status!=='cancelled'):(trips||[]);
   const scopedTripIds=new Set(scopedTrips.map(t=>String(t.id)));
-  const scopedOrderIds=new Set(scopedTrips.flatMap(t=>t.orderIds||[]).map(String));
-  const scopedOrders=isDriver?(orders||[]).filter(o=>scopedOrderIds.has(String(o.id))&&scopedTripIds.has(String(tripForOrder(o)?.id||''))):(orders||[]);
+  const scopedTripById=new Map(scopedTrips.map(t=>[String(t.id),t]));
+  const scopedTripByOrder=new Map();
+  scopedTrips.forEach(t=>(t.orderIds||[]).forEach(orderId=>{if(!scopedTripByOrder.has(String(orderId)))scopedTripByOrder.set(String(orderId),t);}));
+  const visibleTripForOrder=o=>{
+    if(!isDriver)return tripForOrder(o);
+    const storedTripId=String(o?.tripId||'').trim();
+    if(storedTripId)return scopedTripById.get(storedTripId)||null;
+    return scopedTripByOrder.get(String(o?.id||''))||null;
+  };
+  const scopedOrders=isDriver?(orders||[]).filter(o=>scopedTripIds.has(String(visibleTripForOrder(o)?.id||''))):(orders||[]);
 
   const customerOptions=[...new Set(scopedOrders.map(o=>o.customer).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
   const areaOptions=[...new Set([
@@ -82,7 +90,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const deliveryTripShiftName=t=>cleanDeliveryShiftName(deliveryShiftById.get(String(t?.shiftId||''))?.name||t?.shiftName)||'Chưa đặt ca giao';
   const deliveryTripLabel=t=>[deliveryTripShiftName(t),t?.deliveryDate,t?.driverName].filter(Boolean).join(' · ');
   const deliveryShiftForOrder=o=>{
-    const trip=tripForOrder(o);
+    const trip=visibleTripForOrder(o);
     const plannedId=String(getOrderTripShiftId(o,prodShifts||[])||'').trim();
     const plannedName=String(getOrderTripShiftName(o,prodShifts||[])||'').trim();
     const id=String(trip?.shiftId||plannedId||'').trim();
@@ -115,7 +123,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const shiftOptions=[...new Set((prodShifts||[]).filter(s=>s.active!==false).map(s=>cleanShiftName(s.name)).filter(Boolean))].sort((a,b)=>shiftOrder(a)-shiftOrder(b)||a.localeCompare(b,'vi'));
 
   const groupInfoForOrder=o=>{
-    const trip=tripForOrder(o);
+    const trip=visibleTripForOrder(o);
     if(groupMode==='trip'){
       const label=trip?deliveryTripLabel(trip):'Chưa có chuyến';
       return {key:trip?'trip:'+String(trip.id):'trip:~',label,sortKey:trip?(toISO(trip.deliveryDate)+'|'+deliveryTripShiftName(trip)+'|'+String(trip.id||'')):'9999-99-99|~'};
@@ -136,7 +144,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
     if(periodRange.to&&date&&date>periodRange.to)return false;
     if(customerF!=='all'&&o.customer!==customerF)return false;
     if(areaF!=='all'&&resolveArea(o)!==areaF)return false;
-    const trip=tripForOrder(o);
+    const trip=visibleTripForOrder(o);
     if(tripF!=='all'&&deliveryShiftForOrder(o).key!==tripF)return false;
     if(driverF!=='all'&&String(trip?.driverName||'')!==driverF)return false;
     if(shiftF!=='all'){
@@ -175,7 +183,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
     const linePlans=prodShiftPlansForOrder(o,prodShifts||[]);
     const area=resolveArea(o);
     const group=groupInfoForOrder(o);
-    const trip=tripForOrder(o);
+    const trip=visibleTripForOrder(o);
     (o.lines||[]).forEach(l=>{
       if(!l.productId)return;
       const linePlan=linePlans.find(p=>p.line===l||p.line?.id===l.id)||plan;
@@ -219,7 +227,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
     return Math.max(0,Math.floor((new Date(todayISO+'T12:00:00')-new Date(iso+'T12:00:00'))/86400000));
   };
   const canEditDeliveredForOrder=order=>{
-    const trip=tripForOrder(order);
+    const trip=visibleTripForOrder(order);
     if(!trip)return false;
     if(currentUser?.role==='admin'||isAccounting)return true;
     if(currentUser?.role==='manager')return trip.status!=='completion_pending'&&trip.status!=='completed'&&tripAgeDays(trip)<2;
@@ -242,7 +250,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
     const qty=numFmt(value);
     const nextOrders=(orders||[]).map(o=>o.id===orderId?{...o,lines:(o.lines||[]).map(l=>l.id===lineId?{...l,qtyDelivered:qty,deliveredAt:fmtDT(),deliveredBy:currentUser?.name||''}:l)}:o);
     setOrders&&setOrders(nextOrders);
-    syncTripReceivables(tripForOrder(order),nextOrders);
+    syncTripReceivables(visibleTripForOrder(order),nextOrders);
   };
   const firstOrder=totalOrders?(safePage-1)*pageSize+1:0;
   const lastOrder=Math.min(safePage*pageSize,totalOrders);

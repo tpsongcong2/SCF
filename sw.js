@@ -1,4 +1,4 @@
-const CACHE = 'scf-v180';
+const CACHE = 'scf-v186';
 const ASSETS = [
   './',
   './index.html',
@@ -15,6 +15,8 @@ const ASSETS = [
   './catalogs.js',
   './production-shifts.js',
   './organization.js',
+  './notifications.js',
+  './user-guide.js',
   './operations.js',
   './navigation-reports.js',
   './order-detail.js',
