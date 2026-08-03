@@ -75,6 +75,9 @@ button:hover{background:var(--bg2)}
 .delivery-trip-content{display:grid;gap:6px;min-width:0;width:100%;white-space:nowrap}
 .delivery-trip-content select{min-width:0;max-width:100%}
 .delivery-orders-table{width:100%;table-layout:fixed}
+.order-detail-line-grid{position:relative;min-width:0}
+.order-line-remove{position:absolute;right:8px;bottom:10px;width:30px;height:30px;padding:0!important;display:flex;align-items:center;justify-content:center;color:#A32D2D!important;background:#fff!important;border:1px solid #F2B8B5!important;border-radius:8px!important}
+.order-line-remove:hover{background:#FCEBEB!important}
 .delivery-orders-table th,.delivery-orders-table td{padding-left:8px;padding-right:8px}
 .delivery-table-wrap{flex:1;min-height:calc(100vh - 295px);height:auto;max-height:none}
 .delivery-page.compact-menu{min-height:calc(100vh - 10px)}
@@ -483,6 +486,7 @@ th{font-family:var(--ui-header-family)!important}
   .delivery-pagination{grid-column:1/-1;justify-content:center}
   .order-form-main-grid,.order-form-shift-grid,.order-form-timing-grid,.order-detail-line-grid{grid-template-columns:1fr!important}
   .order-detail-line-grid{padding:10px!important;gap:4px!important}
+  .order-line-remove{position:static;width:100%;height:36px;margin-top:4px;justify-self:stretch}
   .order-form-actions{margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px;padding-bottom:8px}
   .delivery-table-wrap{max-height:none}
   .delivery-body .mobile-data-card{padding:10px;gap:7px}

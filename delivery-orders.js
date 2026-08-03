@@ -34,7 +34,7 @@ function OrderDetailLine({line,products,prodCats,prodShifts,deliveryDate,deliver
     labelTime:dispShift?.labelTime||'',
     labelDate:dispShift?.labelDate||'',
   });
-  return h('div',{className:'order-detail-line-grid',style:{display:'grid',gridTemplateColumns:showPurchasePrice?'2fr 80px 80px 90px 60px minmax(360px,1.3fr) 30px':'2fr 80px 80px 60px minmax(360px,1.3fr) 30px',gap:6,alignItems:'end',marginBottom:6,padding:'8px 10px',background:'var(--bg2)',borderRadius:'var(--r)'}},
+  return h('div',{className:'order-detail-line-grid'+(showPurchasePrice?' has-purchase-price':''),style:{display:'grid',gridTemplateColumns:showPurchasePrice?'minmax(210px,2fr) 80px 80px 90px 74px minmax(250px,1.3fr)':'minmax(210px,2fr) 80px 80px 74px minmax(250px,1.3fr)',gap:6,alignItems:'end',marginBottom:6,padding:'8px 44px 8px 10px',background:'var(--bg2)',borderRadius:'var(--r)'}},
     // Sản phẩm — thu nhỏ
     h('div',null,
       h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:3}},'Sản phẩm'),
@@ -109,7 +109,7 @@ function OrderDetailLine({line,products,prodCats,prodShifts,deliveryDate,deliver
       )
     ),
     // Nút xóa
-    h('button',{className:'bi',onClick:onRemove,style:{color:'#A32D2D',alignSelf:'flex-end',marginBottom:2}},h('i',{className:'ti ti-trash',style:{fontSize:15}}))
+    h('button',{type:'button',className:'bi order-line-remove',onClick:onRemove,title:'Xóa dòng sản phẩm','aria-label':'Xóa dòng sản phẩm'},h('i',{className:'ti ti-trash',style:{fontSize:16}}))
   );
 }
 
