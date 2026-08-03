@@ -75,14 +75,18 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
     ...(!isDriver?(shifts||[]).map(s=>s.area):[])
   ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
   const deliveryShiftById=new Map((shifts||[]).filter(s=>s?.id).map(s=>[String(s.id),s]));
-  const deliveryTripShiftName=t=>deliveryShiftById.get(String(t?.shiftId||''))?.name||String(t?.shiftName||'').trim()||'Chưa đặt ca giao';
+  const cleanDeliveryShiftName=value=>String(value||'').trim()
+    .replace(/^CH[a-z0-9_-]+\s*[·|\-–—:]\s*/i,'')
+    .replace(/^CH[a-z0-9_-]+$/i,'')
+    .trim();
+  const deliveryTripShiftName=t=>cleanDeliveryShiftName(deliveryShiftById.get(String(t?.shiftId||''))?.name||t?.shiftName)||'Chưa đặt ca giao';
   const deliveryTripLabel=t=>[deliveryTripShiftName(t),t?.deliveryDate,t?.driverName].filter(Boolean).join(' · ');
   const deliveryShiftForOrder=o=>{
     const trip=tripForOrder(o);
     const plannedId=String(getOrderTripShiftId(o,prodShifts||[])||'').trim();
     const plannedName=String(getOrderTripShiftName(o,prodShifts||[])||'').trim();
     const id=String(trip?.shiftId||plannedId||'').trim();
-    const name=String(deliveryShiftById.get(id)?.name||trip?.shiftName||plannedName||'').trim();
+    const name=cleanDeliveryShiftName(deliveryShiftById.get(id)?.name||trip?.shiftName||plannedName);
     const normalizedName=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
     return {id,name,key:id?'id:'+id:(normalizedName?'name:'+normalizedName:'')};
   };
