@@ -192,7 +192,14 @@ function timeInRange(t,start,end){
 function getProdWorkShiftRule(prodTime,rules){
   if(!prodTime)return null;
   const activeRules=(rules&&rules.length)?rules:DEF_PROD_SHIFT_RULES;
-  return activeRules.find(r=>r.active!==false&&timeInRange(prodTime,r.start,r.end))||null;
+  const tm=timeToMin(prodTime);
+  // Các khoảng ca nhỏ nối tiếp nhau: mốc giao thuộc ca bắt đầu tại mốc đó.
+  return activeRules.find(r=>{
+    if(r.active===false||!r.start||!r.end)return false;
+    const start=timeToMin(r.start),end=timeToMin(r.end);
+    if(start<=end)return tm>=start&&tm<end;
+    return tm>=start||tm<end;
+  })||null;
 }
 function addDaysVN(dateStr,offset){
   if(!dateStr)return '';

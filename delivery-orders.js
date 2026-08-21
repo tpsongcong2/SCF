@@ -2163,8 +2163,14 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       if(touched)changed++;
       return touched?{...o,deliveryTime:normalizedDeliveryTime,prodShiftAssignMode:'auto',prodShiftId:autoShift.id,tripId:nextTripId,tripAssignMode:'auto',status:nextStatus,lines,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:o;
     });
-    applyOrdersAndTripSync(nextOrders);
-    window.showToast((timeChanged?'Đã chuẩn hóa giờ cho '+timeChanged+' đơn. ':'')+'Đã cập nhật tự động ca SX, ngày SX, giờ SX, ngày in tem, giờ in tem và chuyến xe cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':''),'success',7000);
+    if(changed){
+      applyOrdersAndTripSync(nextOrders);
+      window.showToast((timeChanged?'Đã chuẩn hóa giờ cho '+timeChanged+' đơn. ':'')+'Đã cập nhật tự động ca SX, ngày SX, giờ SX, ngày in tem, giờ in tem và chuyến xe cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':''),'success',7000);
+      return;
+    }
+    window.showToast(miss
+      ?'Không cập nhật được: '+miss+' đơn chưa tìm thấy cấu hình ca SX phù hợp.'
+      :'Dữ liệu ca SX và chuyến xe đã đúng, không có thay đổi cần đồng bộ.','info',7000);
   };
   const orderLineQty=l=>numFmt(l.qtyInvoice)||numFmt(l.qtyProd)||numFmt(l.qty)||numFmt(l.quantity)||0;
   const orderLineWeight=l=>{
