@@ -99,8 +99,10 @@ function getProdShift(deliveryTime, prodShifts, location){
   const inRange=(t,start,end)=>{
     const s=timeToMin(start), e=timeToMin(end);
     if(!start||!end)return false;
-    if(s<=e)return t>=s&&t<e;
-    return t>=s||t<e; // qua nửa đêm
+    // Trường "Đến giờ" là mốc bao gồm. Khi hai khoảng cùng chạm mốc,
+    // bộ chấm điểm sẽ ưu tiên địa điểm cụ thể hơn khu vực chung.
+    if(s<=e)return t>=s&&t<=e;
+    return t>=s||t<=e; // qua nửa đêm
   };
   const matches=(prodShifts||[]).filter(sh=>{
     if(sh.active===false)return false;
@@ -184,8 +186,8 @@ function getProdShiftByProdTime(prodTime, prodShifts){
 function timeInRange(t,start,end){
   if(!t||!start||!end)return false;
   const tm=timeToMin(t), s=timeToMin(start), e=timeToMin(end);
-  if(s<=e)return tm>=s&&tm<e;
-  return tm>=s||tm<e;
+  if(s<=e)return tm>=s&&tm<=e;
+  return tm>=s||tm<=e;
 }
 function getProdWorkShiftRule(prodTime,rules){
   if(!prodTime)return null;
