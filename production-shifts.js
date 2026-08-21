@@ -229,7 +229,9 @@ function getOrderTripShiftId(order,prodShifts){
 function getOrderTripShiftName(order,prodShifts){
   const manualShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):null;
   const autoShift=getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
-  return String((manualShift||autoShift)?.tripShiftName||'');
+  const plannedShift=manualShift||autoShift;
+  const currentShift=(window.__SCF_SHIFTS||[]).find(s=>String(s?.id||'')===String(plannedShift?.tripShiftId||''));
+  return String(currentShift?.name||plannedShift?.tripShiftName||'');
 }
 function prodShiftDisplay(sh){
   if(!sh)return sh;

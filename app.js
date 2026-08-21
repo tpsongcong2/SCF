@@ -92,6 +92,7 @@ function App(){
   const[processPosts,_spp]=useState({});
   window.__SCF_CUSTOMERS=customers||[];
   window.__SCF_PROD_SHIFTS=prodShifts||[];
+  window.__SCF_SHIFTS=shifts||[];
   const setEmployees=mkSet('scf_employees',_se);
   const setCompany=mkSet('scf_company',_sc);
   const setMaterials=mkSet('scf_materials',_sm);
