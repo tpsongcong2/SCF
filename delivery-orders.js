@@ -2045,13 +2045,14 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     })[0]||null;
   };
   const prepareAutomaticTripForSave=d=>{
-    if(d?.tripAssignMode==='manual'||d?.prodShiftAssignMode==='manual'||!['pending','assigned',''].includes(String(d?.status||'')))return d;
+    if(d?.tripAssignMode==='manual'||!['pending','assigned',''].includes(String(d?.status||'')))return d;
     const ctx=orderContext(d);
-    const autoShift=getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
-    if(!autoShift)return d;
-    const nextCtx={...ctx,prodShiftAssignMode:'auto',prodShiftId:autoShift.id};
-    const autoTrip=autoTripForOrder(nextCtx,autoShift);
-    return {...d,prodShiftAssignMode:'auto',prodShiftId:autoShift.id,tripAssignMode:'auto',tripId:autoTrip?.id||null,status:autoTrip?'assigned':'pending'};
+    const manualProdShift=d?.prodShiftAssignMode==='manual'&&d?.prodShiftId?(prodShifts||[]).find(s=>String(s?.id||'')===String(d.prodShiftId)):null;
+    const plannedShift=manualProdShift||getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
+    if(!plannedShift)return d;
+    const nextCtx=manualProdShift?{...ctx,prodShiftAssignMode:'manual',prodShiftId:manualProdShift.id}:{...ctx,prodShiftAssignMode:'auto',prodShiftId:plannedShift.id};
+    const autoTrip=autoTripForOrder(nextCtx,plannedShift);
+    return {...d,...(manualProdShift?{}:{prodShiftAssignMode:'auto',prodShiftId:plannedShift.id}),tripAssignMode:'auto',tripId:autoTrip?.id||null,status:autoTrip?'assigned':'pending'};
   };
   const syncTripOrderIds=nextOrders=>{
     let changed=false;
@@ -2151,7 +2152,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   });
   const statusCount=value=>value==='all'?statusScope.length:statusScope.filter(order=>order.status===value).length;
   const updateAutoProductionTimes=()=>{
-    const targetRowKeys=new Set(list.filter(o=>o.status!=='cancelled'&&o.tripAssignMode!=='manual'&&o.prodShiftAssignMode!=='manual').map(orderRowKey));
+    const targetRowKeys=new Set(list.filter(o=>o.status!=='cancelled'&&o.tripAssignMode!=='manual').map(orderRowKey));
     let changed=0,lineChanged=0,miss=0,timeChanged=0;
     const nextOrders=orders.map((o,index)=>{
       if(!targetRowKeys.has(allOrderRowKeys[index]))return o;
@@ -2160,6 +2161,15 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const deliveryTimeChanged=normalizedDeliveryTime!==rawDeliveryTime;
       if(deliveryTimeChanged)timeChanged++;
       const ctx=orderContext({...o,deliveryTime:normalizedDeliveryTime});
+      if(o.prodShiftAssignMode==='manual'){
+        const manualShift=o.prodShiftId?(prodShifts||[]).find(s=>String(s?.id||'')===String(o.prodShiftId)):null;
+        const autoTrip=autoTripForOrder(ctx,manualShift||undefined);
+        const nextTripId=autoTrip?.id||null;
+        const nextStatus=nextTripId?'assigned':'pending';
+        const touched=deliveryTimeChanged||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
+        if(touched)changed++;
+        return touched?{...o,deliveryTime:normalizedDeliveryTime,tripId:nextTripId,tripAssignMode:'auto',status:nextStatus,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:o;
+      }
       const autoShift=getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
       if(!autoShift){
         miss++;

@@ -666,7 +666,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     return String(o?.area||resolved?.point?.area||'').trim();
   };
   const orderMatchesNewAutomaticTrip=(o,trip)=>{
-    if(o?.tripAssignMode==='manual'||o?.prodShiftAssignMode==='manual'||!['pending','assigned'].includes(String(o?.status||'pending')))return false;
+    if(o?.tripAssignMode==='manual'||!['pending','assigned'].includes(String(o?.status||'pending')))return false;
     if(o?.tripId&&(trips||[]).some(t=>String(t.id||'')===String(o.tripId)))return false;
     if(String(getOrderTripDate(o,prodShifts||[])||'')!==String(trip?.deliveryDate||''))return false;
     const desiredId=String(getOrderTripShiftId(o,prodShifts||[])||'').trim();
