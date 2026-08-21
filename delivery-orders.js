@@ -2423,7 +2423,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   };
   const pacPackWeight=line=>{
     const product=(products||[]).find(p=>String(p.id||'')===String(line?.productId||''))||null;
-    const explicit=numFmt(product?.weightPerUnit)||numFmt(line?.weightPerUnit)||0;
+    const explicit=numFmt(product?.weightPerUnit)||numFmt(line?.weightPerUnit)||numFmt(product?.labelPackSize)||numFmt(line?.labelPackSize)||0;
     if(explicit>0)return explicit;
     const text=[line?.productName,product?.name,line?.customerProductName,product?.custName].filter(Boolean).join(' ').toUpperCase();
     const m=text.match(/(\d+(?:[.,]\d+)?)\s*KG\s*\/\s*PAC\b/);
@@ -2433,7 +2433,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const product=(products||[]).find(p=>String(p.id||'')===String(line?.productId||''))||null;
     const text=[line?.productName,product?.name,line?.customerProductName,product?.custName].filter(Boolean).join(' ').toUpperCase();
     const unit=String(line?.unit||product?.unit||'').trim().toLowerCase();
-    return text.includes('/PAC')||text.includes('KG/PAC')||(/\bpac\b/i.test(text)&&/gói|goi/i.test(unit));
+    return unit==='pac'||text.includes('/PAC')||text.includes('KG/PAC')||(/\bpac\b/i.test(text)&&/gói|goi/i.test(unit));
   };
   const splitLabelWeights=(totalKg,line)=>{
     const rule=labelPackRule(line);
@@ -2641,7 +2641,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(!labels.length){window.showToast('Đơn này chưa có số kg để in tem!','warn');return;}
     const pacLabels=labels.filter(it=>isPacPackageLine(it?.line));
     const classicLabels=labels.filter(it=>!isPacPackageLine(it?.line));
-    if(pacLabels.length&&classicLabels.length)window.showToast('Đơn này có cả tem PAC kho vận và tem thường. Hệ thống sẽ mở 2 cửa sổ in riêng.','ok');
+    if(pacLabels.length&&classicLabels.length)window.showToast('Đơn này có cả tem PAC kho vận 10x10 và tem thường. Hệ thống sẽ mở 2 cửa sổ in riêng.','ok');
     if(pacLabels.length)openLabelPrintWindow(pacLabels,[o],'pac');
     if(classicLabels.length)openLabelPrintWindow(classicLabels,[o],'classic');
   };
@@ -2652,7 +2652,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(!labels.length){window.showToast('Các đơn đã chọn chưa có dữ liệu để in tem!','warn');return;}
     const pacLabels=labels.filter(it=>isPacPackageLine(it?.line));
     const classicLabels=labels.filter(it=>!isPacPackageLine(it?.line));
-    if(pacLabels.length&&classicLabels.length)window.showToast('Danh sách đang có cả tem PAC kho vận và tem thường. Hệ thống sẽ mở 2 cửa sổ in riêng.','ok');
+    if(pacLabels.length&&classicLabels.length)window.showToast('Danh sách đang có cả tem PAC kho vận 10x10 và tem thường. Hệ thống sẽ mở 2 cửa sổ in riêng.','ok');
     if(pacLabels.length)openLabelPrintWindow(pacLabels,printOrders,'pac');
     if(classicLabels.length)openLabelPrintWindow(classicLabels,printOrders,'classic');
   };
