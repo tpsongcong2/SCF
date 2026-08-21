@@ -1973,9 +1973,14 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return '';
   };
   const tripDateOptionsForOrder=o=>[o?.deliveryDate,addDaysVN(o?.deliveryDate,-1),getOrderTripDate(o,prodShifts||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  const sameTripDate=(a,b)=>{
+    const av=toIsoDate(a),bv=toIsoDate(b);
+    if(av&&bv)return av===bv;
+    return String(a||'').trim()===String(b||'').trim();
+  };
   const tripOptionsForOrder=o=>{
-    const dateSet=new Set(tripDateOptionsForOrder(o));
-    return (trips||[]).filter(t=>!t.deliveryDate||dateSet.has(t.deliveryDate)||t.id===o.tripId);
+    const dates=tripDateOptionsForOrder(o);
+    return (trips||[]).filter(t=>!t.deliveryDate||dates.some(date=>sameTripDate(t.deliveryDate,date))||t.id===o.tripId);
   };
   const tripMatchesArea=(trip,area)=>!!area&&(sameArea(trip?.area,area)||sameArea(trip?.shiftName,area));
   const tripMatchesShift=(trip,shiftId,shiftName)=>{
@@ -1983,7 +1988,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const desiredName=normalizeLookupText(shiftName||'');
     const tripId=String(trip?.shiftId||'').trim();
     const tripName=normalizeLookupText(trip?.shiftName||'');
-    return (!!desiredId&&tripId===desiredId)|| (!!desiredName&&tripName===desiredName);
+    return (!!desiredId&&tripId===desiredId)|| (!!desiredName&&(tripName===desiredName||sameArea(trip?.shiftName,shiftName)));
   };
   const autoTripForOrder=o=>{
     const ctx=orderContext(o);
@@ -1993,13 +1998,16 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const area=getArea(ctx);
     const options=tripOptionsForOrder(ctx);
     if(!options.length||!preferredDate)return null;
-    // Ca SX đã cấu hình một ca giao hàng cụ thể thì phải ưu tiên tuyệt đối ca đó.
-    // Khu vực của điểm giao chỉ dùng làm phương án ghép khi ca SX không chỉ định ca giao.
+    // Ưu tiên ca giao đã cấu hình. Nếu dữ liệu cũ còn ID/tên ca không khớp,
+    // chỉ fallback sang chuyến cùng ngày và đúng khu vực của điểm giao.
     if(preferredShiftId||preferredShiftName){
-      const shiftOptions=options.filter(t=>tripMatchesShift(t,preferredShiftId,preferredShiftName));
-      const byDate=shiftOptions.filter(t=>t.deliveryDate===preferredDate);
-      if(!byDate.length)return null;
-      return [...byDate].sort((a,b)=>{
+      const byDate=options.filter(t=>sameTripDate(t.deliveryDate,preferredDate));
+      let candidates=byDate.filter(t=>tripMatchesShift(t,preferredShiftId,preferredShiftName));
+      if(!candidates.length&&area){
+        candidates=byDate.filter(t=>tripMatchesArea(t,area));
+      }
+      if(!candidates.length)return null;
+      return [...candidates].sort((a,b)=>{
         const currentScore=t=>String(t.id||'')===String(o.tripId||'')?20:0;
         return currentScore(b)-currentScore(a)||(String(a.id||'').localeCompare(String(b.id||''),'vi'));
       })[0]||null;

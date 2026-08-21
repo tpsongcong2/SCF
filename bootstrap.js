@@ -7,6 +7,6 @@ document.addEventListener('keydown',function(e){
 
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('./sw.js?v=5').catch(function(e){console.log('FACE MASK SW err:',e);});
+    navigator.serviceWorker.register('./sw.js?v=6').catch(function(e){console.log('FACE MASK SW err:',e);});
   });
 }
