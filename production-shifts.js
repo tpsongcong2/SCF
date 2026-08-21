@@ -221,17 +221,32 @@ function getOrderTripDate(order,prodShifts){
   if(offset===null||offset===undefined||Number.isNaN(offset))return '';
   return addDaysVN(order.deliveryDate,offset);
 }
+function resolveCurrentDeliveryShift(order,plannedShift){
+  const shifts=window.__SCF_SHIFTS||[];
+  const plannedId=String(plannedShift?.tripShiftId||'');
+  const byId=plannedId?shifts.find(s=>String(s?.id||'')===plannedId):null;
+  if(byId)return byId;
+  const resolved=findOrderPointMatch(order,window.__SCF_CUSTOMERS||[]);
+  const area=normalizeLookupText(order?.area||resolved?.point?.area||'');
+  if(!area)return null;
+  return shifts.find(s=>normalizeLookupText(s?.name||'')===area)
+    ||shifts.find(s=>normalizeLookupText(s?.area||'')===area)
+    ||null;
+}
 function getOrderTripShiftId(order,prodShifts){
   const manualShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):null;
   const autoShift=getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
-  return String((manualShift||autoShift)?.tripShiftId||'');
+  const plannedShift=manualShift||autoShift;
+  return String(resolveCurrentDeliveryShift(order,plannedShift)?.id||plannedShift?.tripShiftId||'');
 }
 function getOrderTripShiftName(order,prodShifts){
   const manualShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId?(prodShifts||[]).find(s=>s.id===order.prodShiftId):null;
   const autoShift=getProdShiftForOrder(order,prodShifts||[],window.__SCF_CUSTOMERS||[]);
   const plannedShift=manualShift||autoShift;
-  const currentShift=(window.__SCF_SHIFTS||[]).find(s=>String(s?.id||'')===String(plannedShift?.tripShiftId||''));
-  return String(currentShift?.name||plannedShift?.tripShiftName||'');
+  const currentShift=resolveCurrentDeliveryShift(order,plannedShift);
+  const resolved=findOrderPointMatch(order,window.__SCF_CUSTOMERS||[]);
+  const area=String(order?.area||resolved?.point?.area||'');
+  return String(currentShift?.name||area||plannedShift?.tripShiftName||'');
 }
 function prodShiftDisplay(sh){
   if(!sh)return sh;
