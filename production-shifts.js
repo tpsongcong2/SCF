@@ -225,6 +225,9 @@ function resolveCurrentDeliveryShift(order,plannedShift){
   const shifts=window.__SCF_SHIFTS||[];
   const plannedId=String(plannedShift?.tripShiftId||'');
   const byId=plannedId?shifts.find(s=>String(s?.id||'')===plannedId):null;
+  const plannedName=normalizeLookupText(plannedShift?.tripShiftName||'');
+  const byName=plannedName?shifts.find(s=>normalizeLookupText(s?.name||'')===plannedName):null;
+  if(byName)return byName;
   if(byId)return byId;
   const resolved=findOrderPointMatch(order,window.__SCF_CUSTOMERS||[]);
   const area=normalizeLookupText(order?.area||resolved?.point?.area||'');
@@ -323,7 +326,12 @@ function ProdShiftsTab({prodShifts,setProdShifts,prodShiftRules,setProdShiftRule
     const base={...empty,...sh,name:(sh?.name||'').toLowerCase().includes('ngày')?'Ca sáng':(sh?.name||'')};
     const start=sh?.orderTimeFrom||sh?.startTime||sh?.orderTime||'';
     const end=sh?.orderTimeTo||sh?.endTime||sh?.orderTime||start;
-    return prodShiftDisplay({...base,orderTime:sh?.orderTime||start,startTime:start,endTime:end,actualProdTime:sh?.actualProdTime||'',prodDateOffset:Number(sh?.prodDateOffset??0),tripDateOffset:Number(sh?.tripDateOffset??0),tripShiftId:String(sh?.tripShiftId||''),tripShiftName:String(sh?.tripShiftName||''),labelPrintTime:sh?.labelPrintTime||'',labelPrintDateOffset:Number(sh?.labelPrintDateOffset??0)});
+    const storedTripShiftId=String(sh?.tripShiftId||'');
+    const storedTripShiftName=String(sh?.tripShiftName||'');
+    const tripShiftByName=storedTripShiftName?(shifts||[]).find(s=>normalizeLookupText(s?.name||'')===normalizeLookupText(storedTripShiftName)):null;
+    const tripShiftById=storedTripShiftId?(shifts||[]).find(s=>String(s?.id||'')===storedTripShiftId):null;
+    const currentTripShift=tripShiftByName||tripShiftById;
+    return prodShiftDisplay({...base,orderTime:sh?.orderTime||start,startTime:start,endTime:end,actualProdTime:sh?.actualProdTime||'',prodDateOffset:Number(sh?.prodDateOffset??0),tripDateOffset:Number(sh?.tripDateOffset??0),tripShiftId:String(currentTripShift?.id||storedTripShiftId),tripShiftName:String(currentTripShift?.name||storedTripShiftName),labelPrintTime:sh?.labelPrintTime||'',labelPrintDateOffset:Number(sh?.labelPrintDateOffset??0)});
   };
   const orderTimeText=sh=>{
     const r=normalize(sh);

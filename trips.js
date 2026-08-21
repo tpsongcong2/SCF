@@ -656,6 +656,26 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
   const lineQty=l=>numFmt(l.qtyInvoice)||numFmt(l.qtyProd)||numFmt(l.qty)||numFmt(l.quantity)||0;
   const lineWeight=l=>{const prod=products?.find(p=>p.id===l.productId);const unit=String(l.unit||prod?.unit||'').trim().toLowerCase().replace(/[^a-z]/g,'');const qty=lineQty(l);if(unit==='kg'||unit==='kgs'||unit==='kilogram'||unit==='kilograms')return qty;const wpu=prod?.weightPerUnit||numFmt(l.weightPerUnit)||0;return wpu*qty;};
   const orderWeight=o=>(o.lines||[]).reduce((s,l)=>s+lineWeight(l),0);
+  const tripMatchKey=v=>String(v||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/[^a-z0-9]+/g,'');
+  const sameTripRoute=(a,b)=>{
+    const ak=tripMatchKey(a),bk=tripMatchKey(b);
+    return !!ak&&!!bk&&(ak===bk||ak.includes(bk)||bk.includes(ak));
+  };
+  const orderArea=o=>{
+    const resolved=findOrderPointMatch(o,customers||[]);
+    return String(o?.area||resolved?.point?.area||'').trim();
+  };
+  const orderMatchesNewAutomaticTrip=(o,trip)=>{
+    if(o?.tripAssignMode==='manual'||o?.prodShiftAssignMode==='manual'||!['pending','assigned'].includes(String(o?.status||'pending')))return false;
+    if(o?.tripId&&(trips||[]).some(t=>String(t.id||'')===String(o.tripId)))return false;
+    if(String(getOrderTripDate(o,prodShifts||[])||'')!==String(trip?.deliveryDate||''))return false;
+    const desiredId=String(getOrderTripShiftId(o,prodShifts||[])||'').trim();
+    const desiredName=getOrderTripShiftName(o,prodShifts||[]);
+    if(desiredId&&desiredId===String(trip?.shiftId||''))return true;
+    if(desiredName&&sameTripRoute(desiredName,trip?.shiftName))return true;
+    const area=orderArea(o);
+    return !!area&&(sameTripRoute(area,trip?.area)||sameTripRoute(area,trip?.shiftName));
+  };
   const deliveryOrderValue=o=>numFmt(o.deliveryOrder??o.deliverySeq??o.deliveryIndex);
   const sortedTripOrders=trip=>orders.filter(o=>(trip.orderIds||[]).includes(o.id)).sort((a,b)=>{
     const av=deliveryOrderValue(a),bv=deliveryOrderValue(b);
@@ -907,13 +927,19 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     let id=baseId;let seq=2;
     while(trips.find(t=>t.id===id)){id=baseId+'_'+seq;seq++;}
     const stamp=fmtDT();
-    setTrips(p=>[...p,{
+    const draftTrip={
       id,deliveryDate:dateVN,deliveryTime:sh.timeStart||sh.startTime||'',
       shiftId:sh.id,shiftName:sh.name||sh.id,area:sh.area||'',
-      driverName:sh.defaultDriverName||'',driverId:sh.defaultDriverId||'',driverAssignMode:sh.defaultDriverId||sh.defaultDriverName?'auto':'',orderIds:[],totalWeight:0,
+      driverName:sh.defaultDriverName||'',driverId:sh.defaultDriverId||'',driverAssignMode:sh.defaultDriverId||sh.defaultDriverName?'auto':'',
       status:sh.defaultDriverId||sh.defaultDriverName?'assigned':'planning',note:'',driverWork:0,weightRate:0,tripAllowance:0,
       attendanceStatus:'pending',createdAt:stamp,updatedBy:currentUser.name,updatedAt:stamp
-    }]);
+    };
+    const matchedOrders=(orders||[]).filter(o=>orderMatchesNewAutomaticTrip(o,draftTrip));
+    const matchedIds=matchedOrders.map(o=>o.id);
+    const newTrip={...draftTrip,orderIds:matchedIds,totalWeight:matchedOrders.reduce((sum,o)=>sum+orderWeight(o),0)};
+    setTrips(p=>[...p,newTrip]);
+    if(matchedIds.length)setOrders(p=>p.map(o=>matchedIds.includes(o.id)?{...o,tripId:id,tripAssignMode:'auto',status:'assigned',updatedAt:stamp,updatedBy:currentUser.name}:o));
+    window.showToast('Đã tạo chuyến '+id+(matchedIds.length?' và tự xếp '+matchedIds.length+' đơn phù hợp.':'. Chưa có đơn tự động phù hợp.'),matchedIds.length?'success':'info',6000);
     so(id);
   };
   const printTrip=trip=>{

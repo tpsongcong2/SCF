@@ -1917,8 +1917,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return changes.length?changes:['Đã lưu lại nội dung đơn hàng'];
   };
   const save=d=>{
-    if(edit){const updated={...d,id:edit.id,orderHistory:[...(edit.orderHistory||[]),historyEntry('Cập nhật đơn hàng',orderChanges(edit,d))],updatedAt:fmtDT(),updatedBy:currentUser?.name||''};applyOrdersAndTripSync(p=>p.map(x=>x.id===edit.id?updated:x));notifyDriverOrderChange({...edit,...updated,id:edit.id},'Đơn hàng trong chuyến đã được cập nhật');}
-    else{const datePart=(d.deliveryDate||fmtDate()).split('/').slice(0,2).join('');const id='DGH'+datePart+String(oSeq++).toString().padStart(3,'0');const clean={...d};delete clean.copySourceId;const created={...clean,id,createdAt:fmtDate(),createdBy:currentUser?.name||'',orderHistory:[historyEntry(copyDraft?'Tạo đơn từ bản sao':'Tạo đơn hàng',[(copyDraft?'Sao chép từ đơn '+copyDraft.copySourceId+'. ':'')+'Địa điểm: '+(clean.pointName||clean.customer||'—'),'Hàng hóa: '+(lineText(clean)||'—')])]};applyOrdersAndTripSync(p=>[...p,created]);if(copyDraft)window.showToast('Đã tạo đơn mới từ bản sao '+copyDraft.copySourceId+'.','success');}
+    const planned=prepareAutomaticTripForSave(d);
+    if(edit){const updated={...planned,id:edit.id,orderHistory:[...(edit.orderHistory||[]),historyEntry('Cập nhật đơn hàng',orderChanges(edit,planned))],updatedAt:fmtDT(),updatedBy:currentUser?.name||''};applyOrdersAndTripSync(p=>p.map(x=>x.id===edit.id?updated:x));notifyDriverOrderChange({...edit,...updated,id:edit.id},'Đơn hàng trong chuyến đã được cập nhật');}
+    else{const datePart=(planned.deliveryDate||fmtDate()).split('/').slice(0,2).join('');const id='DGH'+datePart+String(oSeq++).toString().padStart(3,'0');const clean={...planned};delete clean.copySourceId;const created={...clean,id,createdAt:fmtDate(),createdBy:currentUser?.name||'',orderHistory:[historyEntry(copyDraft?'Tạo đơn từ bản sao':'Tạo đơn hàng',[(copyDraft?'Sao chép từ đơn '+copyDraft.copySourceId+'. ':'')+'Địa điểm: '+(clean.pointName||clean.customer||'—'),'Hàng hóa: '+(lineText(clean)||'—')])]};applyOrdersAndTripSync(p=>[...p,created]);if(copyDraft)window.showToast('Đã tạo đơn mới từ bản sao '+copyDraft.copySourceId+'.','success');}
     sm(null);se(null);setCopyDraft(null);
   };
   const copyOrder=order=>{
@@ -1990,11 +1991,15 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const tripName=normalizeLookupText(trip?.shiftName||'');
     return (!!desiredId&&tripId===desiredId)|| (!!desiredName&&(tripName===desiredName||sameArea(trip?.shiftName,shiftName)));
   };
-  const autoTripForOrder=o=>{
+  const autoTripForOrder=(o,plannedProdShift)=>{
     const ctx=orderContext(o);
-    const preferredDate=getOrderTripDate(ctx,prodShifts||[])||'';
-    const preferredShiftId=getOrderTripShiftId(ctx,prodShifts||[]);
-    const preferredShiftName=getOrderTripShiftName(ctx,prodShifts||[]);
+    const preferredDate=plannedProdShift
+      ?addDaysVN(ctx.deliveryDate,Number(plannedProdShift.tripDateOffset??0))
+      :(getOrderTripDate(ctx,prodShifts||[])||'');
+    const configuredShiftId=String(plannedProdShift?.tripShiftId||'').trim();
+    const configuredShift=(shifts||[]).find(s=>String(s?.id||'')===configuredShiftId);
+    const preferredShiftId=String(configuredShift?.id||configuredShiftId||getOrderTripShiftId(ctx,prodShifts||[])||'');
+    const preferredShiftName=String(configuredShift?.name||plannedProdShift?.tripShiftName||getOrderTripShiftName(ctx,prodShifts||[])||'');
     const area=getArea(ctx);
     const options=tripOptionsForOrder(ctx);
     if(!options.length||!preferredDate)return null;
@@ -2038,6 +2043,15 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       if(byDate)return byDate;
       return String(a.id||'').localeCompare(String(b.id||''),'vi');
     })[0]||null;
+  };
+  const prepareAutomaticTripForSave=d=>{
+    if(d?.tripAssignMode==='manual'||d?.prodShiftAssignMode==='manual'||!['pending','assigned',''].includes(String(d?.status||'')))return d;
+    const ctx=orderContext(d);
+    const autoShift=getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
+    if(!autoShift)return d;
+    const nextCtx={...ctx,prodShiftAssignMode:'auto',prodShiftId:autoShift.id};
+    const autoTrip=autoTripForOrder(nextCtx,autoShift);
+    return {...d,prodShiftAssignMode:'auto',prodShiftId:autoShift.id,tripAssignMode:'auto',tripId:autoTrip?.id||null,status:autoTrip?'assigned':'pending'};
   };
   const syncTripOrderIds=nextOrders=>{
     let changed=false;
@@ -2158,7 +2172,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const autoLabelTime=autoShift.labelPrintTime||'';
       const autoLabelDate=addDaysVN(o.deliveryDate,autoShift.labelPrintDateOffset||0);
       const nextCtx={...ctx,area:ctx.area||'',prodShiftAssignMode:'auto',prodShiftId:autoShift.id};
-      const autoTrip=autoTripForOrder(nextCtx);
+      const autoTrip=autoTripForOrder(nextCtx,autoShift);
       const nextTripId=autoTrip?.id||null;
       const nextStatus=nextTripId?'assigned':'pending';
       let touched=deliveryTimeChanged||o.prodShiftAssignMode!=='auto'||o.prodShiftId!==autoShift.id||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
