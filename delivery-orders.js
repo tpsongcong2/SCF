@@ -1983,7 +1983,11 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const dates=tripDateOptionsForOrder(o);
     return (trips||[]).filter(t=>!t.deliveryDate||dates.some(date=>sameTripDate(t.deliveryDate,date))||t.id===o.tripId);
   };
-  const tripMatchesArea=(trip,area)=>!!area&&(sameArea(trip?.area,area)||sameArea(trip?.shiftName,area));
+  const tripMatchesArea=(trip,area)=>{
+    if(!area)return false;
+    if(sameArea(trip?.area,area)||sameArea(trip?.shiftName,area))return true;
+    return (orders||[]).some(order=>String(order?.tripId||'')===String(trip?.id||'')&&sameArea(getArea(orderContext(order)),area));
+  };
   const tripMatchesShift=(trip,shiftId,shiftName)=>{
     const desiredId=String(shiftId||'').trim();
     const desiredName=normalizeLookupText(shiftName||'');
@@ -1997,7 +2001,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       ?addDaysVN(ctx.deliveryDate,Number(plannedProdShift.tripDateOffset??0))
       :(getOrderTripDate(ctx,prodShifts||[])||'');
     const configuredShiftId=String(plannedProdShift?.tripShiftId||'').trim();
-    const configuredShift=(shifts||[]).find(s=>String(s?.id||'')===configuredShiftId);
+    const configuredShiftName=normalizeLookupText(plannedProdShift?.tripShiftName||'');
+    const configuredShiftByName=configuredShiftName?(shifts||[]).find(s=>normalizeLookupText(s?.name||'')===configuredShiftName):null;
+    const configuredShiftById=configuredShiftId?(shifts||[]).find(s=>String(s?.id||'')===configuredShiftId):null;
+    const configuredShift=configuredShiftByName||configuredShiftById;
     const preferredShiftId=String(configuredShift?.id||configuredShiftId||getOrderTripShiftId(ctx,prodShifts||[])||'');
     const preferredShiftName=String(configuredShift?.name||plannedProdShift?.tripShiftName||getOrderTripShiftName(ctx,prodShifts||[])||'');
     const area=getArea(ctx);
@@ -2153,7 +2160,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const statusCount=value=>value==='all'?statusScope.length:statusScope.filter(order=>order.status===value).length;
   const updateAutoProductionTimes=()=>{
     const targetRowKeys=new Set(list.filter(o=>o.status!=='cancelled'&&o.tripAssignMode!=='manual').map(orderRowKey));
-    let changed=0,lineChanged=0,miss=0,timeChanged=0;
+    let changed=0,lineChanged=0,miss=0,tripMiss=0,timeChanged=0;
     const nextOrders=orders.map((o,index)=>{
       if(!targetRowKeys.has(allOrderRowKeys[index]))return o;
       const rawDeliveryTime=String(o.deliveryTime??'').trim();
@@ -2165,6 +2172,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         const manualShift=o.prodShiftId?(prodShifts||[]).find(s=>String(s?.id||'')===String(o.prodShiftId)):null;
         const autoTrip=autoTripForOrder(ctx,manualShift||undefined);
         const nextTripId=autoTrip?.id||null;
+        if(!nextTripId)tripMiss++;
         const nextStatus=nextTripId?'assigned':'pending';
         const touched=deliveryTimeChanged||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
         if(touched)changed++;
@@ -2184,6 +2192,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const nextCtx={...ctx,area:ctx.area||'',prodShiftAssignMode:'auto',prodShiftId:autoShift.id};
       const autoTrip=autoTripForOrder(nextCtx,autoShift);
       const nextTripId=autoTrip?.id||null;
+      if(!nextTripId)tripMiss++;
       const nextStatus=nextTripId?'assigned':'pending';
       let touched=deliveryTimeChanged||o.prodShiftAssignMode!=='auto'||o.prodShiftId!==autoShift.id||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
       const lines=(o.lines||[]).map(l=>{
@@ -2197,12 +2206,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     });
     if(changed){
       applyOrdersAndTripSync(nextOrders);
-      window.showToast((timeChanged?'Đã chuẩn hóa giờ cho '+timeChanged+' đơn. ':'')+'Đã cập nhật tự động ca SX, ngày SX, giờ SX, ngày in tem, giờ in tem và chuyến xe cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':''),'success',7000);
+      window.showToast((timeChanged?'Đã chuẩn hóa giờ cho '+timeChanged+' đơn. ':'')+'Đã cập nhật tự động ca SX, ngày SX, giờ SX, ngày in tem, giờ in tem và chuyến xe cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':'')+(tripMiss?'. '+tripMiss+' đơn chưa tìm thấy chuyến phù hợp.':''),'success',7000);
       return;
     }
     window.showToast(miss
       ?'Không cập nhật được: '+miss+' đơn chưa tìm thấy cấu hình ca SX phù hợp.'
-      :'Dữ liệu ca SX và chuyến xe đã đúng, không có thay đổi cần đồng bộ.','info',7000);
+      :(tripMiss?'Không cập nhật được: '+tripMiss+' đơn đã có ca SX nhưng chưa tìm thấy chuyến cùng ngày/ca/khu vực.':'Dữ liệu ca SX và chuyến xe đã đúng, không có thay đổi cần đồng bộ.'),tripMiss?'warn':'info',7000);
   };
   const orderLineQty=l=>numFmt(l.qtyInvoice)||numFmt(l.qtyProd)||numFmt(l.qty)||numFmt(l.quantity)||0;
   const orderLineWeight=l=>{
