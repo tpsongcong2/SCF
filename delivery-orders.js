@@ -1408,6 +1408,8 @@ function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
 function IntemTab({products,company}){
   const printableProducts=(products||[]).filter(Boolean).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi'));
   const [productId,setProductId]=useState(printableProducts[0]?.id||'');
+  const [productGroup,setProductGroup]=useState('all');
+  const [productSearch,setProductSearch]=useState('');
   const [templateType,setTemplateType]=useState('58x40');
   const [prodDate,setProdDate]=useState(isoDate());
   const [prodTime,setProdTime]=useState(shortTime(timeNow()));
@@ -1419,6 +1421,25 @@ function IntemTab({products,company}){
   const [sendingToAgent,setSendingToAgent]=useState(false);
   useEffect(()=>{if(!productId&&printableProducts[0]?.id)setProductId(printableProducts[0].id);},[productId,printableProducts]);
   const selectedProduct=printableProducts.find(p=>String(p.id||'')===String(productId||''))||null;
+  const productGroupOf=product=>{
+    const code=String(product?.code||'').trim().toUpperCase();
+    if(code.startsWith('TP'))return 'TP';
+    if(code.startsWith('HH'))return 'HH';
+    return 'OTHER';
+  };
+  const productSearchTerms=normalizeLookupText(productSearch).split(/s+/).filter(Boolean);
+  const filteredPrintableProducts=printableProducts.filter(product=>{
+    if(productGroup!=='all'&&productGroupOf(product)!==productGroup)return false;
+    const haystack=normalizeLookupText([product.code,product.name,product.custName,product.unit].filter(Boolean).join(' '));
+    return productSearchTerms.every(term=>haystack.includes(term));
+  });
+  const selectedOutsideFilter=!!selectedProduct&&!filteredPrintableProducts.some(product=>String(product.id||'')===String(productId||''));
+  const chooseProductGroup=group=>{
+    setProductGroup(group);
+    setProductSearch('');
+    const first=printableProducts.find(product=>group==='all'||productGroupOf(product)===group);
+    setProductId(first?.id||'');
+  };
   const selectedProductText=[selectedProduct?.name,selectedProduct?.custName,selectedProduct?.unit].filter(Boolean).join(' ').toUpperCase();
   const isPacProduct=selectedProductText.includes('/PAC')||selectedProductText.includes('KG/PAC')||(/\bPAC\b/i.test(selectedProductText)&&/GÓI|GOI/i.test(selectedProductText));
   const labelRule=resolveProductLabelPackRule(selectedProduct,selectedProduct?.name||'');
@@ -1704,10 +1725,16 @@ function IntemTab({products,company}){
       ),
       h('div',{className:'g2'},
         h(F,{label:'Sản phẩm'},
+          h('div',{style:{display:'flex',gap:6,marginBottom:7,flexWrap:'wrap'}},
+            [['all','Tất cả'],['TP','TP'],['HH','HH']].map(([value,label])=>h('button',{key:value,type:'button',onClick:()=>chooseProductGroup(value),style:{padding:'5px 12px',borderRadius:999,border:'1px solid '+(productGroup===value?'var(--pri)':'var(--bd)'),background:productGroup===value?'var(--pri)':'#fff',color:productGroup===value?'#fff':'var(--tx)',fontWeight:600,cursor:'pointer'}},label))
+          ),
+          h('input',{value:productSearch,onChange:e=>setProductSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&filteredPrintableProducts[0]){e.preventDefault();setProductId(filteredPrintableProducts[0].id);}},placeholder:'Gõ mã hoặc tên sản phẩm...',style:{marginBottom:7}}),
           h('select',{value:productId,onChange:e=>setProductId(e.target.value)},
-            h('option',{value:''},'— Chọn sản phẩm —'),
-            printableProducts.map(p=>h('option',{key:p.id,value:p.id},p.code?(p.code+' - '+p.name):p.name))
-          )
+            h('option',{value:''},filteredPrintableProducts.length?'— Chọn sản phẩm —':'— Không tìm thấy sản phẩm —'),
+            selectedOutsideFilter&&selectedProduct&&h('option',{value:selectedProduct.id},(selectedProduct.code?selectedProduct.code+' - ':'')+selectedProduct.name+' (đang chọn)'),
+            filteredPrintableProducts.map(p=>h('option',{key:p.id,value:p.id},p.code?(p.code+' - '+p.name):p.name))
+          ),
+          h('div',{style:{fontSize:11,color:'var(--tx2)',marginTop:5}},filteredPrintableProducts.length+' sản phẩm phù hợp · Nhấn Enter để chọn kết quả đầu tiên')
         ),
         h(F,{label:'Mẫu tem'},
           h('select',{value:templateType,onChange:e=>setTemplateType(e.target.value)},
