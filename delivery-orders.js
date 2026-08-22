@@ -1409,6 +1409,7 @@ function IntemTab({products,company}){
   const printableProducts=(products||[]).filter(Boolean).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi'));
   const [productId,setProductId]=useState(printableProducts[0]?.id||'');
   const [productGroup,setProductGroup]=useState('all');
+  const [goodsGroupFilter,setGoodsGroupFilter]=useState('all');
   const [productSearch,setProductSearch]=useState('');
   const [templateType,setTemplateType]=useState('58x40');
   const [prodDate,setProdDate]=useState(isoDate());
@@ -1427,17 +1428,29 @@ function IntemTab({products,company}){
     if(code.startsWith('HH'))return 'HH';
     return 'OTHER';
   };
-  const productSearchTerms=normalizeLookupText(productSearch).split(/s+/).filter(Boolean);
+  const productSearchTerms=normalizeLookupText(productSearch).split(/\s+/).filter(Boolean);
+  const goodsGroupOptions=[...new Set(printableProducts.filter(product=>productGroupOf(product)==='HH').map(product=>String(product?.goodsGroup||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
   const filteredPrintableProducts=printableProducts.filter(product=>{
     if(productGroup!=='all'&&productGroupOf(product)!==productGroup)return false;
+    if(productGroup==='HH'&&goodsGroupFilter!=='all'){
+      const group=String(product?.goodsGroup||'').trim();
+      if(goodsGroupFilter==='__ungrouped__'?!!group:normalizeLookupText(group)!==normalizeLookupText(goodsGroupFilter))return false;
+    }
     const haystack=normalizeLookupText([product.code,product.name,product.custName,product.unit].filter(Boolean).join(' '));
     return productSearchTerms.every(term=>haystack.includes(term));
   });
   const selectedOutsideFilter=!!selectedProduct&&!filteredPrintableProducts.some(product=>String(product.id||'')===String(productId||''));
   const chooseProductGroup=group=>{
     setProductGroup(group);
+    setGoodsGroupFilter('all');
     setProductSearch('');
     const first=printableProducts.find(product=>group==='all'||productGroupOf(product)===group);
+    setProductId(first?.id||'');
+  };
+  const chooseGoodsGroup=group=>{
+    setGoodsGroupFilter(group);
+    setProductSearch('');
+    const first=printableProducts.find(product=>productGroupOf(product)==='HH'&&(group==='all'||(group==='__ungrouped__'?!String(product?.goodsGroup||'').trim():normalizeLookupText(product?.goodsGroup||'')===normalizeLookupText(group))));
     setProductId(first?.id||'');
   };
   const selectedProductText=[selectedProduct?.name,selectedProduct?.custName,selectedProduct?.unit].filter(Boolean).join(' ').toUpperCase();
@@ -1727,6 +1740,11 @@ function IntemTab({products,company}){
         h(F,{label:'Sản phẩm'},
           h('div',{style:{display:'flex',gap:6,marginBottom:7,flexWrap:'wrap'}},
             [['all','Tất cả'],['TP','TP'],['HH','HH']].map(([value,label])=>h('button',{key:value,type:'button',onClick:()=>chooseProductGroup(value),style:{padding:'5px 12px',borderRadius:999,border:'1px solid '+(productGroup===value?'var(--pri)':'var(--bd)'),background:productGroup===value?'var(--pri)':'#fff',color:productGroup===value?'#fff':'var(--tx)',fontWeight:600,cursor:'pointer'}},label))
+          ),
+          productGroup==='HH'&&h('select',{value:goodsGroupFilter,onChange:e=>chooseGoodsGroup(e.target.value),style:{marginBottom:7}},
+            h('option',{value:'all'},'— Tất cả nhóm HH —'),
+            goodsGroupOptions.map(group=>h('option',{key:group,value:group},group)),
+            h('option',{value:'__ungrouped__'},'Chưa phân nhóm')
           ),
           h('input',{value:productSearch,onChange:e=>setProductSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&filteredPrintableProducts[0]){e.preventDefault();setProductId(filteredPrintableProducts[0].id);}},placeholder:'Gõ mã hoặc tên sản phẩm...',style:{marginBottom:7}}),
           h('select',{value:productId,onChange:e=>setProductId(e.target.value)},
