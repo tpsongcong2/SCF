@@ -1355,8 +1355,14 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
 }
 function BackupTab({employees,materials,assets,garages,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,goodsPurchases,depts,prodShiftRules,uiSettings,printTemplateSettings,financeEntries,financeDebts,financeOpenings}){
   function exp(rows,cols,name){const data=rows.map(r=>Object.fromEntries(cols.map(([k,l])=>[l,r[k]??''])));const ws=XLSX.utils.json_to_sheet(data);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name);XLSX.writeFile(wb,name+'_'+fmtDate().replace(/\//g,'-')+'.xlsx');}
-  const purchaseRows=(purchases||[]).flatMap(p=>(p.lines&&p.lines.length?p.lines:[{}]).map(l=>({...p,itemName:l.name||'',itemUnit:l.unit||'',itemQty:l.qty||0,itemPrice:l.price||0,itemTotal:(l.qty||0)*(l.price||0),lineNote:l.note||''})));
-  const goodsPurchaseRows=(goodsPurchases||[]).flatMap(p=>(p.lines&&p.lines.length?p.lines:[{}]).map(l=>({...p,itemName:l.name||'',itemUnit:l.unit||'',itemQty:l.qty||0,itemPrice:l.price||0,itemTotal:(l.qty||0)*(l.price||0),lineNote:l.note||''})));
+  const backupPurchaseLine=l=>{
+    const itemTotal=(Number(l.qty)||0)*(Number(l.price)||0);
+    const itemVatPercent=Math.min(100,Math.max(0,Number(l.vatPercent)||0));
+    const itemVatAmount=Math.round(itemTotal*itemVatPercent/100);
+    return {itemName:l.name||'',itemUnit:l.unit||'',itemQty:l.qty||0,itemPrice:l.price||0,itemTotal,itemVatPercent,itemVatAmount,itemAmountAfterTax:itemTotal+itemVatAmount,lineNote:l.note||''};
+  };
+  const purchaseRows=(purchases||[]).flatMap(p=>(p.lines&&p.lines.length?p.lines:[{}]).map(l=>({...p,...backupPurchaseLine(l)})));
+  const goodsPurchaseRows=(goodsPurchases||[]).flatMap(p=>(p.lines&&p.lines.length?p.lines:[{}]).map(l=>({...p,...backupPurchaseLine(l)})));
   const safeUi=normalizeUiSettings(uiSettings);
   const safeTemplateSettings=normalizePrintTemplateSettings(printTemplateSettings);
   const uiBackupRows=[{
@@ -1405,8 +1411,8 @@ function BackupTab({employees,materials,assets,garages,prodCats,products,custome
     {name:'Mẫu in Excel',rows:printTemplateRows,cols:[['type','Loại mẫu'],['scopeName','Đối tượng áp dụng'],['fileName','Tên file'],['sheetNames','Sheet'],['variableCount','Số biến'],['mappedCount','Đã mapping'],['uploadedAt','Cập nhật']]},
     {name:'Ca SX nhỏ',rows:prodShiftRules||[],cols:[['name','Tên ca'],['group','Ca lớn'],['start','Từ giờ'],['end','Đến giờ'],['active','Hoạt động']]},
     {name:'Nhà cung cấp',rows:nccs||[],cols:[['code','Mã NCC'],['name','Tên NCC'],['taxCode','MST'],['phone','Điện thoại'],['email','Email'],['contact','Người LH'],['address','Địa chỉ'],['note','Ghi chú']]},
-    {name:'Đơn mua NVL',rows:purchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
-    {name:'Đơn mua hàng hóa',rows:goodsPurchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
+    {name:'Đơn mua NVL',rows:purchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['itemVatPercent','VAT (%)'],['itemVatAmount','Tiền VAT'],['itemAmountAfterTax','Thành tiền VAT'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
+    {name:'Đơn mua hàng hóa',rows:goodsPurchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['itemVatPercent','VAT (%)'],['itemVatAmount','Tiền VAT'],['itemAmountAfterTax','Thành tiền VAT'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
     {name:'Sổ thu chi',rows:financeEntries||[],cols:[['id','Mã'],['date','Ngày'],['direction','Tiền vào/ra'],['category','Nhóm thu chi'],['partnerName','Đối tượng'],['method','Phương thức'],['amount','Số tiền'],['pnlType','Phân loại KQKD'],['reference','Chứng từ'],['note','Ghi chú']]},
     {name:'Công nợ',rows:financeDebts||[],cols:[['id','Mã'],['kind','Loại'],['partnerName','Đối tượng'],['date','Ngày ghi nhận'],['dueDate','Hạn thanh toán'],['invoiceNo','Chứng từ'],['amount','Giá trị'],['paidAmount','Đã thanh toán'],['status','Trạng thái'],['note','Ghi chú']]},
     {name:'Số dư đầu tháng',rows:financeOpenings||[],cols:[['month','Tháng'],['cash','Tiền mặt'],['bank','Ngân hàng'],['updatedBy','Người cập nhật'],['updatedAt','Cập nhật lúc']]},
