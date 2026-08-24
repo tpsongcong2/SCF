@@ -45,7 +45,7 @@ function TripForm({trip,orders,employees,shifts,customers,products,currentUser,o
   const allCusts=[...new Set(availOrders.map(o=>o.customerId).filter(Boolean))].map(id=>customers?.find(c=>c.id===id)).filter(Boolean);
   const allFilteredChecked=filteredOrders.length>0&&filteredOrders.every(o=>(f.orderIds||[]).includes(o.id));
   const someFilteredChecked=filteredOrders.some(o=>(f.orderIds||[]).includes(o.id))&&!allFilteredChecked;
-  const isStarted=['active','completion_pending','completed'].includes(f.status);
+  const isStarted=!!trip?.driverDispatchedAt||['active','completion_pending','completed'].includes(f.status);
 
   return h(Modal,{title:trip?'Sửa chuyến '+trip.id:'Tạo chuyến giao hàng',onClose,lg:true},
     h('div',{className:'g2'},

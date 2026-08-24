@@ -1289,6 +1289,7 @@ function PurchaseReportTab({purchases,goodsPurchases,nccs}) {
   const inRange=d=>{const dt2=parseDate(d);if(!dt2)return false;if(periodMode==='month')return !month||(dt2.getFullYear()===Number(month.slice(0,4))&&dt2.getMonth()+1===Number(month.slice(5,7)));const f2=df?parseDate(df):null;const t=dt?parseDate(dt):null;if(f2&&dt2<f2)return false;if(t&&dt2>t)return false;return true;};
   const filtered=allPurchases.filter(p=>inRange(p.orderDate||p.createdAt||p.updatedAt)&&(purchaseType==='all'||p.purchaseType===purchaseType)&&(!ncc||p.nccId===ncc)&&(status==='all'||p.status===status));
   const active=filtered.filter(p=>p.status!=='cancelled');
+  const totalBeforeVat=active.reduce((s,p)=>s+(p.lines||[]).reduce((s2,l)=>s2+purchaseSubtotal(l),0),0);
   const totalAmt=active.reduce((s,p)=>s+(p.lines||[]).reduce((s2,l)=>s2+purchaseAmountAfterVat(l),0),0);
   const totalItems=active.reduce((s,p)=>s+(p.lines||[]).reduce((s2,l)=>s2+(Number(l.qty)||0),0),0);
   const detailRows=active.flatMap(p=>(p.lines||[]).map(l=>({id:p.id,purchaseType:p.purchaseType,purchaseTypeLabel:p.purchaseType==='goods'?'Hàng hóa':'NVL',nccName:p.nccName,orderDate:p.orderDate,deliveryDate:p.deliveryDate,receivedDate:p.receivedDate||'',invoiceNo:p.invoiceNo||'',status:p.status,itemName:l.name||'',unit:l.unit||'',qty:Number(l.qty)||0,price:Number(l.price)||0,total:purchaseSubtotal(l),vatPercent:purchaseVatPercent(l),vatAmount:purchaseVatAmount(l),amountAfterTax:purchaseAmountAfterVat(l)})));
@@ -1327,6 +1328,7 @@ function PurchaseReportTab({purchases,goodsPurchases,nccs}) {
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'1rem',marginTop:4}},
         h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Số đơn mua'),h('div',{style:{fontSize:24,fontWeight:600,color:'var(--pri)'}},filtered.length)),
         h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tổng số lượng'),h('div',{style:{fontSize:24,fontWeight:600,color:'var(--pri)'}},totalItems.toLocaleString())),
+        h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tổng tiền trước VAT'),h('div',{style:{fontSize:22,fontWeight:600,color:'var(--pri)'}},totalBeforeVat.toLocaleString('vi-VN')+'đ')),
         h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'12px 16px'}},h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:4}},'Tổng tiền sau VAT'),h('div',{style:{fontSize:22,fontWeight:600,color:'var(--pri)'}},totalAmt.toLocaleString('vi-VN')+'đ'))
       ),
       h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:10}},
