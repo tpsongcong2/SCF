@@ -1929,7 +1929,7 @@ function SyncDataReportTab(){
   );
 }
 
-function SupabaseUsageReportTab({employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,goodsPurchases,quotes,orders,trips,attendance,advances,rewards,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}) {
+function SupabaseUsageReportTab({employees,materials,assets,prodCats,products,customers,areas,workcats,tasks,nccs,purchases,goodsPurchases,quotes,orders,trips,attendance,advances,rewards,employeeErrors,leaves,depts,shifts,prodShifts,prodShiftRules,prodOrders,stock,company}) {
   const [maintenanceVehicle,setMaintenanceVehicle]=useState([]);
   const [maintenanceMachine,setMaintenanceMachine]=useState([]);
   useEffect(()=>{
@@ -1962,6 +1962,7 @@ function SupabaseUsageReportTab({employees,materials,assets,prodCats,products,cu
     ['attendance','Chấm công',attendance],
     ['advances','Ứng lương',advances],
     ['rewards','Thưởng phạt',rewards],
+    ['employeeErrors','Lỗi nhân viên',employeeErrors],
     ['leaves','Xin nghỉ',leaves],
     ['depts','Bộ phận',depts],
     ['shifts','Ca giao hàng',shifts],

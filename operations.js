@@ -1121,7 +1121,7 @@ function isPrivilegedEmployeeRecord(employee){
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 2rem'}},
         [
           {sec:'Cai dat', pages:[{k:'company',l:'Thong tin cong ty'},{k:'appearance',l:'Cai dat giao dien'},{k:'printtemplates',l:'Mau in Excel va mapping'},{k:'employees',l:'Nhan vien'},{k:'backup',l:'Backup'}]},
-          {sec:'Nhan su', pages:[{k:'attendance',l:'Cham cong'},{k:'attendance_settings',l:'Cai dat cham cong'},{k:'advances',l:'Ung luong'},{k:'rewards',l:'Thuong phat'},{k:'leaves',l:'Xin nghi'}]},
+          {sec:'Nhan su', pages:[{k:'attendance',l:'Cham cong'},{k:'attendance_settings',l:'Cai dat cham cong'},{k:'advances',l:'Ung luong'},{k:'rewards',l:'Thuong phat'},{k:'employee_errors',l:'Ghi loi nhan vien'},{k:'leaves',l:'Xin nghi'}]},
           {sec:'Bao cong', pages:[{k:'attendance_report',l:'Bao cao cham cong'},{k:'workreport_vp',l:'Cong ke toan'},{k:'workreport_sx',l:'Cong san xuat'},{k:'workreport_lx',l:'Cong lai xe'},{k:'workreport_total',l:'Tong cong'}]},
           {sec:'Danh muc', pages:[{k:'materials',l:'Vat tu'},{k:'depts',l:'Bo phan'},{k:'products',l:'San pham'},{k:'customers',l:'Khach hang'},{k:'areas',l:'Khu vuc'},{k:'prodshifts',l:'Ca san xuat'},{k:'workcats',l:'DM Cong viec'},{k:'shifts',l:'Ca giao hang'}]},
           {sec:'Ban hang', pages:[{k:'quotes',l:'Bao gia'},{k:'delivery',l:'Don giao hang'},{k:'intem',l:'Intem'},{k:'orderdetail',l:'Chi tiet don hang'},{k:'trips',l:'Chuyen giao hang'},{k:'salesreport',l:'Bao cao BH'},{k:'marketsales',l:'Ban hang cho'},{k:'powdersales',l:'Ban bot bun'}]},
@@ -1353,7 +1353,7 @@ function EmployeeTab({employees,setEmployees,cu,depts}){
     cpw&&h(CpwModal,{emp:cpw,cu,onSave:(pw,options)=>savePw(cpw.id,pw,options),onClose:()=>scp(null)})
   );
 }
-function BackupTab({employees,materials,assets,garages,prodCats,products,customers,workcats,tasks,advances,rewards,leaves,nccs,purchases,goodsPurchases,depts,prodShiftRules,uiSettings,printTemplateSettings,financeEntries,financeDebts,financeOpenings}){
+function BackupTab({employees,materials,assets,garages,prodCats,products,customers,workcats,tasks,advances,rewards,employeeErrors,leaves,nccs,purchases,goodsPurchases,depts,prodShiftRules,uiSettings,printTemplateSettings,financeEntries,financeDebts,financeOpenings}){
   function exp(rows,cols,name){const data=rows.map(r=>Object.fromEntries(cols.map(([k,l])=>[l,r[k]??''])));const ws=XLSX.utils.json_to_sheet(data);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name);XLSX.writeFile(wb,name+'_'+fmtDate().replace(/\//g,'-')+'.xlsx');}
   const backupPurchaseLine=l=>{
     const itemTotal=(Number(l.qty)||0)*(Number(l.price)||0);
@@ -1406,6 +1406,7 @@ function BackupTab({employees,materials,assets,garages,prodCats,products,custome
     {name:'Giao việc',rows:tasks||[],cols:[['id','Mã phiếu'],['date','Ngày'],['empName','Nhân viên'],['dept','Bộ phận'],['workCatName','Công việc'],['workDesc','Mô tả công việc'],['workDuration','Thời gian'],['qualityReq','Yêu cầu chất lượng'],['qtyAssign','KL giao'],['qtyReport','KL báo cáo'],['qtyApproved','KL duyệt'],['unit','ĐVT'],['rate','Đơn giá'],['status','Trạng thái'],['location','Địa điểm'],['note','Ghi chú giao'],['reportNote','Ghi chú báo cáo'],['reviewNote','Nhận xét quản lý']]},
     {name:'Ứng lương',rows:advances||[],cols:[['id','Mã phiếu'],['date','Ngày'],['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['amount','Số tiền đề nghị'],['approvedAmount','Số tiền duyệt'],['reason','Lý do'],['note','Ghi chú phiếu'],['status','Trạng thái'],['reviewNote','Ghi chú duyệt'],['approvedBy','Người duyệt']]},
     {name:'Thưởng phạt',rows:rewards||[],cols:[['id','Mã phiếu'],['date','Ngày'],['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['kind','Loại'],['amount','Số tiền đề nghị'],['approvedAmount','Số tiền duyệt'],['reason','Nội dung'],['note','Ghi chú phiếu'],['status','Trạng thái'],['reviewNote','Ghi chú duyệt'],['approvedBy','Người duyệt']]},
+    {name:'Lỗi nhân viên',rows:employeeErrors||[],cols:[['id','Mã'],['date','Ngày'],['empId','Mã NV'],['empName','Tên nhân viên'],['dept','Bộ phận'],['error','Lỗi'],['damage','Thiệt hại'],['updatedBy','Người cập nhật'],['updatedAt','Thời gian cập nhật']]},
     {name:'Xin nghỉ',rows:leaves||[],cols:[['id','Mã đơn'],['fromDate','Từ ngày'],['toDate','Đến ngày'],['empId','Mã NV'],['empName','Nhân viên'],['dept','Bộ phận'],['type','Hình thức'],['days','Số ngày đề nghị'],['approvedDays','Số ngày duyệt'],['reason','Lý do'],['note','Ghi chú đơn'],['status','Trạng thái'],['reviewNote','Ghi chú duyệt'],['approvedBy','Người duyệt']]},
     {name:'Giao diện',rows:uiBackupRows,cols:[['fontFamily','Loại chữ'],['base','Nội dung chung'],['form','Ô nhập liệu'],['menu','Menu điều hướng'],['button','Nút chức năng'],['table','Nội dung bảng'],['header','Tiêu đề bảng'],['badge','Nhãn trạng thái']]},
     {name:'Mẫu in Excel',rows:printTemplateRows,cols:[['type','Loại mẫu'],['scopeName','Đối tượng áp dụng'],['fileName','Tên file'],['sheetNames','Sheet'],['variableCount','Số biến'],['mappedCount','Đã mapping'],['uploadedAt','Cập nhật']]},
