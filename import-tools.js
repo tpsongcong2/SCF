@@ -521,6 +521,7 @@ const NAV=[
   {key:'appearance',icon:'ti-typography',label:'Cài đặt giao diện'},
   {key:'printtemplates',icon:'ti-file-spreadsheet',label:'Mẫu in Excel & mapping'},
   {key:'employees',icon:'ti-id-badge',label:'Nhân viên'},
+  {key:'permission_settings',icon:'ti-shield-lock',label:'Cài đặt phân quyền'},
   {key:'backup',icon:'ti-database-export',label:'Backup dữ liệu'},
   {key:'prodshifts',icon:'ti-clock-play',label:'Cài đặt ca SX + ca GH tự động'},
   {sec:'Quản lý nhân sự'},
