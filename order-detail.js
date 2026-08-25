@@ -14,7 +14,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const[groupMode,setGroupMode]=useLS('scf_order_detail_group_mode','area');
   const[pageSize,setPageSize]=useState(25);
   const[page,setPage]=useState(1);
-  const[mobileFiltersHidden,setMobileFiltersHidden]=useLS('scf_order_detail_mobile_filters_hidden',true);
+  const[mobileFiltersHidden,setMobileFiltersHidden]=useLS('scf_order_detail_mobile_filters_hidden',window.innerWidth<=768);
 
   const cleanShiftName=name=>{
     const n=String(name||'').trim();
@@ -260,23 +260,19 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   const diff=totalProd-totalInvoice;
 
   return h('div',null,
-    h('div',{className:'detail-mobile-controls'},
+    h('div',{className:'detail-filter-toolbar'},
       h('button',{
         type:'button',
-        onClick:()=>setMenuHidden&&setMenuHidden(!menuHidden),
-        title:menuHidden?'Hiện header và menu':'Ẩn header và menu'
-      },h('i',{className:'ti '+(menuHidden?'ti-layout-navbar-expand':'ti-layout-navbar-collapse')}),menuHidden?'Hiện menu':'Ẩn menu'),
-      h('button',{
-        type:'button',
-        className:mobileFiltersHidden?'bp':'',
+        className:mobileFiltersHidden?'':'bp',
         onClick:()=>setMobileFiltersHidden(!mobileFiltersHidden),
         title:mobileFiltersHidden?'Hiện bộ lọc đơn hàng':'Ẩn bộ lọc đơn hàng'
       },h('i',{className:'ti '+(mobileFiltersHidden?'ti-filter':'ti-filter-off')}),mobileFiltersHidden?'Hiện bộ lọc':'Ẩn bộ lọc'),
-      mobileFiltersHidden&&h('span',{className:'detail-mobile-summary'},
-        vnDateFromISO(periodRange.from)+(periodRange.to!==periodRange.from?' — '+vnDateFromISO(periodRange.to):'')+' · '+totalOrders+' đơn'
-      )
+      h('span',{className:'detail-mobile-summary'},
+        'Đang xem: '+vnDateFromISO(periodRange.from)+(periodRange.to!==periodRange.from?' — '+vnDateFromISO(periodRange.to):'')
+      ),
+      h('span',{className:'detail-count-badge'},totalOrders+' đơn · '+rows.length+' dòng trên trang')
     ),
-    h('div',{className:'card detail-filter-card'+(mobileFiltersHidden?' mobile-collapsed':''),style:{marginBottom:'1rem'}},
+    h('div',{className:'detail-filter-card'+(mobileFiltersHidden?' mobile-collapsed':'')},
       h('div',{className:'detail-filter-grid'},
         h(F,{label:'Thời gian'},h('select',{value:periodMode,onChange:e=>setPeriodMode(e.target.value)},h('option',{value:'day'},'Theo ngày'),h('option',{value:'week'},'Theo tuần'),h('option',{value:'month'},'Theo tháng'),h('option',{value:'range'},'Khoảng ngày'))),
         periodMode==='month'?h(F,{label:'Chọn tháng'},h('input',{type:'month',value:(anchorDate||todayISO).slice(0,7),onChange:e=>setAnchorDate((e.target.value||todayISO.slice(0,7))+'-01')})):
@@ -292,10 +288,8 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
           h('option',{value:'area'},'Theo khu vực'),
           h('option',{value:'trip'},'Theo chuyến'),
           h('option',{value:'driver'},'Theo lái xe')
-        )),
-        h('span',{className:'detail-count-badge'},totalOrders+' đơn · '+rows.length+' dòng trên trang')
-      ),
-      h('div',{className:'detail-period-note'},'Đang xem: '+vnDateFromISO(periodRange.from)+(periodRange.to!==periodRange.from?' — '+vnDateFromISO(periodRange.to):''))
+        ))
+      )
     ),
     h('div',{className:'detail-pagination'},
       h('span',null,'Mỗi trang'),
