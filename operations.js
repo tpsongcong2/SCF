@@ -1123,7 +1123,7 @@ function isPrivilegedEmployeeRecord(employee){
         h('div',{style:{fontWeight:500,fontSize:13,color:'var(--pri3)'}},'Phân quyền chi tiết (có thể chỉnh riêng cho nhân viên này)'),
         h('button',{type:'button',onClick:()=>sf(p=>p.permissionProfileId?applyPermissionProfile(p,normalizedProfiles,p.permissionProfileId):({...p,permissions:[],permLevels:{}})),style:{fontSize:11,padding:'3px 10px',color:'var(--pri)',borderColor:'var(--bd)'}},f.permissionProfileId?'Khôi phục theo chức vụ':'Xóa tùy chỉnh')
       ),
-      h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:8,background:'var(--bg2)',padding:'6px 10px',borderRadius:'var(--r)'}},'Không truy cập = ẩn menu | Chỉ xem = không có nút Thêm/Sửa/Xóa | Xem+Sửa = có nút Thêm/Sửa | Đầy đủ = có tất cả'),
+      h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:8,background:'var(--bg2)',padding:'6px 10px',borderRadius:'var(--r)'}},'Không truy cập = ẩn menu | Chỉ xem = chỉ đọc dữ liệu | Thêm + Xem + Sửa = không được xóa | Thêm + Xem + Sửa + Xóa = toàn quyền'),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 2rem'}},
         SCF_PERMISSION_SECTIONS.map(section=>({sec:section.sec,pages:section.pages.map(([k,l])=>({k,l}))})).map(sec=>h('div',{key:sec.sec,style:{marginBottom:10}},
           h('div',{style:{fontSize:11,fontWeight:600,color:'var(--tx2)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:5}},sec.sec),
@@ -1147,8 +1147,8 @@ function isPrivilegedEmployeeRecord(employee){
               },
                 h('option',{value:'none'},'Không truy cập'),
                 h('option',{value:'r'},'Chỉ xem'),
-                h('option',{value:'rw'},'Xem + Sửa'),
-                h('option',{value:'rwd'},'Đầy đủ (Xóa)')
+                h('option',{value:'rw'},'Thêm + Xem + Sửa'),
+                h('option',{value:'rwd'},'Thêm + Xem + Sửa + Xóa')
               )
             );
           })
