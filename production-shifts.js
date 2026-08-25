@@ -64,6 +64,21 @@ function normalizeLookupText(v){
     .trim()
     .toLowerCase();
 }
+const ORDER_POINT_INDEX_CACHE=new WeakMap();
+function getOrderPointIndex(customers){
+  if(!Array.isArray(customers))return null;
+  const cached=ORDER_POINT_INDEX_CACHE.get(customers);if(cached)return cached;
+  const all=[],byPointId=new Map(),byPointName=new Map(),byAddress=new Map(),byCustomerId=new Map(),byCustomerName=new Map();
+  const add=(map,key,row)=>{if(!key)return;const list=map.get(key)||[];list.push(row);map.set(key,list);};
+  customers.forEach(c=>{
+    const cName=normalizeLookupText(c.name||'');
+    (c.points||[]).forEach(pt=>{
+      const row={c,pt,cName,pName:normalizeLookupText(pt.name||''),pAddress:normalizeLookupText(pt.address||'')};all.push(row);
+      add(byPointId,String(pt.id||'').trim(),row);add(byPointName,row.pName,row);add(byAddress,row.pAddress,row);add(byCustomerId,String(c.id||'').trim(),row);add(byCustomerName,cName,row);
+    });
+  });
+  const index={all,byPointId,byPointName,byAddress,byCustomerId,byCustomerName};ORDER_POINT_INDEX_CACHE.set(customers,index);return index;
+}
 function findOrderPointMatch(order,customers){
   if(!order||!(customers&&customers.length))return null;
   const pointId=String(order.pointId||order.ptId||'').trim();
@@ -71,28 +86,26 @@ function findOrderPointMatch(order,customers){
   const address=normalizeLookupText(order.address||'');
   const customerId=String(order.customerId||order.custId||'').trim();
   const customerName=normalizeLookupText(order.customer||'');
-  let best=null;
-  let bestScore=-1;
-  (customers||[]).forEach(c=>{
-    const cName=normalizeLookupText(c.name||'');
-    const customerScore=customerId&&c.id===customerId?1000:(customerName&&cName===customerName?700:(customerName&&(cName.includes(customerName)||customerName.includes(cName))?350:0));
-    (c.points||[]).forEach(pt=>{
-      const pName=normalizeLookupText(pt.name||'');
-      const pAddress=normalizeLookupText(pt.address||'');
-      let score=customerScore;
-      let hit=false;
-      if(pointId&&pt.id===pointId){score+=5000;hit=true;}
-      if(pointName&&pName===pointName){score+=800;hit=true;}
-      else if(pointName&&pName&&(pName.includes(pointName)||pointName.includes(pName))){score+=500;hit=true;}
-      if(address&&pAddress===address){score+=300;hit=true;}
-      else if(address&&pAddress&&(pAddress.includes(address)||address.includes(pAddress))){score+=180;hit=true;}
-      if(!hit)return;
-      if(score>bestScore){bestScore=score;best={customer:c,point:pt,score};}
-    });
+  const index=getOrderPointIndex(customers);if(!index)return null;
+  const candidateSet=new Set();
+  const include=list=>(list||[]).forEach(row=>candidateSet.add(row));
+  include(index.byPointId.get(pointId));include(index.byPointName.get(pointName));include(index.byAddress.get(address));
+  if(!candidateSet.size){include(index.byCustomerId.get(customerId));include(index.byCustomerName.get(customerName));}
+  const candidates=candidateSet.size?[...candidateSet]:index.all;
+  let best=null,bestScore=-1;
+  candidates.forEach(row=>{
+    const {c,pt,cName,pName,pAddress}=row;
+    const customerScore=customerId&&String(c.id||'')===customerId?1000:(customerName&&cName===customerName?700:(customerName&&(cName.includes(customerName)||customerName.includes(cName))?350:0));
+    let score=customerScore,hit=false;
+    if(pointId&&String(pt.id||'')===pointId){score+=5000;hit=true;}
+    if(pointName&&pName===pointName){score+=800;hit=true;}
+    else if(pointName&&pName&&(pName.includes(pointName)||pointName.includes(pName))){score+=500;hit=true;}
+    if(address&&pAddress===address){score+=300;hit=true;}
+    else if(address&&pAddress&&(pAddress.includes(address)||address.includes(pAddress))){score+=180;hit=true;}
+    if(hit&&score>bestScore){bestScore=score;best={customer:c,point:pt,score};}
   });
   return best;
-}
-function getProdShift(deliveryTime, prodShifts, location){
+}function getProdShift(deliveryTime, prodShifts, location){
   if(!deliveryTime||!prodShifts)return null;
   const tMin=timeToMin(deliveryTime);
   const loc=normalizeLookupText(location||'');
