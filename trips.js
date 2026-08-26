@@ -236,31 +236,40 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
   };
 
   // Mỗi ca giao hàng được chọn chỉ tạo đúng một chuyến trong ngày.
-  // Khu vực không tham gia tạo tổ hợp; đơn được đưa vào chuyến theo cấu hình ca giao của chính đơn.
-  const preview=React.useMemo(()=>{
-    const combos=[];
+  // Ca chưa có đơn vẫn phải tạo chuyến trống để nhận các đơn phát sinh sau.
+  // Chỉ bỏ qua ca đã có chuyến cùng ngày và phải báo rõ trên màn hình.
+  const sameDateShift=(trip,shift)=>{
+    if(trip?.deliveryDate!==dateVN)return false;
+    const sameId=shift?.id&&String(trip?.shiftId||'')===String(shift.id);
+    const sameName=shift?.name&&normShift(trip?.shiftName)===normShift(shift.name);
+    return !!(sameId||sameName);
+  };
+  const selectedShiftRows=React.useMemo(()=>{
     const useShifts=selShifts.length>0?allShifts.filter(s=>selShifts.includes(s.id)):[];
-    useShifts.forEach(sh=>{
+    return useShifts.map(sh=>{
       const matchOrders=pendingOrders.filter(o=>orderMatchesDeliveryShift(o,sh));
-      if(matchOrders.length===0)return;
       const areas=[...new Set(matchOrders.map(getOArea).filter(Boolean))];
-      combos.push({shiftId:sh.id,shiftName:sh.name||sh.id,area:areas.length===1?areas[0]:'Nhiều khu vực',orders:matchOrders});
+      return {
+        shiftId:sh.id,
+        shiftName:sh.name||sh.id,
+        area:matchOrders.length===0?'':(areas.length===1?areas[0]:'Nhiều khu vực'),
+        orders:matchOrders,
+        alreadyExists:(trips||[]).some(t=>sameDateShift(t,sh))
+      };
     });
-    return combos;
-  },[selShifts.join(','),date,pendingOrders.length,prodShifts]);
+  },[selShifts.join(','),date,orders,trips,shifts,prodShifts,customers]);
+  const preview=selectedShiftRows.filter(combo=>!combo.alreadyExists);
+  const existingRows=selectedShiftRows.filter(combo=>combo.alreadyExists);
+  const emptyRows=preview.filter(combo=>combo.orders.length===0);
 
   const submit=()=>{
     if(!selShifts.length){window.showToast('Vui lòng chọn ít nhất một ca giao hàng cần tạo chuyến!','warn');return;}
-    if(preview.length===0){window.showToast('Không có đơn hàng phù hợp để tạo chuyến!','warn');return;}
+    if(preview.length===0){window.showToast('Các ca đã chọn đều đã có chuyến trong ngày '+dateVN+'.','warn');return;}
     const manuallySelectedDriverName=driverName||(drivers.find(d=>d.id===driver)?.name||'');
     // Tạo ID trước để check trùng trong batch
     const usedIds=new Set(trips.map(t=>t.id));
     const newTrips=[];
-    const dupCombos=preview.filter(combo=>combo.shiftId&&trips.some(t=>t.deliveryDate===dateVN&&t.shiftId===combo.shiftId));
-    if(dupCombos.length>0){
-      window.showToast('Ngày '+dateVN+' đã có chuyến giao hàng trùng ca: '+dupCombos.map(c=>c.shiftName||c.shiftId).join(', ')+'. Không tạo thêm.','warn');
-      return;
-    }
+
     preview.forEach(combo=>{
       const comboShift=(shifts||[]).find(sh=>String(sh.id)===String(combo.shiftId));
       const comboDriverId=driver||comboShift?.defaultDriverId||'';
@@ -273,7 +282,7 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
         .replace(/CHIỀU|CHIEU/,'C').replace(/ĐÊM|DEM/,'D')
         .replace(/[^A-Z0-9]/g,'').slice(0,3)||(combo.area||'XX').replace(/[^A-Z0-9]/gi,'').slice(0,2).toUpperCase();
       const driverAbbr=comboDriverName.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,3);
-      const areaCode=(combo.area||'').replace(/[^A-Z0-9]/gi,'').slice(0,3).toUpperCase();
+      const areaCode=(combo.area||'').replace(/[^A-Z0-9]/gi,'').slice(0,3).toUpperCase()||'XX';
       let baseId='CH'+datePart+shiftAbbr+'_'+areaCode+'_'+(driverAbbr||'XX');
       let id=baseId; let seq=2;
       while(usedIds.has(id)){id=baseId+'_'+seq;seq++;}
@@ -321,13 +330,19 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
     // Preview chuyến sẽ tạo
     preview.length>0&&h('div',{style:{marginBottom:12}},
       h('div',{style:{fontWeight:600,fontSize:13,color:'var(--pri3)',marginBottom:8}},
-        '📋 Sẽ tạo '+preview.length+' chuyến:'
+        '📋 Đã chọn '+selShifts.length+' ca · Sẽ tạo '+preview.length+' chuyến:'
+      ),
+      emptyRows.length>0&&h('div',{style:{fontSize:12,color:'#8A5A00',background:'#FFF7E6',border:'1px solid #F2C66D',borderRadius:'var(--r)',padding:'7px 10px',marginBottom:8}},
+        emptyRows.length+' ca chưa có đơn; hệ thống vẫn tạo chuyến trống để nhận đơn phát sinh sau: '+emptyRows.map(c=>c.shiftName).join(', ')+'.'
+      ),
+      existingRows.length>0&&h('div',{style:{fontSize:12,color:'#1F5E8C',background:'#EEF6FC',border:'1px solid #9CC7E6',borderRadius:'var(--r)',padding:'7px 10px',marginBottom:8}},
+        existingRows.length+' ca đã có chuyến trong ngày nên được bỏ qua: '+existingRows.map(c=>c.shiftName).join(', ')+'.'
       ),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8}},
         preview.map((combo,i)=>h('div',{key:i,style:{border:'1px solid var(--bd)',borderRadius:'var(--r)',
-          padding:'8px 10px',background:'#f5fbf5'}},
-          h('div',{style:{fontWeight:600,fontSize:13,color:'var(--pri)'}},combo.area),
-          combo.shiftName&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},combo.shiftName),
+          padding:'8px 10px',background:combo.orders.length?'#f5fbf5':'#fffaf0'}},
+          h('div',{style:{fontWeight:600,fontSize:13,color:'var(--pri)'}},combo.shiftName),
+          h('div',{style:{fontSize:12,color:'var(--tx2)'}},combo.area||'Chuyến trống — chưa có đơn'),
           h('div',{style:{fontSize:12,marginTop:4}},combo.orders.length+' đơn · '+
             ordersWeight(combo.orders).toFixed(1)+' kg'
           )
@@ -335,7 +350,7 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
       )
     ),
     preview.length===0&&date&&h('div',{style:{textAlign:'center',padding:'1rem',color:'var(--tx2)',fontSize:13}},
-      'Không có đơn hàng chờ giao vào ngày '+fmtDate2(date)
+      selShifts.length?'Các ca đã chọn đều đã có chuyến trong ngày '+fmtDate2(date)+'.':'Chọn ca giao hàng cần tạo chuyến.'
     ),
     h(Row,null,
       h('button',{onClick:onClose},'Hủy'),

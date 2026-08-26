@@ -2461,9 +2461,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const productColumnTitle=longestVisibleProduct.name
     ?'Tên dài nhất đang hiển thị: '+longestVisibleProduct.name+' ('+Array.from(longestVisibleProduct.name).length+' ký tự)'
     :'Chưa có tên sản phẩm';
-  const existingOrderKeys=new Set(allOrderRowKeys);
+  // Duyệt theo danh sách khóa hiện có để số ô đã chọn và số đơn được xóa luôn đồng nhất.
+  // Cách này cũng tự loại các khóa lựa chọn cũ sau khi dữ liệu đơn hàng thay đổi.
   const selectedOrderKeys=isAdmin
-    ?Object.keys(bulkSelected).filter(key=>bulkSelected[key]&&existingOrderKeys.has(key))
+    ?allOrderRowKeys.filter(key=>!!bulkSelected[key])
     :[];
   const pageOrderKeys=pagedList.map(orderRowKey);
   const filteredOrderKeys=list.map(orderRowKey);
