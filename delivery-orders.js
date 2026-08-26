@@ -1851,6 +1851,11 @@ function deliveryOrderRecordKeys(items){
     return 'delivery-order\u001f'+identity+'\u001f'+occurrence;
   });
 }
+function cleanDeliveryOrderRecord(order){
+  const clean={};
+  Object.entries(order||{}).forEach(([key,value])=>{if(!String(key).startsWith('_'))clean[key]=value;});
+  return clean;
+}
 function deliveryProductTextWidth(text){
   const value=String(text||'');
   const fallback=Array.from(value).reduce((width,char)=>width+(/[MWĐƯƠÔ]/i.test(char)?10:/[il1.,' ]/i.test(char)?4.5:7.5),0);
@@ -1965,7 +1970,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return changes.length?changes:['Đã lưu lại nội dung đơn hàng'];
   };
   const save=d=>{
-    let planned=prepareAutomaticTripForSave(d);
+    let planned=prepareAutomaticTripForSave(cleanDeliveryOrderRecord(d));
     if(edit){
       const currentTrip=orderTrip(edit);
       if(dispatchedTrip(currentTrip)||closedTrip(currentTrip)||['delivering','done'].includes(edit.status)){
@@ -1977,7 +1982,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     sm(null);se(null);setCopyDraft(null);
   };
   const copyOrder=order=>{
-    const source=orderContext(order);
+    const source=cleanDeliveryOrderRecord(orderContext(order));
     const draft={...source,id:'',copySourceId:order.id||'',status:'pending',tripId:'',tripAssignMode:'auto',invoiceImage:'',invoiceImageName:'',invoiceUploadedAt:'',invoiceUploadedBy:'',createdAt:'',updatedAt:'',lines:(source.lines||[]).map(line=>({...line,id:uid(),qtyDelivered:''}))};
     se(null);setCopyDraft(draft);sm('f');
   };
@@ -2229,7 +2234,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   };
   const allOrderRowKeys=deliveryOrderRecordKeys(orders);
   const orderRowKeyByObject=new Map((orders||[]).map((order,index)=>[order,allOrderRowKeys[index]]));
-  const orderRowKey=order=>order?._rowKey||orderRowKeyByObject.get(order)||('delivery-order-fallback\u001f'+String(order?.id||''));
+  // Đơn gốc phải ưu tiên khóa vừa tính; một số dữ liệu cũ có thể đã lưu nhầm _rowKey nội bộ.
+  const orderRowKey=order=>orderRowKeyByObject.get(order)||order?._rowKey||('delivery-order-fallback\u001f'+String(order?.id||''));
   const listWithoutPoint=orders.filter(x=>{
     if(filter!=='all'&&x.status!==filter) return false;
     if(q&&!String(x.customer||'').toLowerCase().includes(q.toLowerCase())&&!String(x.id||'').toLowerCase().includes(q.toLowerCase())&&!String(x.pointName||'').toLowerCase().includes(q.toLowerCase())&&!(x.lines||[]).some(line=>String(line.productName||'').toLowerCase().includes(q.toLowerCase()))) return false;

@@ -1,4 +1,5 @@
 /* ─── APP ROOT ─── */
+const SCF_BUILD_VERSION='V217';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Thông tin công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -375,6 +376,7 @@ function App(){
               h('div',{className:'topbar-company'},isFaceMask?'FACE MASK':(company?.name||'SCF')),
               h('div',{className:'topbar-meta'},
                 h('span',null,'Menu'),
+                h('span',{title:'Phiên bản ứng dụng đang chạy',style:{display:'inline-flex',alignItems:'center',padding:'1px 6px',borderRadius:999,background:'rgba(255,255,255,.16)',color:'#fff',fontSize:10,fontWeight:700,letterSpacing:'.3px'}},SCF_BUILD_VERSION),
                 sb&&h(SyncStatus)
               )
             )
