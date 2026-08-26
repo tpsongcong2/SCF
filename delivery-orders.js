@@ -1898,7 +1898,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const[fPoint,sfPoint]=useState('');const[fProduct,sfProduct]=useState('');const[fTime,sfTime]=useState('');const[fArea,sfArea]=useState('');
   const[pageSize,setPageSize]=useState(()=>typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(max-width: 768px)').matches?20:100);const[currentPage,setCurrentPage]=useState(1);let oSeq=orders.length+1;
   const[mobileActionsOpen,setMobileActionsOpen]=useState(false);const[mobileFiltersOpen,setMobileFiltersOpen]=useState(false);
-  const[bulkSelected,setBulkSelected]=useState({});
+  const[bulkSelected,setBulkSelected]=useState(()=>new Set());
   const isAdmin=String(currentUser?.role||'').trim().toLowerCase()==='admin';
   const currentDeptKey=normalizeLookupText(currentUser?.dept||'');
   const isAccounting=currentDeptKey.includes('ke toan');
@@ -1949,7 +1949,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     document.addEventListener('keydown',onKey,true);
     return()=>document.removeEventListener('keydown',onKey,true);
   },[modal,print,invoiceView]);
-  useEffect(()=>{setCurrentPage(1);setBulkSelected({});},[q,filter,dateFilterMode,fDate,fDateTo,fWeek,fMonth,fPoint,fProduct,fTime,fArea,sortMode,pageSize]);
+  useEffect(()=>{setCurrentPage(1);setBulkSelected(new Set());},[q,filter,dateFilterMode,fDate,fDateTo,fWeek,fMonth,fPoint,fProduct,fTime,fArea,sortMode,pageSize]);
   const notifyDriverOrderChange=(order,title)=>{
     const trip=(trips||[]).find(t=>String(t.id||'')===String(order?.tripId||'')||(t.orderIds||[]).includes(order?.id));
     if(!trip||(!trip.driverDispatchedAt&&!['active','completion_pending','completed'].includes(trip.status)))return;
@@ -2464,35 +2464,35 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   // Duyệt theo danh sách khóa hiện có để số ô đã chọn và số đơn được xóa luôn đồng nhất.
   // Cách này cũng tự loại các khóa lựa chọn cũ sau khi dữ liệu đơn hàng thay đổi.
   const selectedOrderKeys=isAdmin
-    ?allOrderRowKeys.filter(key=>!!bulkSelected[key])
+    ?allOrderRowKeys.filter(key=>bulkSelected.has(key))
     :[];
   const pageOrderKeys=pagedList.map(orderRowKey);
   const filteredOrderKeys=list.map(orderRowKey);
-  const allPageSelected=pageOrderKeys.length>0&&pageOrderKeys.every(key=>!!bulkSelected[key]);
-  const allFilteredSelected=filteredOrderKeys.length>0&&filteredOrderKeys.every(key=>!!bulkSelected[key]);
+  const allPageSelected=pageOrderKeys.length>0&&pageOrderKeys.every(key=>bulkSelected.has(key));
+  const allFilteredSelected=filteredOrderKeys.length>0&&filteredOrderKeys.every(key=>bulkSelected.has(key));
   const toggleBulkOrder=order=>{
     if(!isAdmin)return;
     const key=orderRowKey(order);
     if(!key)return;
     setBulkSelected(prev=>{
-      const next={...prev};
-      if(next[key])delete next[key];else next[key]=true;
+      const next=new Set(prev);
+      if(next.has(key))next.delete(key);else next.add(key);
       return next;
     });
   };
   const setPageSelection=checked=>{
     if(!isAdmin)return;
     setBulkSelected(prev=>{
-      const next={...prev};
-      pageOrderKeys.forEach(key=>{if(checked)next[key]=true;else delete next[key];});
+      const next=new Set(prev);
+      pageOrderKeys.forEach(key=>{if(checked)next.add(key);else next.delete(key);});
       return next;
     });
   };
   const toggleFilteredSelection=()=>{
     if(!isAdmin||!filteredOrderKeys.length)return;
     setBulkSelected(prev=>{
-      const next={...prev};
-      filteredOrderKeys.forEach(key=>{if(allFilteredSelected)delete next[key];else next[key]=true;});
+      const next=new Set(prev);
+      filteredOrderKeys.forEach(key=>{if(allFilteredSelected)next.delete(key);else next.add(key);});
       return next;
     });
   };
@@ -2507,7 +2507,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       const prevKeys=deliveryOrderRecordKeys(prev);
       return prev.filter((_order,index)=>!keySet.has(prevKeys[index]));
     });
-    setBulkSelected({});
+    setBulkSelected(new Set());
     window.showToast('Đã xóa '+keys.length+' đơn hàng.','success');
   };
   const updateOrderProductNames=async()=>{
@@ -3263,7 +3263,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
               h('div',{className:'delivery-order-date'},
                 isAdmin&&h('input',{
                   type:'checkbox',
-                  checked:!!bulkSelected[o._rowKey],
+                  checked:bulkSelected.has(o._rowKey),
                   onChange:()=>toggleBulkOrder(o),
                   onClick:e=>e.stopPropagation(),
                   title:'Chọn đơn '+(o.id||''),
@@ -3353,7 +3353,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             h('div',{style:{display:'flex',alignItems:'flex-start',gap:8,minWidth:0}},
               isAdmin&&h('input',{
                 type:'checkbox',
-                checked:!!bulkSelected[o._rowKey],
+                checked:bulkSelected.has(o._rowKey),
                 onChange:()=>toggleBulkOrder(o),
                 onClick:e=>e.stopPropagation(),
                 title:'Chọn đơn '+(o.id||''),
