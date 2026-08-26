@@ -1,8 +1,8 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V217';
+const SCF_BUILD_VERSION='V218';
 const PTITLES = {
   garages:'Gara ô tô',
-  welcome:'Thời tiết', company:'Thông tin công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
+  welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
   backup:'Backup dữ liệu', materials:'Nguyên vật liệu', assets:'Danh mục tài sản', products:'Sản phẩm', depts:'Bộ phận',
   customers:'Khách hàng', workcats:'Danh mục công việc', tasks:'Giao việc', notifications:'Thông báo', userguide:'HDSD SCFOOD', shifts:'Ca giao hàng',
   workreport_vp:'Công kế toán', workreport_sx:'Công sản xuất', workreport_lx:'Công lái xe', workreport_total:'Tổng công',
@@ -220,7 +220,7 @@ function App(){
         ]);
         const normalizedOrders=normalizeOrdersForStorage(o||[]);
         const normalizedProducts=(p||[]).map(normalizeProductWeight);
-        _se(e||DEF_EMPS);_sc(c);_sm(m);_sas(assetData);_sg(garageData||[]);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_snccg(nccg);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_see(employeeErrorData||[]);_slv(lv);_sdp(dp);_spermissionProfiles(normalizePermissionProfiles(permissionProfileData));_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);_snews(newsData||[]);_sim(messageData||[]);_snotifications(notificationData||[]);_sdr(deliveryRulesData||[]);_spp({process_accounting:processAccountingPosts||[],process_bun:processBunPosts||[],process_pho:processPhoPosts||[],process_banhcuon:processBanhCuonPosts||[]});
+        _se(e||DEF_EMPS);_sc({...DEF_COMPANY,...(c||{})});_sm(m);_sas(assetData);_sg(garageData||[]);_spc(pc);_sp(normalizedProducts);_scu(cu);_sar(ar);_swc(wc);_stasks(tk);_sncc(ncc);_snccg(nccg);_spu(pu);_spg(pg);_sfp(fp);_smo(mo);_ssh(shData);_sq(q);_so(normalizedOrders);_st(t);_sa(a);_sadv(adv);_srw(rw);_see(employeeErrorData||[]);_slv(lv);_sdp(dp);_spermissionProfiles(normalizePermissionProfiles(permissionProfileData));_sui(normalizeUiSettings(ui));_spt(normalizePrintTemplateSettings(pts));_spa(pa||{});_sps(psData);_spr(psrData);_sfe(fe||[]);_sfd(fd||[]);_sfo(fo||[]);_snews(newsData||[]);_sim(messageData||[]);_snotifications(notificationData||[]);_sdr(deliveryRulesData||[]);_spp({process_accounting:processAccountingPosts||[],process_bun:processBunPosts||[],process_pho:processPhoPosts||[],process_banhcuon:processBanhCuonPosts||[]});
         if(ordersNeedTimeNormalization(o||[]))dbSet('scf_orders',normalizedOrders);
         if((p||[]).some((item,index)=>Number(item?.weightPerUnit||0)!==Number(normalizedProducts[index]?.weightPerUnit||0)))dbSet('scf_products',normalizedProducts);
       }catch(err){console.warn(err);}finally{clearTimeout(loadingGuard);setLoading(false);}
@@ -408,7 +408,7 @@ function App(){
         onClickCapture:e=>guardPermissionAction(e,cu.role,page,cu.permLevels)
       },
         canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,employees,company,uiSettings,news:companyNews,setNews:setCompanyNews,messages:internalMessages,setMessages:setInternalMessages,onRefresh:refreshCommunityData}),
-        canAccess(cu.role,'company',cu.permissions)&&page==='company'&&h(CompanySettings,{company,setCompany}),
+        canAccess(cu.role,'company',cu.permissions,cu.dept)&&page==='company'&&h(CompanySettings,{company,setCompany,canEdit:canWrite(cu.role,'company',cu.permLevels)}),
         canAccess(cu.role,'appearance',cu.permissions)&&page==='appearance'&&h(AppearanceSettingsTab,{uiSettings,setUiSettings}),
         canAccess(cu.role,'printtemplates',cu.permissions)&&page==='printtemplates'&&h(PrintTemplateSettingsTab,{templateSettings:printTemplateSettings,setTemplateSettings:setPrintTemplateSettings,products,customers}),
         canAccess(cu.role,'employees',cu.permissions)&&page==='employees'&&h(EmployeeTab,{employees,setEmployees,cu,depts,permissionProfiles}),
