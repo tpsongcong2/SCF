@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V218';
+const SCF_BUILD_VERSION='V221';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -386,11 +386,7 @@ function App(){
               h('i',{className:'ti ti-bell'}),unreadNotificationCount>0&&h('span',{className:'notification-count'},unreadNotificationCount>99?'99+':unreadNotificationCount)
             ),
             h('div',{className:'topbar-user'},
-              h('div',{className:'topbar-user-name'},cu.name),
-              h('div',{className:'topbar-user-dept'},
-                h('span',{className:'badge '+({admin:'chip-admin',manager:'chip-manager',staff:'chip-staff',driver:'chip-driver'}[cu.role]||'chip-staff'),style:{fontSize:10}},ROLES[cu.role]||cu.role),
-                h('span',{style:{fontSize:11,color:'rgba(255,255,255,.78)'}},cu.dept)
-              )
+              h('div',{className:'topbar-user-name'},cu.name)
             ),
             h('button',{className:'topbar-logout',onClick:logout,style:{fontSize:12,padding:'5px 10px',color:'#A32D2D',borderColor:'#F7C1C1'},title:'Đăng xuất','aria-label':'Đăng xuất'},h('i',{className:'ti ti-logout',style:{fontSize:14}}),h('span',{className:'topbar-logout-label'},'Đăng xuất'))
           )
