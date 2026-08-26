@@ -12,6 +12,7 @@ const PAGE_ACCESS = {
   advances:     ['admin','manager','staff','driver'],
   rewards:      ['admin','manager','staff','driver'],
   employee_errors:['admin','manager'],
+  employee_uniforms:['admin','manager'],
   leaves:       ['admin','manager','staff','driver'],
   backup:       ['admin'],
   materials:    ['admin','manager','staff'],

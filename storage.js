@@ -65,7 +65,7 @@ window.scfGetSyncReport=function(){
   const queue=readSyncQueue();
   const labels={
     scf_employees:'Nhân viên SCFOOD',scf_privileged_employees:'Admin & Ban Giám Đốc',scf_orders:'Đơn giao hàng',scf_trips:'Chuyến giao hàng',scf_attendance:'Chấm công',
-    scf_advances:'Ứng lương',scf_rewards:'Thưởng phạt',scf_employee_errors:'Lỗi nhân viên',scf_leaves:'Nghỉ phép',scf_finance_entries:'Dòng tiền',
+    scf_advances:'Ứng lương',scf_rewards:'Thưởng phạt',scf_employee_errors:'Lỗi nhân viên',scf_employee_uniforms:'Cấp đồng phục',scf_leaves:'Nghỉ phép',scf_finance_entries:'Dòng tiền',
     scf_finance_debts:'Công nợ',scf_finance_openings:'Số dư đầu kỳ',scf_internal_messages:'Tin nhắn nội bộ',scf_tasks:'Giao việc',scf_notifications:'Thông báo',
     scf_customers:'Khách hàng',scf_products:'Sản phẩm',scf_materials:'Nguyên vật liệu',scf_quotes:'Báo giá'
   };
