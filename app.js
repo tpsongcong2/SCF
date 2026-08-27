@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V226';
+const SCF_BUILD_VERSION='V228';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -257,40 +257,64 @@ function App(){
     return()=>clearInterval(tm);
   },[loading]);
 
-  /* ── TỰ ĐỘNG TẠO CHUYẾN MỖI NGÀY LÚC 6:00 ── */
-  const[autoNotif,setAutoNotif]=useState(null);
+  /* ── TỰ TÌM/TẠO CHUYẾN CHỈ KHI CÓ ĐƠN CHƯA XẾP ── */
   useEffect(()=>{
-    if(loading) return;
-    const now=new Date();
-    if(now.getHours()<6) return;
-    const todayKey='scf_autotrip_'+now.toISOString().slice(0,10);
-    if(localStorage.getItem(todayKey)) return;
-    if(!shifts||shifts.length===0) return;
-    const tom=new Date(now); tom.setDate(tom.getDate()+1);
-    const tStr=String(tom.getDate()).padStart(2,'0')+'/'+String(tom.getMonth()+1).padStart(2,'0')+'/'+tom.getFullYear();
-    setTrips(prev=>{
-      const news=[];
-      shifts.forEach(sh=>{
-        if(!prev.some(t=>t.deliveryDate===tStr&&t.shiftId===sh.id)){
-          news.push({
-            id:'CH'+uid(),deliveryDate:tStr,
-            deliveryTime:sh.timeStart||'',
-            shiftId:sh.id,shiftName:sh.name,area:sh.area||'',
-            driverName:sh.defaultDriverName||'',driverId:sh.defaultDriverId||'',driverAssignMode:sh.defaultDriverId||sh.defaultDriverName?'auto':'',orderIds:[],totalWeight:0,
-            status:sh.defaultDriverId||sh.defaultDriverName?'assigned':'planning',
-            note:'Tự động tạo: '+sh.name+(sh.area?' - '+sh.area:''),
-            createdAt:fmtDT(),autoCreated:true
-          });
-        }
-      });
-      if(news.length>0){
-        localStorage.setItem(todayKey,'1');
-        if(!isFaceMask)setTimeout(()=>window.showToast&&window.showToast('Đã tự động tạo '+news.length+' chuyến giao hàng cho ngày '+tStr,'info',6000),1500);
-        return[...prev,...news];
+    const automationUser=session?(employees.find(e=>String(e.id)===String(session.id))||null):null;
+    if(loading||isFaceMask||!automationUser||!canAccess(automationUser.role,'delivery',automationUser.permissions,automationUser.dept)||!canWrite(automationUser.role,'delivery',automationUser.permLevels)||!shifts?.length||!prodShifts?.length)return;
+    const norm=v=>normalizeLookupText(v||'');
+    const sameDate=(a,b)=>String(a||'').trim()===String(b||'').trim();
+    const usableTrip=t=>!['active','completion_pending','completed','cancelled'].includes(String(t?.status||''));
+    const linkedTripIds=new Set((orders||[]).filter(o=>!['cancelled','done','failed'].includes(String(o?.status||''))).map(o=>String(o?.tripId||'')).filter(Boolean));
+    const keptTrips=(trips||[]).filter(t=>!(t?.autoCreated&&usableTrip(t)&&!(t.orderIds||[]).length&&!linkedTripIds.has(String(t.id||''))));
+    const workingTrips=keptTrips.map(t=>({...t,orderIds:[...(t.orderIds||[])]}));
+    const tripById=new Map(workingTrips.map(t=>[String(t.id||''),t]));
+    let tripsChanged=keptTrips.length!==(trips||[]).length,ordersChanged=false;
+    const nextOrders=(orders||[]).map(order=>{
+      if(order?.tripAssignMode==='manual'||!['','pending','assigned'].includes(String(order?.status||'')))return order;
+      const linked=tripById.get(String(order?.tripId||''));
+      if(linked){
+        if(!(linked.orderIds||[]).includes(order.id)){linked.orderIds=[...(linked.orderIds||[]),order.id];tripsChanged=true;}
+        return order;
       }
-      return prev;
+      const plannedShift=order?.prodShiftAssignMode==='manual'&&order?.prodShiftId
+        ?(prodShifts||[]).find(s=>String(s?.id||'')===String(order.prodShiftId))
+        :getProdShiftForOrder(order,prodShifts||[],customers||[]);
+      if(!plannedShift)return order;
+      const tripDate=addDaysVN(order.deliveryDate,Number(plannedShift.tripDateOffset??0));
+      // Chỉ dùng ca giao đã được khai báo trực tiếp trong cấu hình ca SX.
+      // Không suy đoán ca giao theo khu vực, tên điểm hoặc các chuyến cùng ngày.
+      const wantedShiftId=String(plannedShift.tripShiftId||'').trim();
+      const wantedShiftName=String(plannedShift.tripShiftName||'').trim();
+      if(!tripDate||(!wantedShiftId&&!wantedShiftName))return order;
+      const deliveryShift=(shifts||[]).find(s=>wantedShiftId&&String(s.id||'')===wantedShiftId)
+        ||(shifts||[]).find(s=>wantedShiftName&&norm(s.name)===norm(wantedShiftName));
+      if(!deliveryShift)return order;
+      const shiftId=String(deliveryShift.id||'').trim();
+      const shiftName=String(deliveryShift.name||'').trim();
+      let trip=workingTrips.find(t=>usableTrip(t)&&sameDate(t.deliveryDate,tripDate)&&(
+        (shiftId&&String(t.shiftId||'')===shiftId)||(shiftName&&norm(t.shiftName)===norm(shiftName))
+      ));
+      if(!trip){
+        const driverId=String(deliveryShift?.defaultDriverId||'').trim();
+        const driverName=String(deliveryShift?.defaultDriverName||'').trim();
+        trip={
+          id:'CH'+uid(),deliveryDate:tripDate,deliveryTime:deliveryShift?.timeStart||deliveryShift?.startTime||order.deliveryTime||'',
+          shiftId,shiftName:shiftName||deliveryShift?.area||'Chuyến tự động',area:deliveryShift?.area||order.area||'',
+          driverName,driverId,driverAssignMode:driverId||driverName?'auto':'',orderIds:[],totalWeight:0,
+          status:driverId||driverName?'assigned':'planning',
+          note:'Tự động tạo khi có đơn phù hợp'+(shiftName?': '+shiftName:''),
+          createdAt:fmtDT(),updatedAt:fmtDT(),updatedBy:automationUser.name||'Hệ thống',autoCreated:true
+        };
+        workingTrips.push(trip);tripById.set(String(trip.id),trip);tripsChanged=true;
+      }
+      if(!trip.orderIds.includes(order.id)){trip.orderIds.push(order.id);tripsChanged=true;}
+      if(String(order.tripId||'')===String(trip.id)&&order.status==='assigned'&&order.tripAssignMode==='auto')return order;
+      ordersChanged=true;
+      return {...order,tripId:trip.id,tripAssignMode:'auto',status:'assigned',updatedAt:fmtDT(),updatedBy:automationUser.name||'Hệ thống'};
     });
-  },[loading,shifts]);
+    if(tripsChanged)setTrips(workingTrips);
+    if(ordersChanged)setOrders(nextOrders);
+  },[loading,isFaceMask,session,employees,orders,trips,shifts,prodShifts,customers]);
 
   const cu=session?(employees.find(e=>e.id===session.id)||(String(window.__SCF_CURRENT_EMPLOYEE?.id||'')===String(session.id)?window.__SCF_CURRENT_EMPLOYEE:null)):null;
   const addNotification=React.useCallback(data=>{

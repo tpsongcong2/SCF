@@ -34,6 +34,7 @@ function UtilityExpenseTab({entries,setEntries,currentUser}){
   const blank=()=>({date:isoDate(),period:isoDate().slice(0,7),utilityType:'Điện',provider:'',consumption:0,unit:'kWh',amount:0,method:'Chuyển khoản',invoiceNo:'',note:'',utilityInvoices:utilityBlankInvoices()});
   const [form,setForm]=useState(blank());
   const [readingInvoice,setReadingInvoice]=useState('');
+  const [pasteTarget,setPasteTarget]=useState(0);
   const setF=(key,value)=>setForm(previous=>{
     const next={...previous,[key]:value};
     if(key==='utilityType')next.unit=value==='Nước'?'m³':'kWh';
@@ -61,23 +62,49 @@ function UtilityExpenseTab({entries,setEntries,currentUser}){
     setReadingInvoice(String(index));
     try{
       const image=await uploadPhoto(file,'utility-invoices/'+form.period+'/'+(index+1),{max:2000,quality:.88});
-      setInvoice(index,{image,imageName:file.name||'hoa-don-dien.jpg'});
-      let parsed=null,reader='AI';
-      try{
-        if(!sb)throw new Error('Chưa kết nối Supabase.');
-        const prepared=await resizeImageFile(file,2200,.9);
-        const{data,error}=await sb.functions.invoke('scf-finance-vision',{body:{mode:'utility_invoice',imageDataUrl:prepared.dataUrl}});
+      setInvoice(index,{image,imageName:file.name||'hoa-don-dien.jpg',invoiceNo:'',lines:[],totalKwh:0,beforeTax:0,vatAmount:0,afterTax:0});
+      if(!sb)throw new Error('Chưa kết nối Supabase AI.');
+      const prepared=await resizeImageFile(file,2400,.94);
+      const normalizeBand=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      const mapAi=data=>({invoiceNo:data.invoice_no||'',meteringType:data.metering_type||'',lines:(data.lines||[]).map(line=>({timeBand:line.time_band,unitPrice:numFmt(line.unit_price),quantity:numFmt(line.quantity_kwh),amount:numFmt(line.amount)})),totalKwh:numFmt(data.total_kwh),beforeTax:numFmt(data.amount_before_tax),vatPercent:numFmt(data.vat_percent)||8,vatAmount:numFmt(data.vat_amount),afterTax:numFmt(data.amount_after_tax)});
+      const validateAi=parsed=>{
+        if(!parsed.lines.length||parsed.beforeTax<=0||parsed.afterTax<=0||parsed.totalKwh<=0)return false;
+        if(index<2){
+          const labels=parsed.lines.map(line=>normalizeBand(line.timeBand));
+          if(!labels.some(label=>label.includes('binh thuong'))||!labels.some(label=>label.includes('cao diem'))||!labels.some(label=>label.includes('thap diem')))return false;
+        }
+        const lineKwh=parsed.lines.reduce((sum,line)=>sum+numFmt(line.quantity),0);
+        const lineAmount=parsed.lines.reduce((sum,line)=>sum+numFmt(line.amount),0);
+        return Math.abs(lineKwh-parsed.totalKwh)<=1&&Math.abs(lineAmount-parsed.beforeTax)<=1000;
+      };
+      const invokeAi=async retry=>{
+        const{data,error}=await sb.functions.invoke('scf-finance-vision',{body:{mode:'utility_invoice',retry,imageDataUrl:prepared.dataUrl}});
         if(error)throw error;if(!data?.ok)throw new Error(data?.error||'AI không đọc được hóa đơn.');
-        parsed={invoiceNo:data.invoice_no||'',lines:(data.lines||[]).map(line=>({timeBand:line.time_band,unitPrice:numFmt(line.unit_price),quantity:numFmt(line.quantity_kwh),amount:numFmt(line.amount)})),totalKwh:numFmt(data.total_kwh),beforeTax:numFmt(data.amount_before_tax),vatPercent:numFmt(data.vat_percent)||8,vatAmount:numFmt(data.vat_amount),afterTax:numFmt(data.amount_after_tax)};
-      }catch(aiError){
-        reader='OCR dự phòng';
-        if(!window.Tesseract)await window.scfLoadExternalScript('tesseract');
-        const result=await Tesseract.recognize(file,'vie+eng');parsed=utilityParseElectricOcr(result?.data?.text||'');
-      }
-      setInvoice(index,parsed);window.showToast(reader+' đã đọc hóa đơn. Hãy kiểm tra lại số liệu.','success');
-    }catch(error){console.warn('Read electric invoice:',error);window.showToast('Không đọc được hóa đơn. Bạn có thể nhập số liệu thủ công.','error');}
+        return mapAi(data);
+      };
+      let parsed=await invokeAi(false);
+      if(!validateAi(parsed)){window.showToast('AI đang đọc kiểm tra lại các dòng cao điểm và thấp điểm...','info');parsed=await invokeAi(true);}
+      if(!validateAi(parsed))throw new Error(index<2?'AI chưa đọc đủ 3 khung giờ bình thường, cao điểm và thấp điểm.':'AI chưa đối chiếu khớp bảng chi tiết với dòng tổng.');
+      setInvoice(index,parsed);window.showToast('AI đã đọc đủ và đối chiếu khớp các dòng hóa đơn. Hãy kiểm tra lại số liệu.','success');
+    }catch(error){console.warn('Read electric invoice:',error);window.showToast((error?.message||'AI không đọc đủ hóa đơn.')+' Vui lòng dùng ảnh rõ hơn và thử lại.','error');}
     finally{setReadingInvoice('');}
   };
+  const importInvoiceFiles=async(fileList,startIndex=0,openEditor=false)=>{
+    const files=[...(fileList||[])].filter(file=>String(file.type||'').startsWith('image/')).slice(0,3-startIndex);
+    if(!files.length){window.showToast('Vui lòng chọn hoặc paste tệp ảnh hóa đơn.','warn');return;}
+    if(openEditor){setEdit(null);setForm(blank());setPasteTarget(0);setModal(true);}
+    for(let offset=0;offset<files.length;offset++)await readElectricInvoice(startIndex+offset,files[offset]);
+  };
+  useEffect(()=>{
+    const onPaste=event=>{
+      const files=[...(event.clipboardData?.items||[])].filter(item=>item.kind==='file'&&String(item.type||'').startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);
+      if(!files.length)return;
+      event.preventDefault();
+      importInvoiceFiles(files,modal?pasteTarget:0,!modal);
+    };
+    document.addEventListener('paste',onPaste);
+    return()=>document.removeEventListener('paste',onPaste);
+  },[modal,pasteTarget,form.period]);
   const save=()=>{
     const isElectric=form.utilityType==='Điện';
     if(isElectric&&((form.utilityInvoices||[]).length!==3||(form.utilityInvoices||[]).some(invoice=>numFmt(invoice.afterTax)<=0))){window.showToast('Cần đủ số liệu của cả 3 hóa đơn điện trước khi lưu.','warn');return;}
@@ -92,6 +119,12 @@ function UtilityExpenseTab({entries,setEntries,currentUser}){
   const remove=id=>window.scfConfirm('Bạn có chắc muốn xóa khoản chi phí điện nước này?','Xóa chi phí',true).then(ok=>{if(ok){setEntries(previous=>previous.filter(row=>row.id!==id));window.showToast('Đã xóa chi phí điện nước.','success');}});
   return h('div',null,
     h('div',{className:'ph'},h('div',{className:'ptitle'},h('i',{className:'ti ti-bolt',style:{fontSize:20}}),'Chi phí điện nước'),h('button',{className:'bp',onClick:openAdd},h('i',{className:'ti ti-plus'}),'Thêm chi phí')),
+    h('div',{className:'card',tabIndex:0,onDragOver:event=>{event.preventDefault();event.currentTarget.style.borderColor='var(--pri)';},onDragLeave:event=>{event.currentTarget.style.borderColor='var(--bd)';},onDrop:event=>{event.preventDefault();event.currentTarget.style.borderColor='var(--bd)';importInvoiceFiles(event.dataTransfer?.files,0,true);},onPaste:event=>{const files=[...(event.clipboardData?.items||[])].filter(item=>item.kind==='file'&&String(item.type||'').startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);if(files.length){event.stopPropagation();event.preventDefault();importInvoiceFiles(files,0,true);}},style:{marginBottom:16,border:'2px dashed var(--bd)',padding:24,textAlign:'center',cursor:'pointer',transition:'border-color .2s,background .2s'},onClick:event=>{if(event.target.closest('input'))return;event.currentTarget.querySelector('input[type=file]')?.click();}},
+      h('i',{className:'ti ti-cloud-upload',style:{display:'block',fontSize:38,color:'var(--pri)',marginBottom:8}}),
+      h('div',{style:{fontSize:17,fontWeight:700,color:'var(--pri3)'}},'Paste hoặc thả 3 ảnh hóa đơn điện vào đây'),
+      h('div',{style:{fontSize:13,color:'var(--tx2)',marginTop:6}},'AI sẽ đọc và đối chiếu đủ mọi dòng. Nhấn Ctrl+V, kéo thả ảnh, hoặc bấm để chọn tối đa 3 ảnh. Ảnh được gán lần lượt: Sông Công → Thịnh Nga → Nguyễn Ngọc Thịnh.'),
+      h('input',{type:'file',accept:'image/*',multiple:true,style:{display:'none'},onChange:event=>{importInvoiceFiles(event.target.files,0,true);event.target.value='';}})
+    ),
     h('div',{className:'card',style:{marginBottom:16}},
       h('div',{className:'g2'},
         h(F,{label:'Theo tháng'},h('input',{type:'month',value:month,onChange:event=>setMonth(event.target.value)})),
@@ -109,10 +142,11 @@ function UtilityExpenseTab({entries,setEntries,currentUser}){
       h('div',{className:'g2'},h(F,{label:'Ngày thanh toán *'},h('input',{type:'date',value:form.date,onChange:event=>setF('date',event.target.value)})),h(F,{label:'Kỳ hóa đơn *'},h('input',{type:'month',value:form.period,onChange:event=>setF('period',event.target.value)}))),
       h('div',{className:'g2'},h(F,{label:'Loại *'},h('select',{value:form.utilityType,onChange:event=>setF('utilityType',event.target.value)},h('option',{value:'Điện'},'Điện'),h('option',{value:'Nước'},'Nước'))),h(F,{label:'Phương thức'},h('select',{value:form.method,onChange:event=>setF('method',event.target.value)},h('option',null,'Chuyển khoản'),h('option',null,'Tiền mặt'),h('option',null,'Khác')))),
       form.utilityType==='Điện'&&h('div',{style:{display:'grid',gap:14,margin:'8px 0'}},
-        (form.utilityInvoices||utilityBlankInvoices()).map((invoice,index)=>h('div',{key:invoice.id,className:'card',style:{padding:14,margin:0,border:'1px solid var(--bd)'}},
+        (form.utilityInvoices||utilityBlankInvoices()).map((invoice,index)=>h('div',{key:invoice.id,className:'card',tabIndex:0,onFocus:()=>setPasteTarget(index),onDragOver:event=>{event.preventDefault();event.currentTarget.style.borderColor='var(--pri)';},onDragLeave:event=>{event.currentTarget.style.borderColor='var(--bd)';},onDrop:event=>{event.preventDefault();event.currentTarget.style.borderColor='var(--bd)';setPasteTarget(index);importInvoiceFiles(event.dataTransfer?.files,index,false);},style:{padding:14,margin:0,border:'2px dashed '+(pasteTarget===index?'var(--pri)':'var(--bd)'),outline:'none'}},
           h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}},h('div',{style:{fontWeight:700,color:'var(--pri3)'}},'Hóa đơn '+(index+1)+' · '+invoice.name),h('div',{style:{display:'flex',gap:8}},invoice.image&&h('button',{type:'button',onClick:()=>openInvoiceImage(invoice)},h('i',{className:'ti ti-photo'}),'Xem ảnh'),h('label',{className:'bp',style:{cursor:readingInvoice!==''?'wait':'pointer'}},h('i',{className:'ti '+(readingInvoice===String(index)?'ti-loader-2 spin':'ti-scan')}),readingInvoice===String(index)?'Đang đọc...':'Upload hóa đơn',h('input',{type:'file',accept:'image/*',style:{display:'none'},disabled:readingInvoice!=='',onChange:event=>{const file=event.target.files?.[0];readElectricInvoice(index,file);event.target.value='';}})))),
+          h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:10}},h('i',{className:'ti ti-clipboard'}),' Có thể thả ảnh vào khung này hoặc chọn khung rồi nhấn Ctrl+V.'),
           h('div',{className:'g2'},h(F,{label:'Số hóa đơn'},h('input',{value:invoice.invoiceNo||'',onChange:event=>setInvoice(index,{invoiceNo:event.target.value})})),h(F,{label:'Tổng điện năng (kWh)'},h(NumInput,{value:invoice.totalKwh,onChange:value=>setInvoice(index,{totalKwh:value})}))),
-          invoice.lines?.length?h('div',{className:'tw',style:{marginBottom:10}},h('table',null,h('thead',null,h('tr',null,...['Khung giờ mua điện','Đơn giá','Sản lượng','Thành tiền'].map(label=>h('th',{key:label},label)))),h('tbody',null,invoice.lines.map((line,lineIndex)=>h('tr',{key:lineIndex},h('td',null,h('input',{value:line.timeBand||'',onChange:event=>setInvoiceLine(index,lineIndex,'timeBand',event.target.value),style:{minWidth:170}})),h('td',null,h(NumInput,{value:line.unitPrice,onChange:value=>setInvoiceLine(index,lineIndex,'unitPrice',value)})),h('td',null,h(NumInput,{value:line.quantity,onChange:value=>setInvoiceLine(index,lineIndex,'quantity',value)})),h('td',null,h(NumInput,{value:line.amount,onChange:value=>setInvoiceLine(index,lineIndex,'amount',value)}))))))):h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:10}},'Upload ảnh để app tự lấy bảng khung giờ, đơn giá và sản lượng.'),
+          invoice.lines?.length?h('div',{className:'tw',style:{marginBottom:10}},h('table',null,h('thead',null,h('tr',null,...['Khung giờ mua điện','Đơn giá','Sản lượng','Thành tiền'].map(label=>h('th',{key:label},label)))),h('tbody',null,invoice.lines.map((line,lineIndex)=>h('tr',{key:lineIndex},h('td',null,h('input',{value:line.timeBand||'',onChange:event=>setInvoiceLine(index,lineIndex,'timeBand',event.target.value),style:{minWidth:170}})),h('td',null,h(NumInput,{value:line.unitPrice,onChange:value=>setInvoiceLine(index,lineIndex,'unitPrice',value)})),h('td',null,h(NumInput,{value:line.quantity,onChange:value=>setInvoiceLine(index,lineIndex,'quantity',value)})),h('td',null,h(NumInput,{value:line.amount,onChange:value=>setInvoiceLine(index,lineIndex,'amount',value)}))))))):h('div',{style:{fontSize:12,color:'var(--tx2)',marginBottom:10}},'Upload ảnh để AI đọc đủ bảng khung giờ, đơn giá, sản lượng và đối chiếu với dòng tổng.'),
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:10}},h(F,{label:'Trước thuế'},h(NumInput,{value:invoice.beforeTax,onChange:value=>setInvoice(index,{beforeTax:value})})),h(F,{label:'Thuế suất (%)'},h('input',{type:'number',min:0,max:100,value:invoice.vatPercent,onChange:event=>{const percent=numFmt(event.target.value);setInvoice(index,{vatPercent:percent,vatAmount:Math.round(numFmt(invoice.beforeTax)*percent/100),afterTax:numFmt(invoice.beforeTax)+Math.round(numFmt(invoice.beforeTax)*percent/100)});}})),h(F,{label:'Thuế GTGT'},h(NumInput,{value:invoice.vatAmount,onChange:value=>setInvoice(index,{vatAmount:value,afterTax:numFmt(invoice.beforeTax)+numFmt(value)})})),h(F,{label:'Sau thuế'},h(NumInput,{value:invoice.afterTax,onChange:value=>setInvoice(index,{afterTax:value})})))
         )),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:10,padding:14,background:'var(--bg2)',borderRadius:'var(--r)',fontWeight:700}},h('div',null,'Tổng 3 hóa đơn'),h('div',null,invoiceTotals.kwh.toLocaleString('vi-VN')+' kWh'),h('div',null,'Trước thuế: '+invoiceTotals.before.toLocaleString('vi-VN')+'đ'),h('div',null,'Thuế: '+invoiceTotals.vat.toLocaleString('vi-VN')+'đ'),h('div',{style:{color:'var(--pri)'}},'Sau thuế: '+invoiceTotals.after.toLocaleString('vi-VN')+'đ'))
