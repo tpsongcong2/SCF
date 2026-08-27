@@ -1062,7 +1062,7 @@ function PasswordField({value,onChange,placeholder}){
     )
   );
 }
-const FACEMASK_ONLY_PERMISSION_PAGES=new Set(['materials','workreport_total','nccs','purchaseorders','cashflowreport','salesreport','fuelreport','purchasereport','maintreport','materialusage','syncreport','dbusage']);
+const FACEMASK_ONLY_PERMISSION_PAGES=new Set(['materials','workreport_total','nccs','purchaseorders','utilityexpenses','cashflowreport','salesreport','fuelreport','purchasereport','maintreport','materialusage','syncreport','dbusage']);
 function normalizeEmployeeDept(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');}
 function isPrivilegedEmployeeRecord(employee){
   const role=String(employee?.role||'').trim().toLowerCase();
@@ -1437,7 +1437,7 @@ function BackupTab({employees,materials,assets,garages,prodCats,products,custome
     {name:'Nhà cung cấp',rows:nccs||[],cols:[['code','Mã NCC'],['name','Tên NCC'],['taxCode','MST'],['phone','Điện thoại'],['email','Email'],['contact','Người LH'],['address','Địa chỉ'],['note','Ghi chú']]},
     {name:'Đơn mua NVL',rows:purchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['itemVatPercent','VAT (%)'],['itemVatAmount','Tiền VAT'],['itemAmountAfterTax','Thành tiền VAT'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
     {name:'Đơn mua hàng hóa',rows:goodsPurchaseRows,cols:[['id','Mã đơn'],['nccName','Nhà cung cấp'],['orderDate','Ngày đặt'],['deliveryDate','Hạn giao'],['receivedDate','Ngày nhận'],['invoiceNo','Số hóa đơn'],['status','Trạng thái'],['paymentStatus','Thanh toán'],['itemName','Mặt hàng'],['itemUnit','ĐVT'],['itemQty','Số lượng'],['itemPrice','Đơn giá'],['itemTotal','Thành tiền'],['itemVatPercent','VAT (%)'],['itemVatAmount','Tiền VAT'],['itemAmountAfterTax','Thành tiền VAT'],['note','Ghi chú đơn'],['lineNote','Ghi chú dòng']]},
-    {name:'Sổ thu chi',rows:financeEntries||[],cols:[['id','Mã'],['date','Ngày'],['direction','Tiền vào/ra'],['category','Nhóm thu chi'],['partnerName','Đối tượng'],['method','Phương thức'],['amount','Số tiền'],['pnlType','Phân loại KQKD'],['reference','Chứng từ'],['note','Ghi chú']]},
+    {name:'Sổ thu chi',rows:(financeEntries||[]).map(row=>({...row,utilityInvoicesJson:JSON.stringify(row.utilityInvoices||[])})),cols:[['id','Mã'],['date','Ngày'],['direction','Tiền vào/ra'],['category','Nhóm thu chi'],['utilityType','Loại điện nước'],['period','Kỳ hóa đơn'],['partnerName','Đối tượng'],['consumption','Sản lượng'],['unit','Đơn vị'],['amountBeforeTax','Trước thuế'],['vatAmount','Thuế GTGT'],['amountAfterTax','Sau thuế'],['method','Phương thức'],['amount','Số tiền'],['pnlType','Phân loại KQKD'],['reference','Chứng từ'],['utilityInvoicesJson','Chi tiết 3 hóa đơn (JSON)'],['note','Ghi chú']]},
     {name:'Công nợ',rows:financeDebts||[],cols:[['id','Mã'],['kind','Loại'],['partnerName','Đối tượng'],['date','Ngày ghi nhận'],['dueDate','Hạn thanh toán'],['invoiceNo','Chứng từ'],['amount','Giá trị'],['paidAmount','Đã thanh toán'],['status','Trạng thái'],['note','Ghi chú']]},
     {name:'Số dư đầu tháng',rows:financeOpenings||[],cols:[['month','Tháng'],['cash','Tiền mặt'],['bank','Ngân hàng'],['updatedBy','Người cập nhật'],['updatedAt','Cập nhật lúc']]},
   ];
