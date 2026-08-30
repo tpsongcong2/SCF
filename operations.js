@@ -1063,10 +1063,11 @@ function PasswordField({value,onChange,placeholder}){
   );
 }
 const FACEMASK_ONLY_PERMISSION_PAGES=new Set(['materials','workreport_total','nccs','purchaseorders','utilityexpenses','cashflowreport','salesreport','fuelreport','purchasereport','maintreport','materialusage','syncreport','dbusage']);
-function normalizeEmployeeDept(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');}
+function normalizeEmployeeDept(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/đ/g,'d').replace(/[^a-z0-9]+/g,' ').trim();}
 function isPrivilegedEmployeeRecord(employee){
   const role=String(employee?.role||'').trim().toLowerCase();
-  return ['admin','administrator'].includes(role)||normalizeEmployeeDept(employee?.dept)==='ban giam doc';
+  const permissionProfileId=String(employee?.permissionProfileId||'').trim().toLowerCase();
+  return ['admin','administrator'].includes(role)||permissionProfileId==='director'||normalizeEmployeeDept(employee?.dept)==='ban giam doc';
 }function EmpForm({emp,employees,depts,permissionProfiles,cu,cu2,onSave,onClose}){
   const deptNames=(depts&&depts.length?depts.map(d=>d.name):DEPTS);
   const isFaceMask=window.SCF_APP_VARIANT==='face-mask';
@@ -1092,7 +1093,7 @@ function isPrivilegedEmployeeRecord(employee){
       const password=f.password?await hashPassword(f.password):'';
       const permissions=isFaceMask&&f.permissionProfileId==='director'?[]:(f.permissions||[]).filter(page=>!FACEMASK_ONLY_PERMISSION_PAGES.has(page));
       const permLevels=isFaceMask&&f.permissionProfileId==='director'?{}:Object.fromEntries(Object.entries(f.permLevels||{}).filter(([page])=>!FACEMASK_ONLY_PERMISSION_PAGES.has(page)));
-      onSave({...f,permissions,permLevels,password,gender,female:gender==='female',updatedBy:cu.name,updatedAt:fmtDT()});
+      onSave({...f,dept:isFaceMask&&f.permissionProfileId==='director'?'Ban Giám Đốc':f.dept,permissions,permLevels,password,gender,female:gender==='female',updatedBy:cu.name,updatedAt:fmtDT()});
     }catch(e){window.showToast(e.message||'Không thể lưu mật khẩu.','error');}
     finally{setBusy(false);}
   };

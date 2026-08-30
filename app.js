@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V228';
+const SCF_BUILD_VERSION='V245';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -40,7 +40,8 @@ function SyncStatus(){
   };
   const item=map[state?.status]||map.idle;
   const label=state?.pending?item[0]+' ('+state.pending+')':item[0];
-  return h('span',{className:'sync-status sync-'+(state?.status||'idle'),title:state?.detail||label,'aria-live':'polite'},
+  const retry=()=>{if(state?.pending&&state?.status!=='syncing')window.scfFlushPendingWrites?.();};
+  return h('span',{className:'sync-status sync-'+(state?.status||'idle'),title:state?.pending?'Bấm để đồng bộ lại':(state?.detail||label),'aria-live':'polite',role:state?.pending?'button':undefined,tabIndex:state?.pending?0:undefined,onClick:retry,onKeyDown:event=>{if(state?.pending&&(event.key==='Enter'||event.key===' ')){event.preventDefault();retry();}},style:state?.pending?{cursor:'pointer'}:null},
     h('i',{className:'ti '+item[1]+(state?.status==='syncing'?' spin':'')}),label
   );
 }

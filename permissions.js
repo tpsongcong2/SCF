@@ -72,7 +72,7 @@ function roleDefaults(role) {
 }
 // canAccess checks employee's custom permissions first, else falls back to role
 function canAccess(role, page, perms, dept='') {
-  const faceMaskPages=['materials','workreport_total','nccs','purchaseorders','utilityexpenses','cashflowreport','salesreport','fuelreport','purchasereport','maintreport','materialusage','syncreport','dbusage'];
+  const faceMaskPages=['permission_settings','materials','workreport_total','nccs','purchaseorders','utilityexpenses','cashflowreport','salesreport','fuelreport','purchasereport','maintreport','materialusage','syncreport','dbusage'];
   const sharedVariantPages=['employees'];
   const isFaceMask=window.SCF_APP_VARIANT==='face-mask';
   if(isFaceMask&&!faceMaskPages.includes(page)&&!sharedVariantPages.includes(page))return false;
