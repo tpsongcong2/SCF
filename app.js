@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V262';
+const SCF_BUILD_VERSION='V279';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -106,6 +106,7 @@ const PICONS = {
 
 function SyncStatus(){
   const[state,setState]=useState(()=>window.scfGetSyncState?window.scfGetSyncState():{status:navigator.onLine?'idle':'offline',pending:0});
+  const[reportOpen,setReportOpen]=useState(false);
   useEffect(()=>{
     const update=e=>setState(e.detail||window.scfGetSyncState());
     window.addEventListener('scf-sync-state',update);
@@ -117,9 +118,14 @@ function SyncStatus(){
   };
   const item=map[state?.status]||map.idle;
   const label=state?.pending?item[0]+' ('+state.pending+')':item[0];
+  const report=reportOpen&&window.scfGetSyncReport?window.scfGetSyncReport():null;
+  const reportRows=(report?.items||[]).map(row=>h('div',{key:row.key,style:{padding:'10px 12px',border:'1px solid var(--bd)',borderRadius:'var(--r)',background:'var(--bg2)'}},h('div',{style:{fontWeight:700}},row.label),h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:4}},row.recordCount+' bản ghi · Sửa lúc '+(row.updatedAt?new Date(row.updatedAt).toLocaleString('vi-VN'):'—')+' · Đã thử '+row.attempts+' lần')));
+  const canOpen=!!state?.pending||state?.status==='error'||state?.status==='offline';
   const retry=()=>{if(state?.pending&&state?.status!=='syncing')window.scfFlushPendingWrites?.();};
-  return h('span',{className:'sync-status sync-'+(state?.status||'idle'),title:state?.pending?'Bấm để đồng bộ lại':(state?.detail||label),'aria-live':'polite',role:state?.pending?'button':undefined,tabIndex:state?.pending?0:undefined,onClick:retry,onKeyDown:event=>{if(state?.pending&&(event.key==='Enter'||event.key===' ')){event.preventDefault();retry();}},style:state?.pending?{cursor:'pointer'}:null},
-    h('i',{className:'ti '+item[1]+(state?.status==='syncing'?' spin':'')}),label
+  const title=state?.detail?(state.detail+(state?.pending?' — Bấm để đồng bộ lại':'')):(state?.pending?'Bấm để đồng bộ lại':label);
+  return h(React.Fragment,null,
+    h('span',{className:'sync-status sync-'+(state?.status||'idle'),title,'aria-live':'polite',role:canOpen?'button':undefined,tabIndex:canOpen?0:undefined,onClick:()=>canOpen&&setReportOpen(true),onKeyDown:event=>{if(canOpen&&(event.key==='Enter'||event.key===' ')){event.preventDefault();setReportOpen(true);}},style:canOpen?{cursor:'pointer'}:null},h('i',{className:'ti '+item[1]+(state?.status==='syncing'?' spin':'')}),label),
+    reportOpen&&h(Modal,{title:'Chi tiết dữ liệu chờ đồng bộ',lg:'xl',onClose:()=>setReportOpen(false)},h('div',{style:{display:'grid',gap:9,overflowWrap:'anywhere',wordBreak:'break-word',minWidth:0}},state?.detail&&h('div',{style:{padding:'9px 11px',border:'1px solid #f0cf7a',borderRadius:'var(--r)',background:'#fff8e1',color:'#6d4b00'}},h('b',null,'Trạng thái: '),state.detail),reportRows.length?reportRows:h('div',{style:{color:'var(--tx2)'}},'Không có bản ghi trong hàng đợi. Đây là trạng thái lỗi của lần đồng bộ trước; hãy kiểm tra nội dung trạng thái ở trên.'),h('div',{style:{display:'flex',justifyContent:'flex-end',gap:8,marginTop:6}},h('button',{onClick:()=>setReportOpen(false)},'Đóng'),h('button',{className:'bp',disabled:state?.status==='syncing'||!(report?.items||[]).length,onClick:()=>{retry();setReportOpen(false);}},h('i',{className:'ti ti-refresh'}),'Đồng bộ ngay'))))
   );
 }
 
@@ -128,6 +134,8 @@ function App(){
   const employeeStorageKey=isFaceMask?'scf_privileged_employees':'scf_employees';
   const homePage=isFaceMask?'workreport_total':'welcome';
   const[session,setSession]=useLS('scf_session',null);
+  useEffect(()=>{const replaced=async()=>{try{await sb?.auth?.signOut({scope:'local'});}catch{}window.scfClearSensitiveLocalData?.();setSession(null);window.showToast?.('Tài khoản đã được đăng nhập trên máy khác. Máy này đã tự đăng xuất.','warn',7000);};window.addEventListener('scf-session-replaced',replaced);return()=>window.removeEventListener('scf-session-replaced',replaced);},[]);
+  useEffect(()=>{if(!SCF_SERVER_AUTH_ENABLED||!session)return;let stopped=false;const touch=()=>serverTouchSession().catch(error=>{if(!stopped&&!String(error?.message||'').includes('Phiên đăng nhập không hợp lệ'))console.warn('Session heartbeat:',error?.message||error);});touch();const timer=setInterval(touch,45000);const visible=()=>{if(document.visibilityState==='visible')touch();};document.addEventListener('visibilitychange',visible);return()=>{stopped=true;clearInterval(timer);document.removeEventListener('visibilitychange',visible);};},[session?.id]);
   const[menuHidden,setMenuHidden]=useLS('scf_topnav_hidden',false);
   const[employees,_se]=useState(SCF_SERVER_AUTH_ENABLED?[]:DEF_EMPS);
   const[company,_sc]=useState(DEF_COMPANY);
@@ -222,6 +230,7 @@ function App(){
   const setFinanceOpenings=mkSet('scf_finance_openings',_sfo);
   const mkCommunitySet=(key,setter)=>valOrFn=>setter(prev=>{
     const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;
+    if(next===prev)return prev;
     dbSet(key,next);
     return next;
   });
@@ -328,7 +337,13 @@ function App(){
           if(cancelled)return;
           _se(rows);
         }
-      }catch(err){if(!cancelled)setBootError(err.message||'Không tải được hồ sơ đăng nhập.');}
+      }catch(err){
+        if(!cancelled&&String(err?.message||'').includes('Phiên đăng nhập không hợp lệ')){
+          try{await sb?.auth?.signOut({scope:'local'});}catch{}
+          window.scfClearSensitiveLocalData?.();setSession(null);_se([]);setBootError('');
+          window.showToast?.('Tài khoản đã được đăng nhập trên máy khác. Máy này đã tự đăng xuất.','warn',7000);
+        }else if(!cancelled)setBootError(err.message||'Không tải được hồ sơ đăng nhập.');
+      }
       finally{if(!cancelled){setServerAuthReady(true);setLoading(false);}}
     })();
     return()=>{cancelled=true;loader.dispose();};
@@ -450,10 +465,21 @@ function App(){
       type:data.type||'info',icon:data.icon||'ti-bell',sourceType:data.sourceType||'',sourceId:data.sourceId||'',
       targetPage:data.targetPage||'notifications',createdAt:stamp,createdAtIso:nowIso,createdBy:cu?.name||'Hệ thống',readAt:''
     }));
-    setNotifications(prev=>[...rows,...(prev||[])].slice(0,2000));
+    setNotifications(prev=>data?.dedupeKey&&(prev||[]).some(item=>item.sourceType==='sync-error'&&item.sourceId===data.dedupeKey&&!item.readAt)?prev:[...rows,...(prev||[])].slice(0,2000));
     setTimeout(()=>window.scfFlushPendingWrites&&window.scfFlushPendingWrites(),900);
     return rows.length;
   },[cu?.id,cu?.name]);
+  useEffect(()=>{
+    if(loading||!pageReady||!cu||isFaceMask)return;
+    const saveSyncError=event=>{
+      const detail=event?.detail||window.__SCF_LAST_SYNC_ERROR;
+      if(!detail?.message||!detail?.fingerprint||detail.key==='scf_notifications')return;
+      addNotification({recipientId:cu.id,title:'Lỗi đồng bộ cần kiểm tra',message:detail.message,type:'error',icon:'ti-alert-triangle',sourceType:'sync-error',sourceId:detail.fingerprint,dedupeKey:detail.fingerprint,targetPage:detail.key==='scf_orders'?'delivery':'notifications'});
+    };
+    window.addEventListener('scf-sync-error-notification',saveSyncError);
+    if(window.__SCF_LAST_SYNC_ERROR)saveSyncError({detail:window.__SCF_LAST_SYNC_ERROR});
+    return()=>window.removeEventListener('scf-sync-error-notification',saveSyncError);
+  },[loading,pageReady,cu?.id,isFaceMask,addNotification]);
   const notificationReadyRef=React.useRef(false);
   useEffect(()=>{
     if(loading||!cu)return;

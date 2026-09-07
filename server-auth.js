@@ -3,6 +3,7 @@
 const SCF_SERVER_AUTH_ENABLED=true;
 
 async function serverFunctionErrorMessage(error,data,fallback){
+  const finish=message=>{const text=String(message||fallback);if(text.includes('Phiên đăng nhập không hợp lệ'))setTimeout(()=>window.dispatchEvent(new CustomEvent('scf-session-replaced')),0);return text;};
   const messageFrom=body=>{
     if(!body)return'';
     if(typeof body==='string')return body.trim();
@@ -12,29 +13,34 @@ async function serverFunctionErrorMessage(error,data,fallback){
     return'';
   };
   const direct=messageFrom(data);
-  if(direct)return direct;
+  if(direct)return finish(direct);
   try{
     const response=error?.context;
     if(response&&typeof response.clone==='function'){
       const copy=response.clone();
       try{
         const detail=messageFrom(await copy.json());
-        if(detail)return detail;
+        if(detail)return finish(detail);
       }catch{
         const detail=messageFrom(await response.clone().text());
-        if(detail)return detail;
+        if(detail)return finish(detail);
       }
     }
   }catch(e){console.warn('Không đọc được nội dung lỗi Edge Function:',e?.message||e);}
-  return error?.message||fallback;
+  return finish(error?.message||fallback);
 }
 
-async function serverUsernameLogin(username,password){
+async function serverUsernameLogin(username,password,forceTakeover=false){
   if(!sb)throw new Error('Chưa kết nối được máy chủ xác thực.');
   const{data,error}=await sb.functions.invoke('scf-auth',{
-    body:{action:'login',username:String(username||'').trim(),password:String(password||'')}
+    body:{action:'login',username:String(username||'').trim(),password:String(password||''),deviceId:window.scfDeviceId?.()||'',deviceLabel:window.scfDeviceLabel?.()||'',forceTakeover:forceTakeover===true}
   });
   if(error)throw new Error(await serverFunctionErrorMessage(error,data,'Không thể đăng nhập qua máy chủ.'));
+  if(data?.code==='SESSION_ACTIVE'){
+    const activeError=new Error(data.error||'Tài khoản đã có máy đăng nhập.');
+    activeError.code='SESSION_ACTIVE';activeError.activeDeviceLabel=data.activeDeviceLabel||'một thiết bị khác';
+    throw activeError;
+  }
   if(!data?.access_token||!data?.refresh_token||!data?.employee)throw new Error(data?.error||'Máy chủ trả về phiên đăng nhập không hợp lệ.');
   const{error:sessionError}=await sb.auth.setSession({access_token:data.access_token,refresh_token:data.refresh_token});
   if(sessionError)throw sessionError;
@@ -49,7 +55,13 @@ async function getServerAuthSession(){
 }
 
 async function serverLogout(){
-  if(SCF_SERVER_AUTH_ENABLED&&sb)try{await sb.auth.signOut();}catch(e){console.warn('Server logout:',e.message);}
+  if(SCF_SERVER_AUTH_ENABLED&&sb)try{await sb.functions.invoke('scf-auth',{body:{action:'release_session'}});await sb.auth.signOut();}catch(e){console.warn('Server logout:',e.message);}
+}
+async function serverTouchSession(){
+  if(!SCF_SERVER_AUTH_ENABLED||!sb)return false;
+  const{data,error}=await sb.functions.invoke('scf-auth',{body:{action:'touch_session'}});
+  if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Không duy trì được phiên đăng nhập.'));
+  return true;
 }
 
 async function serverLoadEmployeeContext(){
@@ -102,13 +114,17 @@ async function serverSaveAutoTrips(trips){
   return data.trips||trips;
 }
 
-async function serverSavePermittedCollection(key,value){
+async function serverSavePermittedCollection(key,value,expectedUpdatedAt=''){
   if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
   const{data,error}=await sb.functions.invoke('scf-auth',{
-    body:{action:'save_permitted_collection',key:String(key||''),value:Array.isArray(value)?value:[]}
+    body:{action:'save_permitted_collection',key:String(key||''),value:Array.isArray(value)?value:[],enforceVersion:true,expectedUpdatedAt:String(expectedUpdatedAt||'')}
   });
+  if(data?.conflict){
+    const conflict=new Error('Dữ liệu trên máy chủ vừa thay đổi'+(data.actorName?' bởi '+data.actorName:'')+'. Thay đổi của bạn chưa được lưu; hệ thống đang tải bản mới nhất.');
+    conflict.code='SCF_WRITE_CONFLICT';throw conflict;
+  }
   if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Không đồng bộ được dữ liệu.'));
-  return data.value||value;
+  return{value:data.value||value,updatedAt:data.updatedAt||''};
 }
 
 async function serverChangePassword(employeeId,currentPassword,newPassword,adminReset=false){
