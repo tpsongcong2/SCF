@@ -114,33 +114,36 @@ function OrderDetailLine({line,products,prodCats,prodShifts,deliveryDate,deliver
 }
 
 function PrintModal({order,company,onClose}){
+  const displayOrder=order,displayCompany=company;
+  order=scfEscapePrintData(order||{});
+  company=scfEscapePrintData(company||{});
   return h('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
     h('div',{style:{background:'#fff',borderRadius:'var(--rl)',width:700,maxWidth:'95vw',maxHeight:'92vh',overflow:'auto',padding:'2rem'}},
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1.5rem'}},
         h('div',{style:{display:'flex',alignItems:'center',gap:12}},
           h('img',{src:LOGO_SRC,style:{width:50,height:50}}),
           h('div',null,
-            h('div',{style:{fontSize:16,fontWeight:700,color:'var(--pri3)'}},company&&company.name||'Công ty SCF'),
-            company&&company.address&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},company.address),
-            company&&company.phone&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},'ĐT: '+company.phone)
+            h('div',{style:{fontSize:16,fontWeight:700,color:'var(--pri3)'}},displayCompany&&displayCompany.name||'Công ty SCF'),
+            displayCompany&&displayCompany.address&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},displayCompany.address),
+            displayCompany&&displayCompany.phone&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},'ĐT: '+displayCompany.phone)
           )
         ),
         h('div',{style:{textAlign:'right'}},
           h('div',{style:{fontSize:20,fontWeight:700,color:'var(--pri3)'}},'HÓA ĐƠN GIAO HÀNG'),
-          h('div',{style:{fontSize:13,color:'var(--tx2)'}},order.id),
-          order.invoiceNo&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Số HĐ: '+order.invoiceNo)
+          h('div',{style:{fontSize:13,color:'var(--tx2)'}},displayOrder.id),
+          displayOrder.invoiceNo&&h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Số HĐ: '+displayOrder.invoiceNo)
         )
       ),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,background:'var(--bg2)',padding:'12px 16px',borderRadius:'var(--r)',marginBottom:'1.5rem',fontSize:13}},
-        h('div',null,h('b',null,'Khách hàng: '),order.customer),
-        h('div',null,h('b',null,'Ngày giao: '),order.deliveryDate+(order.deliveryTime?' lúc '+order.deliveryTime:'')),
-        h('div',{style:{gridColumn:'1/-1'}},h('b',null,'Địa chỉ: '),order.address||order.pointName||'—')
+        h('div',null,h('b',null,'Khách hàng: '),displayOrder.customer),
+        h('div',null,h('b',null,'Ngày giao: '),displayOrder.deliveryDate+(displayOrder.deliveryTime?' lúc '+displayOrder.deliveryTime:'')),
+        h('div',{style:{gridColumn:'1/-1'}},h('b',null,'Địa chỉ: '),displayOrder.address||displayOrder.pointName||'—')
       ),
       h('table',{style:{width:'100%',borderCollapse:'collapse',marginBottom:'1rem',fontSize:13}},
         h('thead',null,h('tr',{style:{background:'var(--pri3)',color:'#fff'}},
           ...[['STT','40px'],['Tên sản phẩm',''],['Đơn vị','80px'],['SL Đặt','100px'],['SL hóa đơn','100px'],['Ca SX','80px']].map(([c,w])=>h('th',{key:c,style:{padding:'8px 10px',textAlign:'left',width:w||'auto'}},c))
         )),
-        h('tbody',null,(order.lines||[]).map((l,i)=>h('tr',{key:l.id,style:{borderBottom:'.5px solid var(--bd)',background:i%2?'var(--bg2)':'#fff'}},
+        h('tbody',null,(displayOrder.lines||[]).map((l,i)=>h('tr',{key:l.id,style:{borderBottom:'.5px solid var(--bd)',background:i%2?'var(--bg2)':'#fff'}},
           h('td',{style:{padding:'7px 10px'}},(i+1)),
           h('td',{style:{padding:'7px 10px',fontWeight:500}},l.productName||'—'),
           h('td',{style:{padding:'7px 10px'}},l.unit||'—'),
@@ -149,7 +152,7 @@ function PrintModal({order,company,onClose}){
           h('td',{style:{padding:'7px 10px'}},l.shift==='night'?'Ca đêm':'Ca sáng')
         )))
       ),
-      order.note&&h('div',{style:{fontSize:13,marginBottom:'1rem'}},h('b',null,'Ghi chú: '),order.note),
+      displayOrder.note&&h('div',{style:{fontSize:13,marginBottom:'1rem'}},h('b',null,'Ghi chú: '),displayOrder.note),
       h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:20,marginTop:'2rem',fontSize:12,textAlign:'center'}},
         h('div',null,h('div',{style:{borderTop:'.5px solid #333',paddingTop:8,fontWeight:500}},'Người giao hàng'),h('div',{style:{color:'var(--tx2)'}},'(Ký và ghi rõ họ tên)')),
         h('div',null,h('div',{style:{borderTop:'.5px solid #333',paddingTop:8,fontWeight:500}},'Người nhận hàng'),h('div',{style:{color:'var(--tx2)'}},'(Ký và ghi rõ họ tên)')),
@@ -157,8 +160,8 @@ function PrintModal({order,company,onClose}){
       ),
       h('div',{style:{display:'flex',gap:8,justifyContent:'flex-end',marginTop:'1.5rem'}},
         window.scfShouldUsePrintAgent?.()&&h('button',{className:'bp',onClick:function(){
-          var html=buildPrintHTML('welstory',order,company);
-          window.scfQueueA4Print(html,{title:'Phiếu giao hàng · '+(order.pointName||order.customer||order.id||'SCF')})
+          var html=buildPrintHTML('welstory',displayOrder,displayCompany);
+          window.scfQueueA4Print(html,{title:'Phiếu giao hàng · '+(displayOrder.pointName||displayOrder.customer||displayOrder.id||'SCF')})
             .then(function(){window.showToast('Đã gửi đơn tới Canon 2900.','success');})
             .catch(function(error){window.showToast(error&&error.message||'Chưa gửi được lệnh in tới Canon 2900.','error');});
         }},h('i',{className:'ti ti-printer',style:{fontSize:14}}),'Gửi Canon 2900'),
@@ -1294,6 +1297,9 @@ function PrintByCustomerModal({orders,customers,products,company,initialDate,onC
       h(F,{label:'Từ ngày'},h('input',{type:'date',value:df,onChange:e=>sdf(e.target.value)})),
       h(F,{label:'Đến ngày'},h('input',{type:'date',value:dt,onChange:e=>sdt(e.target.value)}))
     ),
+    tpl==='youngsun'&&h('div',{style:{fontSize:12,color:'var(--tx2)',margin:'0 0 10px'}},
+      'YOUGSUN tự lấy bếp từ địa điểm giao và xác định ca: 02:00 Sáng · 07:00 Trưa · 13:00 Chiều · 19:00 Đêm.'
+    ),
     filtered.length>0?h('div',null,
       h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:'10px 14px',marginBottom:'1rem',fontSize:13}},
         h('i',{className:'ti ti-file-invoice',style:{color:'var(--pri)',marginRight:6}}),
@@ -1330,6 +1336,8 @@ function PrintByCustomerModal({orders,customers,products,company,initialDate,onC
 
 function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
   const [custId,sCust]=useState('');
+  const [area,setArea]=useState('');
+  const [pointKey,setPointKey]=useState('');
   const [df,sdf]=useState(initialDate||'');
   const [dt,sdt]=useState(initialDate||'');
   const [selected,setSelected]=useState({});
@@ -1345,9 +1353,26 @@ function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
   };
   const selectedCustomer=customers.find(c=>c.id===custId);
   const orderDate=o=>o.deliveryDate||o.date||o.ngayGiao||'';
+  const matchesCustomer=o=>!custId||o.customerId===custId||o.custId===custId||selectedCustomer?.name===o.customer;
+  const pointIdentity=o=>{
+    const customer=customers.find(c=>o.customerId||o.custId?String(c.id)===String(o.customerId||o.custId):c.name===o.customer);
+    const point=(customer?.points||[]).find(p=>o.pointId||o.ptId?String(p.id)===String(o.pointId||o.ptId):p.name===o.pointName);
+    return JSON.stringify([customer?.id||o.customerId||o.custId||o.customer||'',point?.id||o.pointId||o.ptId||o.pointName||o.address||'']);
+  };
+  const areaFor=o=>{
+    const customer=customers.find(c=>o.customerId||o.custId?String(c.id)===String(o.customerId||o.custId):c.name===o.customer);
+    const point=(customer?.points||[]).find(p=>o.pointId||o.ptId?String(p.id)===String(o.pointId||o.ptId):p.name===o.pointName);
+    return String(point?.area||o.area||'').trim();
+  };
+  const pointSources=[
+    ...customers.filter(c=>!custId||c.id===custId).flatMap(c=>(c.points||[]).map(p=>({customerId:c.id,customer:c.name,pointId:p.id,pointName:p.name,address:p.address,area:p.area}))),
+    ...orders.filter(matchesCustomer)
+  ];
+  const areaOptions=[...new Set(pointSources.map(areaFor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
+  const pointOptions=[...new Map(pointSources.filter(o=>(!area||areaFor(o)===area)&&(o.pointId||o.ptId||o.pointName||o.address)).map(o=>[pointIdentity(o),{key:pointIdentity(o),label:(o.pointName||o.address||o.pointId||o.ptId)+(custId?'':' · '+(o.customer||customers.find(c=>c.id===(o.customerId||o.custId))?.name||''))}])).values()].sort((a,b)=>a.label.localeCompare(b.label,'vi'));
   const filtered=orders.filter(o=>
     o.status!=='cancelled'&&
-    (!custId||o.customerId===custId||o.custId===custId||selectedCustomer?.name===o.customer)&&
+    matchesCustomer(o)&&(!area||areaFor(o)===area)&&(!pointKey||pointIdentity(o)===pointKey)&&
     inRange(orderDate(o))
   ).sort((a,b)=>{
     const da=parseD(orderDate(a));const db=parseD(orderDate(b));
@@ -1363,10 +1388,18 @@ function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
     onPrint(selectedOrders);
   };
   return h(Modal,{title:'In tem cho nhiều đơn hàng',lg:true,onClose},
-    h('div',{className:'g3'},
-      h(F,{label:'Khách hàng'},h('select',{value:custId,onChange:e=>sCust(e.target.value)},
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:14}},
+      h(F,{label:'Khách hàng'},h('select',{value:custId,onChange:e=>{sCust(e.target.value);setArea('');setPointKey('');}},
         h('option',{value:''},'— Tất cả —'),
         customers.map(c=>h('option',{key:c.id,value:c.id},c.name))
+      )),
+      h(F,{label:'Khu vực'},h('select',{value:area,onChange:e=>{setArea(e.target.value);setPointKey('');}},
+        h('option',{value:''},'— Tất cả khu vực —'),
+        areaOptions.map(value=>h('option',{key:value,value},value))
+      )),
+      h(F,{label:'Địa điểm'},h('select',{value:pointKey,onChange:e=>setPointKey(e.target.value)},
+        h('option',{value:''},'— Tất cả địa điểm —'),
+        pointOptions.map(point=>h('option',{key:point.key,value:point.key},point.label))
       )),
       h(F,{label:'Từ ngày'},h('input',{type:'date',value:df,onChange:e=>sdf(e.target.value)})),
       h(F,{label:'Đến ngày'},h('input',{type:'date',value:dt,onChange:e=>sdt(e.target.value)}))
@@ -1399,7 +1432,7 @@ function PrintLabelsMultiModal({orders,customers,initialDate,onClose,onPrint}) {
         h('button',{className:'bp',onClick:doPrint,disabled:!selectedOrders.length,style:{padding:'8px 20px'}},h('i',{className:'ti ti-printer',style:{fontSize:15}}),' In tem '+selectedOrders.length+' đơn')
       )
     ):h('div',null,
-      h('div',{style:{textAlign:'center',padding:'2rem',color:'var(--tx2)',fontSize:13}},'Không có đơn hàng. Chọn khách hàng hoặc điều chỉnh khoảng ngày.'),
+      h('div',{style:{textAlign:'center',padding:'2rem',color:'var(--tx2)',fontSize:13}},'Không có đơn hàng. Điều chỉnh khách hàng, địa điểm hoặc khoảng ngày.'),
       h(Row,null,h('button',{onClick:onClose},'Đóng'))
     )
   );
@@ -1519,7 +1552,7 @@ function IntemTab({products,company}){
       +'<text x=\"22\" y=\"280\" font-family=\"Arial,sans-serif\" font-size=\"23\">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'
       +'<text x=\"22\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">NSX:</text>'
       +'<text x=\"132\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">'+nsx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
-      +'<text x=\"342\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">GIỜ SX</text>'
+      +'<text x=\"342\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\">GIỜ SX:</text>'
       +'<text x=\"512\" y=\"322\" font-family=\"Arial,sans-serif\" font-size=\"26\" font-weight=\"700\" text-anchor=\"end\">'+gioSx.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))+'</text>'
       +'<text x=\"28\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\">HSD: 24H</text>'
       +'<text x=\"170\" y=\"364\" font-family=\"Arial,sans-serif\" font-size=\"23\">FORMOL: 0</text>'
@@ -1664,7 +1697,7 @@ function IntemTab({products,company}){
     }).join('');
     const popup=window.open('','_blank','width=1200,height=850');
     if(!popup){window.showToast('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.','warn');return;}
-    popup.document.write('<html><head><title>In tem '+String(selectedProduct.name||'')+'</title><style>'
+    popup.document.write('<html><head><title>In tem '+scfEscapePrintHtml(selectedProduct.name||'')+'</title><style>'
       +'@page{size:'+width+' '+height+';margin:0}'
       +'html,body{margin:0;padding:0;font-family:Arial,sans-serif;background:#eef3f0}'
       +'body{display:flex;min-height:100vh}'
@@ -1683,7 +1716,7 @@ function IntemTab({products,company}){
       +'@media print{body{display:block;background:#fff}.summary{display:none}.labels{display:block}.label.classic58{width:58mm;height:40mm}.label-img.classic58-img{position:static;width:'+contentWidth+';height:'+contentHeight+';transform:rotate(180deg);transform-origin:center center}}'
       +'</style></head><body>'
       +'<aside class=\"summary\"><h2>Intem 420B</h2>'
-      +'<div class=\"meta\"><b>Sản phẩm:</b> '+String(selectedProduct.name||'')+'<br><b>Mẫu tem:</b> '+templateType+'<br><b>Ngày SX:</b> '+toVnDate(prodDate)+'<br><b>Giờ SX:</b> '+String(prodTime||'—')+'<br><b>Tổng số tem:</b> '+labelWeights.length+'<br><b>IP máy in:</b> '+String(printerIp||'Chưa lưu')+'</div>'
+      +'<div class=\"meta\"><b>Sản phẩm:</b> '+scfEscapePrintHtml(selectedProduct.name||'')+'<br><b>Mẫu tem:</b> '+scfEscapePrintHtml(templateType)+'<br><b>Ngày SX:</b> '+scfEscapePrintHtml(toVnDate(prodDate))+'<br><b>Giờ SX:</b> '+scfEscapePrintHtml(prodTime||'—')+'<br><b>Tổng số tem:</b> '+labelWeights.length+'<br><b>IP máy in:</b> '+scfEscapePrintHtml(printerIp||'Chưa lưu')+'</div>'
       +'<div class=\"chips\">'+labelWeights.map((kg,idx)=>'<span class=\"chip\">Tem '+(idx+1)+': '+formatKg(kg)+'kg</span>').join('')+'</div>'
       +'<div class=\"note\">Trình duyệt sẽ mở hộp in. Nếu máy 420B đã cài trên Windows, chọn đúng máy in trong hộp in để in ra tem.</div>'
       +'</aside><main class=\"labels\">'+labels+'</main></body></html>');
@@ -2629,8 +2662,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const buildClassicLabelSvg=(it,o)=>{
     const l=it.line;
     const product=l.productName||'';
-    const nsx=it.plan?.prodDate||o.deliveryDate||'';
-    const gioSx=(it.plan?.prodTime||'').replace(':','H').replace(/H00$/,'H');
+    const nsx=it.plan?.labelDate||o.deliveryDate||'';
+    const gioSx=(it.plan?.labelTime||'').replace(':','H').replace(/H00$/,'H');
     const kgNum=Number(it.kg).toLocaleString('vi-VN',{maximumFractionDigits:2});
     const pName=product.toUpperCase();
     const directUse=pName.includes('BÚN LÁ')||pName.includes('BUN LA')||pName.includes('BÁNH CUỐN')||pName.includes('BANH CUON')||pName.includes('BÁNH PHỞ CUỐN')||pName.includes('BANH PHO CUON');
@@ -2651,7 +2684,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         '<text x="22" y="280" font-family="Arial,sans-serif" font-size="23">K.cáo: Không dùng khi biến màu hoặc có mùi lạ</text>'+
         '<text x="22" y="322" font-family="Arial,sans-serif" font-size="26" font-weight="700">NSX:</text>'+
         '<text x="132" y="322" font-family="Arial,sans-serif" font-size="26" font-weight="700">'+esc(nsx)+'</text>'+
-        '<text x="342" y="322" font-family="Arial,sans-serif" font-size="26" font-weight="700">GIỜ SX</text>'+
+        '<text x="342" y="322" font-family="Arial,sans-serif" font-size="26" font-weight="700">GIỜ SX:</text>'+
         '<text x="512" y="322" font-family="Arial,sans-serif" font-size="26" font-weight="700" text-anchor="end">'+esc(gioSx)+'</text>'+
         '<text x="28" y="364" font-family="Arial,sans-serif" font-size="23">HSD: 24H</text>'+
         '<text x="170" y="364" font-family="Arial,sans-serif" font-size="23">FORMOL: 0</text>'+
@@ -2668,8 +2701,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const pointName=String(matchedPoint?.name||o.pointName||'KHO VẬN').toUpperCase();
     const product=cleanPacProductName(l.productName||'');
     const kgNum=Number(it.kg||0).toLocaleString('vi-VN',{maximumFractionDigits:2});
-    const nsx=it.plan?.prodDate||o.deliveryDate||'';
-    const gioSx=String(it.plan?.prodTime||'').replace(':','H').replace(/H00$/,'H')||'';
+    const nsx=it.plan?.labelDate||o.deliveryDate||'';
+    const gioSx=String(it.plan?.labelTime||'').replace(':','H').replace(/H00$/,'H')||'';
     return (
       '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">'+
         '<rect width="1000" height="1000" fill="white"/>'+
@@ -2713,12 +2746,24 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const title=isPacMode?'In tem kho vận ':'In tem ';
     const printOrders=(Array.isArray(ordersForPrint)?ordersForPrint:[ordersForPrint]).filter(Boolean);
     const orderSummary=buildPrintOrderSummaryHtml(printOrders);
-    const cards=labels.map(it=>{
+    const groups=new Map();
+    labels.forEach(it=>{
+      const order=it.order||printOrders[0]||{};
+      const key=JSON.stringify([order.customerId||order.customer||'',order.pointId||order.pointName||order.address||'',order.deliveryDate||'',normalizeTimeInput(order.deliveryTime||'')]);
+      if(!groups.has(key))groups.set(key,{order,labels:[]});
+      groups.get(key).labels.push(it);
+    });
+    const cards=[...groups.values()].map(group=>{
+      const order=group.order;
+      const separatorSvg='<svg xmlns="http://www.w3.org/2000/svg" width="580" height="400" viewBox="0 0 580 400"><rect width="580" height="400" fill="white"/><rect x="10" y="10" width="560" height="380" fill="none" stroke="black" stroke-width="3"/><text x="290" y="65" text-anchor="middle" font-family="Arial" font-size="30">ĐỊA ĐIỂM GIAO HÀNG</text><foreignObject x="25" y="85" width="530" height="160"><div xmlns="http://www.w3.org/1999/xhtml" style="font:bold 38px Arial;text-align:center;overflow-wrap:anywhere">'+esc(order.pointName||order.address||order.pointId||'Chưa có địa điểm')+'</div></foreignObject><text x="290" y="290" text-anchor="middle" font-family="Arial" font-size="34">Ngày giao: '+esc(order.deliveryDate||'—')+'</text><text x="290" y="350" text-anchor="middle" font-family="Arial" font-size="36" font-weight="bold">Giờ giao: '+esc(normalizeTimeInput(order.deliveryTime||'')||'—')+'</text></svg>';
+      const separator='<section class="label"><img class="label-img'+(isClassic58?' classic58-img':'')+'" alt="Tem địa điểm và lịch giao hàng" src="data:image/svg+xml;charset=utf-8,'+encodeURIComponent(separatorSvg)+'"></section>';
+      return separator+group.labels.map(it=>{
       const product=it.line?.productName||'';
       const orderForLabel=it.order||printOrders[0]||{};
       const svg=isPacMode?buildPacLabelSvg(it,orderForLabel):buildClassicLabelSvg(it,orderForLabel);
       const src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
       return '<section class="label'+(isClassic58?' classic58':'')+'"><img class="label-img'+(isClassic58?' classic58-img':'')+'" alt="Tem '+esc(product)+'" src="'+src+'"></section>';
+      }).join('');
     }).join('');
     const w=window.open('','_blank');
     if(!w){window.showToast('Trình duyệt đang chặn cửa sổ in tem. Hãy cho phép popup rồi thử lại.','warn');return;}
