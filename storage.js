@@ -225,6 +225,15 @@ async function dbGetRequired(key,def){
   if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
   const pending=readSyncQueue()[key];
   if(pending)return pending.value;
+  if(SCF_EDGE_WRITE_KEYS.has(key)){
+    try{
+      setSyncState('syncing','Đang nhận '+syncCollectionLabel(key));
+      const loaded=await serverLoadPermittedCollection(key);
+      const value=Array.isArray(loaded?.value)?loaded.value:def;
+      scfRemoteVersions.set(key,String(loaded?.updatedAt||''));
+      scfRemoteSnapshots.set(key,syncSnapshot(value));setSyncState('synced');return value;
+    }catch(error){setSyncState('error','Không tải được '+syncCollectionLabel(key));throw new Error('Không tải được '+key+': '+(error.message||'Lỗi kết nối'));}
+  }
   const before=scfLocalWrites.get(key);
   try{
     const{data,error}=await withRemoteTimeout(sb.from('kv_store').select('value,updated_at').eq('key',key).maybeSingle());
@@ -259,6 +268,14 @@ async function dbGet(key,def){
   if(serverAuthEnabled()&&(key==='scf_employees'||key==='scf_privileged_employees')){
     try{setSyncState('syncing','Đang nhận danh sách nhân viên');const employees=await serverLoadEmployees();setSyncState('synced');return employees;}
     catch(e){console.warn('serverLoadEmployees:',e.message);setSyncState('error','Không tải được danh sách nhân viên');return def;}
+  }
+  if(serverAuthEnabled()&&SCF_EDGE_WRITE_KEYS.has(key)){
+    try{
+      setSyncState('syncing','Đang nhận '+syncCollectionLabel(key));
+      const loaded=await serverLoadPermittedCollection(key);
+      const value=Array.isArray(loaded?.value)?loaded.value:def;
+      scfRemoteVersions.set(key,String(loaded?.updatedAt||''));scfRemoteSnapshots.set(key,syncSnapshot(value));setSyncState('synced');return value;
+    }catch(error){setSyncState('error','Không tải được '+syncCollectionLabel(key));return def;}
   }
   // Khi online thì ưu tiên dữ liệu mới từ Supabase để các máy đồng bộ với nhau.
   if(sb)try{
@@ -309,6 +326,12 @@ async function performDbSet(key,val,queuedAt='',mode=''){
         setSyncState('syncing','Đang ghép thay đổi với máy khác rồi thử lại');
         window.showToast&&window.showToast('Máy khác vừa lưu dữ liệu. App đang tự ghép thay đổi và đồng bộ lại…','info',6000);
         scheduleSyncRetry();
+        return false;
+      }
+      if(e?.code==='SCF_DUPLICATE_ORDER_CODE'){
+        setSyncState('error','Mã đơn hàng bị trùng');
+        window.showToast&&window.showToast(e.message||'Mã đơn hàng bị trùng. Vui lòng nhập lại mã khác.','error',10000);
+        removeQueuedWrite(key,queuedAt);
         return false;
       }
       reportSyncError(key,e,val);scheduleSyncRetry();return false;
@@ -391,6 +414,12 @@ async function flushPendingWrites(){
         setSyncState('syncing','Đang ghép thay đổi với máy khác rồi thử lại');
         window.showToast&&window.showToast('Máy khác vừa lưu dữ liệu. App đang tự ghép thay đổi và đồng bộ lại…','info',6000);
         scheduleSyncRetry();
+        return false;
+      }
+      if(e?.code==='SCF_DUPLICATE_ORDER_CODE'){
+        setSyncState('error','Mã đơn hàng bị trùng');
+        window.showToast&&window.showToast(e.message||'Mã đơn hàng bị trùng. Vui lòng nhập lại mã khác.','error',10000);
+        removeQueuedWrite(key,item?.updatedAt||'');
         return false;
       }
       const latest=readSyncQueue();if(latest[key]){latest[key].attempts=(Number(latest[key].attempts)||0)+1;writeSyncQueue(latest);}

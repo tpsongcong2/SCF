@@ -75,6 +75,12 @@ async function serverLoadEmployees(){
   window.__SCF_CURRENT_EMPLOYEE=data.currentEmployee||null;
   return data.employees;
 }
+async function serverLoadPermittedCollection(key){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
+  const{data,error}=await sb.functions.invoke('scf-auth',{body:{action:'load_permitted_collection',key:String(key||'')}});
+  if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Không tải được dữ liệu.'));
+  return{value:data.value,updatedAt:data.updatedAt||''};
+}
 
 function serverEmployeeIsPrivileged(employee){
   const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -123,6 +129,10 @@ async function serverSavePermittedCollection(key,value,expectedUpdatedAt='',base
     const ids=Array.isArray(data.conflictIds)&&data.conflictIds.length?' Các mã đang bị sửa đồng thời: '+data.conflictIds.join(', ')+'.':'';
     const conflict=new Error('Dữ liệu trên máy chủ vừa thay đổi'+(data.actorName?' bởi '+data.actorName:'')+'. Thay đổi trên máy này vẫn được giữ để kiểm tra.'+ids);
     conflict.code='SCF_WRITE_CONFLICT';throw conflict;
+  }
+  if(data?.duplicateCode){
+    const duplicate=new Error(data.error||'Mã đơn hàng bị trùng. Vui lòng nhập lại mã khác.');
+    duplicate.code='SCF_DUPLICATE_ORDER_CODE';throw duplicate;
   }
   if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Không đồng bộ được dữ liệu.'));
   return{value:data.value||value,updatedAt:data.updatedAt||''};
