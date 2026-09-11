@@ -2266,7 +2266,7 @@ function SalesDebtReportTab({orders,customers,products,trips=[]}){
         h('tbody',null,filtered.length?filtered.map(order=>{
           const invoice=(order.lines||[]).reduce((sum,line)=>sum+(numFmt(line.qtyInvoice)||0),0);
           const delivered=(order.lines||[]).reduce((sum,line)=>sum+deliveredQty(line,order),0);
-          const detail=(order.lines||[]).map(line=>(line.productName||'Sản phẩm')+': HĐ '+qty(line.qtyInvoice)+' / giao '+qty(deliveredQty(line,order))+(line.unit?' '+line.unit:'')).join('; ');
+          const detail=(order.lines||[]).map(line=>line.productName||'Sản phẩm').join('; ');
           return h('tr',{key:order.id},h('td',null,fmtAnyDate(order.deliveryDate||order.date)||'—'),h('td',null,h('b',null,order.orderId||order.id||'—')),h('td',null,order.customer||'—'),h('td',null,order.pointName||order.address||'—'),h('td',{style:{minWidth:240}},detail||'—'),h('td',null,qty(invoice)),h('td',null,h('b',{style:{color:'var(--pri)'}},qty(delivered))));
         }):h('tr',null,h('td',{colSpan:7,className:'empty-st'},'Không có hóa đơn đã nhập theo bộ lọc.')))
       ))
