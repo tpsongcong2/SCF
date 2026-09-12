@@ -2226,6 +2226,11 @@ function SalesDebtReportTab({orders,customers,products,trips=[]}){
     const lines=Array.isArray(order.lines)&&order.lines.length?order.lines:[null];
     return lines.map((line,lineIndex)=>({order,line,lineIndex}));
   });
+  const driverFor=order=>{
+    const orderIds=[order?.id,order?.orderId].filter(Boolean).map(String);
+    const trip=(trips||[]).find(item=>String(item.id||'')===String(order?.tripId||'')||(item.orderIds||[]).some(id=>orderIds.includes(String(id))));
+    return trip?.driverName||order?.driverName||order?.assignedDriverName||'—';
+  };
   const qty=value=>(numFmt(value)||0).toLocaleString('vi-VN',{maximumFractionDigits:2});
   const exportExcel=()=>{
     if(!window.XLSX){window.showToast('Công cụ Excel chưa tải xong. Vui lòng thử lại.','warn');return;}
@@ -2239,10 +2244,10 @@ function SalesDebtReportTab({orders,customers,products,trips=[]}){
       ['Tổng SL hóa đơn',totals.invoice],['Tổng SL đã giao',totals.delivered],['Chênh lệch',totals.delivered-totals.invoice]
     ];
     const productsData=[['STT','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch'],...productRows.map((row,index)=>[index+1,row.name,row.unit||'',row.invoice,row.delivered,row.delivered-row.invoice])];
-    const ordersData=[['Ảnh hóa đơn','Ngày giao','Giờ giao','Mã đơn','Địa điểm','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch']];
+    const ordersData=[['Lái xe','Ngày giao','Địa điểm','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch','Giờ giao','Ảnh hóa đơn']];
     filtered.forEach(order=>(order.lines||[]).forEach(line=>ordersData.push([
-      order.invoiceImage||'',fmtAnyDate(order.deliveryDate||order.date)||'',order.deliveryTime||'',order.orderId||order.id||'',order.pointName||order.address||'',
-      line.productName||'',line.unit||'',numFmt(line.qtyInvoice)||0,deliveredQty(line,order),deliveredQty(line,order)-(numFmt(line.qtyInvoice)||0)
+      driverFor(order),fmtAnyDate(order.deliveryDate||order.date)||'',order.pointName||order.address||'',line.productName||'',line.unit||'',
+      numFmt(line.qtyInvoice)||0,deliveredQty(line,order),deliveredQty(line,order)-(numFmt(line.qtyInvoice)||0),order.deliveryTime||'',order.invoiceImage||''
     ])));
     const wb=XLSX.utils.book_new();
     [['Tong quan',overview],['Tong hop san pham',productsData],['Hoa don da nhap',ordersData]].forEach(([name,data])=>{
@@ -2289,21 +2294,21 @@ function SalesDebtReportTab({orders,customers,products,trips=[]}){
     h('div',{className:'card'},
       h('div',{style:{fontWeight:700,color:'var(--pri3)',marginBottom:10}},'Các hóa đơn đã nhập'),
       h('div',{className:'tw'},h('table',null,
-        h('thead',null,h('tr',null,...['Ảnh HĐ','Ngày giao','Giờ giao','Mã đơn','Địa điểm','Sản phẩm','SL hóa đơn','SL đã giao'].map(label=>h('th',{key:label},label)))),
+        h('thead',null,h('tr',null,...['Lái xe','Ngày giao','Địa điểm','Sản phẩm','SL hóa đơn','SL đã giao','Giờ giao','Ảnh HĐ'].map(label=>h('th',{key:label},label)))),
         h('tbody',null,invoiceRows.length?invoiceRows.map(({order,line,lineIndex})=>{
           const invoice=line?(numFmt(line.qtyInvoice)||0):0;
           const delivered=line?deliveredQty(line,order):0;
           return h('tr',{key:(order.id||order.orderId||'order')+'-'+(line?.id||lineIndex)},
-            h('td',{style:{textAlign:'center'}},order.invoiceImage
-              ?h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(order.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}}))
-              :'—'),
+            h('td',null,h('b',null,driverFor(order))),
             h('td',null,fmtAnyDate(order.deliveryDate||order.date)||'—'),
-            h('td',null,h('b',null,order.deliveryTime||'—')),
-            h('td',null,h('b',null,order.orderId||order.id||'—')),
             h('td',null,order.pointName||order.address||'—'),
             h('td',{style:{minWidth:240}},line?.productName||'—'),
             h('td',null,qty(invoice)),
-            h('td',null,h('b',{style:{color:'var(--pri)'}},qty(delivered)))
+            h('td',null,h('b',{style:{color:'var(--pri)'}},qty(delivered))),
+            h('td',null,h('b',null,order.deliveryTime||'—')),
+            h('td',{style:{textAlign:'center'}},order.invoiceImage
+              ?h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(order.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}}))
+              :'—')
           );
         }):h('tr',null,h('td',{colSpan:8,className:'empty-st'},'Không có hóa đơn đã nhập theo bộ lọc.')))
       ))
