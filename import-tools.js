@@ -130,7 +130,7 @@ const PRINT_TEMPLATES = [
 ];
 
 const YOUGSUN_PRODUCT_MAP = [
-  {code:'B0001',name:'BÁNH CUỐN',aliases:['BANH CUON']},
+  {code:'B0001',name:'BÁNH CUỐN',aliases:['B.CUON NHAN TRON','B CUON NHAN TRON','BANH CUON NHAN TRON','BANH CUON']},
   {code:'B0005',name:'BÚN TƯƠI SỢI TO',aliases:['BUN TUOI SOI TO','BUN SOI TO','SOI TO']},
   {code:'B0002',name:'BÚN TƯƠI SỢI NHỎ',aliases:['BUN TUOI SOI NHO','BUN SOI NHO','BUN TUOI']},
   {code:'B0006',name:'BÚN LÁ',aliases:['BUN LA']},
@@ -434,7 +434,7 @@ td{border:1px solid #333;padding:2px 3px;font-size:11px}
   .foot-col{text-align:center;width:40%}
   .foot-col .sign-space{height:44px}
   .foot-col .sub{font-size:11px;color:#555}
-  @media print{body{padding:6px 10px}@page{size:A4;margin:8mm 10mm}}
+  @media print{body{padding:6px 10px}@page{size:A4 landscape;margin:8mm 10mm}}
 <\/style><\/head><body>
   <div class="legal">Chứng từ này được tạo bằng bản in điện tử, có giá trị pháp lý tương đương với bản gốc</div>
   <div class="legal">本单据为电子打印生成，与原件具有同等效力</div>
