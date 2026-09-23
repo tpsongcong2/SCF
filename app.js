@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V336';
+const SCF_BUILD_VERSION='V356';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -673,7 +673,7 @@ function App(){
         canAccess(cu.role,'employees',cu.permissions)&&page==='employees'&&h(EmployeeTab,{employees,setEmployees,cu,depts,permissionProfiles}),
         canAccess(cu.role,'permission_settings',cu.permissions)&&page==='permission_settings'&&h(PermissionSettingsTab,{profiles:permissionProfiles,setProfiles:setPermissionProfiles,employees,setEmployees,currentUser:cu}),
         canAccess(cu.role,'attendance',cu.permissions)&&page==='attendance'&&h(AttendanceTab,{section:'punch',attendance,setAttendance,employees,setEmployees,currentUser:cu,company}),
-        canAccess(cu.role,'attendance_settings',cu.permissions)&&page==='attendance_settings'&&h(AttendanceTab,{section:'settings',attendance,setAttendance,employees,setEmployees,currentUser:cu,company}),
+        canAccess(cu.role,'attendance_settings',cu.permissions)&&page==='attendance_settings'&&h(AttendanceTab,{section:'settings',attendance,setAttendance,employees,setEmployees,currentUser:cu,company,onKioskExit:logout}),
         canAccess(cu.role,'attendance_report',cu.permissions)&&page==='attendance_report'&&h(AttendanceTab,{section:'report',attendance,setAttendance,employees,setEmployees,currentUser:cu,company}),
         canAccess(cu.role,'workreport_total',cu.permissions,cu.dept)&&page==='workreport_total'&&h(AttendanceTab,{section:'report',attendance,setAttendance,employees,setEmployees,currentUser:cu,company,reportTitle:'Tổng công'}),
         canAccess(cu.role,'advances',cu.permissions)&&page==='advances'&&h(MoneyTab,{mode:'advance',records:advances,setRecords:setAdvances,employees,currentUser:cu}),
@@ -689,7 +689,7 @@ function App(){
         canAccess(cu.role,'products',cu.permissions)&&page==='products'&&h(ProductsTab,{products,setProducts,prodCats,setProdCats}),
         canAccess(cu.role,'customers',cu.permissions)&&page==='customers'&&h(CustomersTab,{customers,setCustomers,shifts,orders,areas,cu}),
         canAccess(cu.role,'areas',cu.permissions)&&page==='areas'&&h(AreasTab,{areas,setAreas,customers,setCustomers,orders}),
-        canAccess(cu.role,'prodshifts',cu.permissions)&&page==='prodshifts'&&h(ProdShiftsTab,{prodShifts,setProdShifts,prodShiftRules,setProdShiftRules,orders,customers,shifts}),
+        canAccess(cu.role,'prodshifts',cu.permissions)&&page==='prodshifts'&&h(ProdShiftsTab,{prodShifts,setProdShifts,prodShiftRules,setProdShiftRules,orders,customers,shifts,currentUser:cu}),
         canAccess(cu.role,'deliveryrules',cu.permissions)&&page==='deliveryrules'&&h(DeliveryRulesTab,{items:deliveryRules,setItems:setDeliveryRules,currentUser:cu}),
         canAccess(cu.role,'workcats',cu.permissions)&&page==='workcats'&&h(WorkCatsTab,{workcats,setWorkcats,depts}),
         canAccess(cu.role,'tasks',cu.permissions)&&page==='tasks'&&h(TasksTab,{tasks,setTasks,workcats,employees,currentUser:cu,notify:addNotification}),
@@ -716,7 +716,7 @@ function App(){
         canAccess(cu.role,'workreport_lx',cu.permissions,cu.dept)&&page==='workreport_lx'&&h(DriverTripWorkReportTab,{trips,orders,products,customers,currentUser:cu}),
         canAccess(cu.role,'orderdetail',cu.permissions)&&page==='orderdetail'&&h(OrderDetailListTab,{orders,setOrders,products,customers,shifts,trips,currentUser:cu,prodShifts,quotes,financeDebts,setFinanceDebts,menuHidden,setMenuHidden}),
         canAccess(cu.role,'salesreport',cu.permissions)&&page==='salesreport'&&h(SalesReportTab,{orders,customers,products,shifts:prodShifts,quotes}),
-        canAccess(cu.role,'marketsales',cu.permissions)&&page==='marketsales'&&h(SalesDebtReportTab,{orders,customers,products,trips}),
+        canAccess(cu.role,'marketsales',cu.permissions)&&page==='marketsales'&&h(SalesDebtReportTab,{orders,customers,products,trips,currentUser:cu}),
         canAccess(cu.role,'invoicereport',cu.permissions)&&page==='invoicereport'&&h(InvoiceUploadReportTab,{orders,customers,products,trips,setPage}),
 canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(FinanceReportTab,{entries:financeEntries,setEntries:setFinanceEntries,debts:financeDebts,setDebts:setFinanceDebts,openings:financeOpenings,setOpenings:setFinanceOpenings,customers,nccs,currentUser:cu,orders,products,quotes,purchases,goodsPurchases}),
         canAccess(cu.role,'powdersales',cu.permissions)&&page==='powdersales'&&h(PowderSalesTab,{customers,trips,employees,setPage}),
