@@ -1538,8 +1538,8 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                 h('div',{className:'trip-driver-order-review',style:{gridTemplateColumns:'minmax(0,1fr)'}},
                   h('div',{className:'trip-driver-invoice',style:{flexWrap:'wrap'}},
                     h('b',null,'Ảnh HĐ'),
-                    o.driverInvoiceImage&&h('button',{className:'bi',onClick:()=>window.open(o.driverInvoiceImage,'_blank')},h('i',{className:'ti ti-photo-check'}),' Xem'),
-                    canUploadDriverInvoice(trip,o)&&h('button',{className:'bi',onClick:()=>pickDriverInvoiceImage(trip,o)},h('i',{className:o.driverInvoiceImage?'ti ti-camera-up':'ti ti-camera-plus'}),' ',o.driverInvoiceImage?'Tải lại':'Tải HĐ LX'),
+                    o.driverInvoiceImage&&h('button',{className:'bi',title:'Xem hóa đơn lái xe','aria-label':'Xem hóa đơn lái xe',onClick:()=>window.open(o.driverInvoiceImage,'_blank'),style:{width:40,minWidth:40,minHeight:40,padding:6}},h('i',{className:'ti ti-photo-check',style:{fontSize:18}})),
+                    canUploadDriverInvoice(trip,o)&&h('button',{className:'bi',title:o.driverInvoiceImage?'Tải lại hóa đơn lái xe':'Tải hóa đơn lái xe','aria-label':o.driverInvoiceImage?'Tải lại hóa đơn lái xe':'Tải hóa đơn lái xe',onClick:()=>pickDriverInvoiceImage(trip,o),style:{width:40,minWidth:40,minHeight:40,padding:6}},h('i',{className:o.driverInvoiceImage?'ti ti-camera-up':'ti ti-camera-plus',style:{fontSize:18}})),
                     h('button',{className:'bi trip-order-print',title:'In đơn '+o.id,'aria-label':'In đơn '+o.id,onClick:()=>setPrintOrder(o),style:{width:40,minWidth:40,minHeight:40,padding:6}},h('i',{className:'ti ti-printer',style:{fontSize:18}}))
                   ),
                   h('div',{className:'trip-driver-accounting'},
@@ -1561,7 +1561,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                   h('div',{className:'mobile-data-head'},
                     h('div',{style:{minWidth:0}},
                       h('div',{className:'mobile-data-title'},o.pointName||o.customer||'—'),
-                      h('div',{className:'mobile-data-sub'},(o.deliveryTime||'—')+' · '+(o.id||''))
+                      h('div',{className:'mobile-data-sub'},o.deliveryTime||'—')
                     ),
                     h(StatusBadge,{s:o.status})
                   ),
@@ -1575,11 +1575,14 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                   h('div',{className:'trip-order-lines'},(o.lines||[]).map((l,i)=>
                     h('div',{key:l.id||i,className:'trip-order-line',style:scfTripProductHighlightStyle(l.productName)},
                       h('div',{className:'trip-order-product'},
-                        h('b',null,(i+1)+'. '+(l.productName||'Sản phẩm')),
-                        h('span',null,'SL đơn: '+lineQty(l)+(l.unit?' '+l.unit:''))
+                        h('b',null,(i+1)+'. '+(l.productName||'Sản phẩm'))
+                      ),
+                      h('label',{className:'trip-order-ordered'},
+                        h('span',null,'SL đơn'+(l.unit?' ('+l.unit+')':'')),
+                        h('b',{className:'trip-order-ordered-qty'},lineQty(l))
                       ),
                       h('label',null,
-                        h('span',null,'Đã giao'),
+                        h('span',null,'SL giao'),
                         canEditTripQty
                           ?h(TripDeliveredQtyConfirm,{line:l,onCommit:value=>updateDeliveredQty(trip,o.id,l.id,value),style:{borderColor:(l.qtyDelivered!==undefined&&numFmt(l.qtyDelivered)!==tripOrderedQty(l))?'#E0A800':'var(--bd)'}})
                           :h('b',{style:{minHeight:34,display:'flex',alignItems:'center'}},tripDeliveredQty(l))
@@ -1593,20 +1596,15 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                   h('div',{className:'trip-order-footer'},
                     h('span',null,h('i',{className:'ti ti-weight'}),' ',w>0?w.toFixed(2)+' kg':'—'),
                     h('div',{className:'mobile-data-actions'},
+                      o.driverInvoiceImage&&h('button',{className:'bi',title:'Xem HĐ LX đã tải','aria-label':'Xem HĐ LX đã tải',onClick:()=>window.open(o.driverInvoiceImage,'_blank')},h('i',{className:'ti ti-file-invoice',style:{fontSize:17,color:'var(--pri)'}})),
                       o.invoiceImage&&h('button',{className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(o.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}})),
                       canManageOrderInvoice&&h('button',{className:'bi',title:o.invoiceImage?'Chụp lại hóa đơn':'Chụp hóa đơn',onClick:()=>pickOrderInvoiceImage(o)},h('i',{className:o.invoiceImage?'ti ti-camera-up':'ti ti-camera-plus',style:{fontSize:16}})),
+                      canUploadDriverInvoice(trip,o)&&h('button',{className:'bi',title:o.driverInvoiceImage?'Tải lại HĐ LX':'Tải HĐ LX','aria-label':o.driverInvoiceImage?'Tải lại HĐ LX':'Tải HĐ LX',onClick:()=>pickDriverInvoiceImage(trip,o)},h('i',{className:o.driverInvoiceImage?'ti ti-file-upload':'ti ti-file-plus',style:{fontSize:17}})),
+                      h('button',{className:'bi trip-order-print',title:'In đơn '+o.id,'aria-label':'In đơn '+o.id,onClick:()=>setPrintOrder(o),style:{width:36,minWidth:36,minHeight:36,padding:5}},h('i',{className:'ti ti-printer',style:{fontSize:17}})),
                       canManageOrderInvoice&&o.invoiceImage&&h('button',{className:'bi',title:'Xóa ảnh hóa đơn',onClick:()=>removeOrderInvoiceImage(o),style:{color:'#A32D2D'}},h('i',{className:'ti ti-trash',style:{fontSize:16}}))
                     )
                   ),
-                  h('div',{style:{marginTop:8,padding:'8px 10px',border:'1px solid var(--bd)',borderRadius:'var(--r)',background:'var(--bg2)'}},
-                    h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},
-                      h('b',null,'HĐ LX'),
-                      h('div',{className:'mobile-data-actions',style:{flexWrap:'wrap',alignItems:'center'}},
-                        o.driverInvoiceImage&&h('button',{className:'bi',onClick:()=>window.open(o.driverInvoiceImage,'_blank')},'Xem'),
-                        canUploadDriverInvoice(trip,o)&&h('button',{className:'bi',onClick:()=>pickDriverInvoiceImage(trip,o)},o.driverInvoiceImage?'Tải lại':'Tải HĐ LX'),
-                        h('button',{className:'bi trip-order-print',title:'In đơn '+o.id,'aria-label':'In đơn '+o.id,onClick:()=>setPrintOrder(o),style:{width:40,minWidth:40,minHeight:40,padding:6}},h('i',{className:'ti ti-printer',style:{fontSize:18}}))
-                      )
-                    ),
+                  (o.driverInvoiceImage||o.driverInvoiceReviewStatus==='rejected'||o.driverInvoiceReviewStatus==='approved'||(canReviewTrips&&trip.status==='completion_pending'))&&h('div',{style:{marginTop:8,padding:'8px 10px',border:'1px solid var(--bd)',borderRadius:'var(--r)',background:'var(--bg2)'}},
                     o.driverInvoiceReviewStatus==='approved'&&h('div',{style:{color:'#0F6E56',fontSize:12,marginTop:5}},'✓ Đã được kế toán duyệt'),
                     o.driverInvoiceImage&&(!o.driverInvoiceReviewStatus||o.driverInvoiceReviewStatus==='pending')&&h('div',{style:{color:'#8A5A00',fontSize:12,marginTop:5}},'Đang chờ kế toán duyệt'),
                     o.driverInvoiceReviewStatus==='rejected'&&h('div',{style:{color:'#A32D2D',fontSize:12,marginTop:5}},'Chưa duyệt: '+(o.driverInvoiceReviewReason||'Cần tải lại hóa đơn')),
