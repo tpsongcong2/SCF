@@ -1,15 +1,22 @@
-const CACHE = 'scf-v356';
+const CACHE = 'scf-v366';
 const ASSETS = [
   './',
   './index.html',
+  './vendor/tabler-icons.min.css?v=358',
+  './vendor/fonts/tabler-icons.ttf?v3.2.0',
+  './vendor/fonts/tabler-icons.woff',
+  './vendor/fonts/tabler-icons.woff2?v3.2.0',
+  './vendor/supabase.min.js?v=358',
+  './vendor/react.production.min.js?v=358',
+  './vendor/react-dom.production.min.js?v=358',
   './styles.css?v=347',
   './runtime.js?v=311',
-  './storage.js?v=304',
+  './storage.js?v=366',
   './print-agent.js',
   './helpers.js',
   './defaults.js',
   './auth.js',
-  './server-auth.js?v=310',
+  './server-auth.js?v=365',
   './templates.js',
   './ui-common.js',
   './catalogs.js?v=341',
@@ -18,20 +25,21 @@ const ASSETS = [
   './notifications.js',
   './user-guide.js',
   './operations.js?v=352',
-  './navigation-reports.js?v=352',
+  './navigation-reports.js?v=363',
   './order-detail.js?v=347',
   './delivery-shifts.js',
-  './import-tools.js?v=351',
   './auth-workforce.js?v=343',
   './quotations.js',
   './finance.js?v=347',
   './delivery-orders.js?v=347',
-  './trips.js?v=356',
+  './qrcode.min.js?v=357',
+  './import-tools.js?v=360',
+  './trips.js?v=366',
   './production.js?v=341',
   './permissions.js?v=352',
   './permission-settings.js?v=352',
-  './app.js?v=356',
-  './bootstrap.js?v=356',
+  './app.js?v=366',
+  './bootstrap.js?v=366',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
@@ -63,14 +71,26 @@ self.addEventListener('fetch', e => {
     return assetUrl.pathname === url.pathname;
   });
   if (!isStaticAsset) return;
-  // Network first - luôn lấy bản mới nhất
+  // Network first - luôn lấy bản mới nhất. Giới hạn thời gian chờ để kết nối
+  // chập chờn không giữ ứng dụng ở màn hình trắng vô thời hạn.
   e.respondWith(
-    fetch(e.request)
+    fetchWithTimeout(e.request, 8000)
       .then(res => {
         const clone = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(async error => {
+        const cached = await caches.match(e.request);
+        if (cached) return cached;
+        throw error;
+      })
   );
 });
+
+function fetchWithTimeout(request, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(request, {signal: controller.signal})
+    .finally(() => clearTimeout(timeoutId));
+}
