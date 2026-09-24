@@ -328,6 +328,9 @@ th{font-family:var(--ui-header-family)!important}
 .trip-desktop-tools-right{justify-content:flex-end}
 .trip-desktop-trip-tools .bi{display:inline-flex;align-items:center;justify-content:center;width:32px;min-width:32px;height:32px;min-height:32px;padding:4px;font-size:16px}
 .trip-desktop-tool-meta{color:var(--pri);font-size:12px;font-weight:600;white-space:nowrap}
+.trip-filter-row{display:grid!important;grid-template-columns:105px 140px minmax(150px,1.4fr) minmax(120px,1fr) minmax(140px,1fr) 135px auto;align-items:center;gap:6px!important}
+.trip-filter-row>*{width:100%!important;min-width:0}
+.trip-filter-row>button{width:auto!important;white-space:nowrap;justify-self:start}
 .prodshift-pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 1rem}
 .prodshift-mobile-card{background:#fff;border:.5px solid var(--bd);border-radius:12px;padding:12px;display:grid;gap:8px;box-shadow:0 2px 8px rgba(18,60,45,.04)}
 .prodshift-mobile-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
