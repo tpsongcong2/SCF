@@ -296,11 +296,12 @@ th{font-family:var(--ui-header-family)!important}
 .trip-order-product span,.trip-order-line label>span{font-size:10px;color:var(--tx2)}
 .trip-order-line label{display:grid;gap:2px}
 .trip-order-qty{grid-template-rows:18px 34px;align-items:end}
-.trip-order-ordered{padding-right:27px}
+.trip-order-ordered{padding-right:0}
 .trip-order-delivered .trip-delivered-confirm{display:flex!important;width:100%;align-self:end}
-.trip-order-delivered .trip-delivered-confirm input{flex:1;width:auto!important;min-width:0}
+.trip-order-delivered .trip-delivered-confirm input{flex:0 0 72px!important;width:72px!important;min-width:72px!important;max-width:72px!important}
 .trip-order-line input{width:100%;min-height:34px;padding:4px 7px;font-size:12px}
 .trip-order-ordered-qty{display:flex;align-items:center;justify-content:center;width:100%;min-height:34px;padding:4px 7px;border:1px solid var(--bd);border-radius:8px;background:#f3f7f5;color:var(--tx);font-size:12px;font-variant-numeric:tabular-nums}
+.trip-order-ordered .trip-order-ordered-qty{width:72px;max-width:72px}
 .trip-order-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--pri);font-size:12px;font-weight:700}
 .trip-order-invoice-view{margin-right:30px}
 .trip-driver-order-list{display:grid;gap:9px}

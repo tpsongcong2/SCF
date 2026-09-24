@@ -1151,10 +1151,11 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
       setTrips(prev=>prev.map(t=>t.id===trip.id?{...t,summaryInvoiceImage:url,summaryInvoiceImageName:file.name||'hoa-don-tong.jpg',summaryInvoiceUploadedAt:fmtDT(),summaryInvoiceUploadedBy:currentUser?.name||'',summaryInvoiceReviewStatus:'pending',summaryInvoiceReviewReason:'',summaryInvoiceReviewedAt:'',summaryInvoiceReviewedBy:''}:t));
     }catch(e){window.showToast('Không đọc được hóa đơn tổng: '+(e.message||e),'error');}
   };
-  const pickTripSummaryInvoice=trip=>{
+  const pickTripSummaryInvoice=(trip,source='camera')=>{
     if(!canUploadSummaryInvoice(trip)){window.showToast('Hóa đơn tổng hiện không ở trạng thái được tải hoặc thay lại.','warn');return;}
     const inp=document.createElement('input');
-    inp.type='file';inp.accept='image/*';inp.capture='environment';
+    inp.type='file';inp.accept='image/*';
+    if(source==='camera')inp.capture='environment';
     inp.onchange=e=>saveTripSummaryInvoice(trip,e.target.files&&e.target.files[0]);
     inp.click();
   };
@@ -1428,22 +1429,20 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
           isOpen&&h('div',{className:'trip-card-detail',style:{borderTop:'.5px solid var(--bd)',padding:'1rem 1.25rem'}},
             h('div',{className:'mobile-only trip-summary-invoice trip-summary-invoice-mobile'},
               h('div',{className:'trip-summary-invoice-head'},
-                h('b',null,h('i',{className:'ti ti-receipt',style:{marginRight:5}}),'Hóa đơn tổng chuyến'),
+                h('b',null,h('i',{className:'ti ti-receipt',style:{marginRight:5}}),'HĐ tổng chuyến'),
                 h('div',{className:'trip-summary-invoice-actions'},
-                  trip.summaryInvoiceImage&&h('button',{className:'bi',title:'Xem hóa đơn tổng đã tải','aria-label':'Xem hóa đơn tổng đã tải',onClick:()=>window.open(trip.summaryInvoiceImage,'_blank')},h('i',{className:'ti ti-photo-check'})),
-                  canUploadSummaryInvoice(trip)&&h('button',{className:'bi',title:trip.summaryInvoiceImage?'Chụp hoặc tải lại hóa đơn tổng':'Chụp hoặc tải hóa đơn tổng','aria-label':trip.summaryInvoiceImage?'Chụp hoặc tải lại hóa đơn tổng':'Chụp hoặc tải hóa đơn tổng',onClick:()=>pickTripSummaryInvoice(trip)},h('i',{className:trip.summaryInvoiceImage?'ti ti-camera-up':'ti ti-camera-plus'})),
-                  canReviewTrips&&trip.status==='completion_pending'&&trip.summaryInvoiceImage&&h('button',{className:'bi',title:'Duyệt hóa đơn tổng','aria-label':'Duyệt hóa đơn tổng',onClick:()=>reviewTripSummaryInvoice(trip,true),style:{color:'#0F6E56'}},h('i',{className:'ti ti-check'})),
-                  canReviewTrips&&trip.status==='completion_pending'&&trip.summaryInvoiceImage&&h('button',{className:'bi',title:'Không duyệt hóa đơn tổng','aria-label':'Không duyệt hóa đơn tổng',onClick:()=>reviewTripSummaryInvoice(trip,false),style:{color:'#A32D2D'}},h('i',{className:'ti ti-x'}))
+                  canUploadSummaryInvoice(trip)&&h('button',{className:'bi',title:trip.summaryInvoiceImage?'Chụp lại HĐ tổng chuyến':'Chụp HĐ tổng chuyến','aria-label':trip.summaryInvoiceImage?'Chụp lại HĐ tổng chuyến':'Chụp HĐ tổng chuyến',onClick:()=>pickTripSummaryInvoice(trip,'camera')},h('i',{className:trip.summaryInvoiceImage?'ti ti-camera-up':'ti ti-camera-plus'})),
+                  canUploadSummaryInvoice(trip)&&h('button',{className:'bi',title:trip.summaryInvoiceImage?'Tải lại ảnh HĐ tổng chuyến':'Tải ảnh HĐ tổng chuyến','aria-label':trip.summaryInvoiceImage?'Tải lại ảnh HĐ tổng chuyến':'Tải ảnh HĐ tổng chuyến',onClick:()=>pickTripSummaryInvoice(trip,'upload')},h('i',{className:'ti ti-upload'}))
                 )
               )
             ),
             // Tổng KL chuyến
             h('div',{style:{display:'flex',gap:16,marginBottom:10,flexWrap:'wrap',alignItems:'center'}},
-              h('span',{style:{fontSize:13,fontWeight:600,color:'var(--pri)'}},
+              h('span',{className:'desktop-only',style:{fontSize:13,fontWeight:600,color:'var(--pri)'}},
                 h('i',{className:'ti ti-weight',style:{marginRight:4}}),
                 'Tổng KL: '+(totalW>0?totalW.toFixed(2)+' kg':'—')
               ),
-              h('span',{style:{fontSize:13,color:'var(--tx2)'}},tripOrders.length+' đơn hàng'),
+              h('span',{className:'desktop-only',style:{fontSize:13,color:'var(--tx2)'}},tripOrders.length+' đơn hàng'),
               // Giữ nút in chi tiết trên máy tính; điện thoại dùng biểu tượng in ở đầu chuyến.
               h('button',{
                 className:'desktop-only',
