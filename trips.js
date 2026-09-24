@@ -719,7 +719,7 @@ function TripImagesModal({trips,orders,products,onClose}){
 
 function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,customers,products,quotes,financeDebts,setFinanceDebts,company,currentUser,notify}){
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[open,so]=useState(null);const[additionalTrip,setAdditionalTrip]=useState(null);const[printOrder,setPrintOrder]=useState(null);
-  const[hideNoteAndBasketOut,setHideNoteAndBasketOut]=useLS('scf_trip_hide_note_basket_out',false);
+  const[hideTripOptionalColumns,setHideTripOptionalColumns]=useLS('scf_trip_hide_optional_columns_v2',true);
   const _td1=fmtDate();const _ti1=_td1.split('/').reverse().join('-');const[fPeriod,sfPeriod]=useState('day');const[fDate,sfDate]=useState(_ti1);const[fMonth,sfMonth]=useState(_ti1.slice(0,7));const[fShift,sfShift]=useState('');const[fDriver,sfDriver]=useState('');
   const isDriver=currentUser?.role==='driver';
   const canOpenTrips=canAccess(currentUser?.role,'trips',currentUser?.permissions,currentUser?.dept);
@@ -1453,12 +1453,15 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
             // Bảng đơn hàng
             h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:6}},
               h('div',{style:{fontWeight:500,fontSize:12,color:'var(--tx2)'}},'Chi tiết đơn hàng:'),
-              h('button',{type:'button',className:'bi',onClick:()=>setHideNoteAndBasketOut(value=>!value),title:hideNoteAndBasketOut?'Hiện cột Chú ý và Rổ đi':'Ẩn cột Chú ý và Rổ đi',style:{fontSize:11,padding:'5px 8px'}},
-                h('i',{className:hideNoteAndBasketOut?'ti ti-eye':'ti ti-eye-off'}),' ',hideNoteAndBasketOut?'Hiện chú ý & rổ đi':'Ẩn chú ý & rổ đi')
+              h('button',{type:'button',className:'bi',onClick:()=>setHideTripOptionalColumns(value=>!value),
+                title:hideTripOptionalColumns?'Hiện Chú ý, Rổ đi và Rổ về':'Ẩn Chú ý, Rổ đi và Rổ về',
+                'aria-label':hideTripOptionalColumns?'Hiện Chú ý, Rổ đi và Rổ về':'Ẩn Chú ý, Rổ đi và Rổ về',
+                style:{width:32,minWidth:32,height:32,padding:4,fontSize:17}},
+                h('i',{className:hideTripOptionalColumns?'ti ti-eye':'ti ti-eye-off','aria-hidden':true}))
             ),
             tripOrders.length?h('div',{className:'desktop-only tw'},
               h('table',null,
-                h('thead',null,h('tr',null,...['STT','Địa điểm','Hàng hóa','SL HĐ','SL đã giao','Giờ',...(hideNoteAndBasketOut?[]:['Chú ý','Rổ đi']),'Rổ về','Ảnh HĐ','HĐ LX','In đơn'].map(c=>h('th',{key:c},c)))),
+                h('thead',null,h('tr',null,...['STT','Địa điểm','Hàng hóa','SL HĐ','SL đã giao','Giờ',...(hideTripOptionalColumns?[]:['Chú ý','Rổ đi','Rổ về']),'Ảnh HĐ','HĐ LX','In đơn'].map(c=>h('th',{key:c},c)))),
                 h('tbody',null,tripOrders.map(o=>{
                   return h('tr',{key:o.id},
                     h('td',null,canEditDeliveryOrder
@@ -1473,9 +1476,9 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                       :h('span',{style:{fontWeight:600}},tripDeliveredQty(l))
                     )))),
                     h('td',null,o.deliveryTime||'—'),
-                    !hideNoteAndBasketOut&&h('td',null,orderNoteControl(trip,o,{fontSize:12,padding:'4px 6px'})),
-                    !hideNoteAndBasketOut&&h('td',null,orderBasketControl(trip,o,'workOut','Rổ đi',canEditTripQty)),
-                    h('td',null,orderBasketControl(trip,o,'workReturn','Rổ về',canEditTripQty)),
+                    !hideTripOptionalColumns&&h('td',null,orderNoteControl(trip,o,{fontSize:12,padding:'4px 6px'})),
+                    !hideTripOptionalColumns&&h('td',null,orderBasketControl(trip,o,'workOut','Rổ đi',canEditTripQty)),
+                    !hideTripOptionalColumns&&h('td',null,orderBasketControl(trip,o,'workReturn','Rổ về',canEditTripQty)),
                     h('td',null,
                       o.invoiceImage
                         ?h('div',{style:{display:'flex',gap:4}},
@@ -1527,9 +1530,9 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                     :h('span',{key:l.id||i},tripDeliveredQty(l))))),
                   h('div',{className:'trip-driver-cell trip-driver-time'},h('span',null,o.deliveryTime||'—'))
                 ),
-                !hideNoteAndBasketOut&&h('div',{style:{padding:'7px 8px',borderTop:'1px solid var(--bd)'}},h('b',{style:{fontSize:11,marginRight:6}},'Chú ý'),orderNoteControl(trip,o,{fontSize:12,padding:'4px 6px'})),
-                isWelstoryOrder(o)&&h('div',{className:'trip-order-baskets',style:{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',padding:'8px 10px',borderTop:'1px solid var(--bd)'}},
-                  !hideNoteAndBasketOut&&h('label',{style:{display:'flex',gap:6,alignItems:'center'}},'Rổ đi',orderBasketControl(trip,o,'workOut','Rổ đi',canEditTripQty)),
+                !hideTripOptionalColumns&&h('div',{style:{padding:'7px 8px',borderTop:'1px solid var(--bd)'}},h('b',{style:{fontSize:11,marginRight:6}},'Chú ý'),orderNoteControl(trip,o,{fontSize:12,padding:'4px 6px'})),
+                isWelstoryOrder(o)&&!hideTripOptionalColumns&&h('div',{className:'trip-order-baskets',style:{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',padding:'8px 10px',borderTop:'1px solid var(--bd)'}},
+                  h('label',{style:{display:'flex',gap:6,alignItems:'center'}},'Rổ đi',orderBasketControl(trip,o,'workOut','Rổ đi',canEditTripQty)),
                   h('label',{style:{display:'flex',gap:6,alignItems:'center'}},'Rổ về',orderBasketControl(trip,o,'workReturn','Rổ về',canEditTripQty))
                 ),
                 h('div',{className:'trip-driver-order-review',style:{gridTemplateColumns:'minmax(0,1fr)'}},
@@ -1568,7 +1571,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                       ?h(TripDeliveryOrderConfirm,{value:deliveryOrderValue(o)||'',onCommit:value=>updateDeliveryOrder(o.id,value)})
                       :h('span',null,deliveryOrderValue(o)||'—')
                   ),
-                  !hideNoteAndBasketOut&&h('div',{style:{display:'grid',gridTemplateColumns:'70px minmax(0,1fr)',alignItems:'center',gap:8,margin:'8px 0'}},h('b',null,'Chú ý'),orderNoteControl(trip,o,{fontSize:12,padding:'5px 7px'})),
+                  !hideTripOptionalColumns&&h('div',{style:{display:'grid',gridTemplateColumns:'70px minmax(0,1fr)',alignItems:'center',gap:8,margin:'8px 0'}},h('b',null,'Chú ý'),orderNoteControl(trip,o,{fontSize:12,padding:'5px 7px'})),
                   h('div',{className:'trip-order-lines'},(o.lines||[]).map((l,i)=>
                     h('div',{key:l.id||i,className:'trip-order-line',style:scfTripProductHighlightStyle(l.productName)},
                       h('div',{className:'trip-order-product'},
@@ -1583,8 +1586,8 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
                       )
                     )
                   )),
-                  isWelstoryOrder(o)&&h('div',{className:'trip-order-baskets',style:{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',marginTop:8}},
-                    !hideNoteAndBasketOut&&h('label',{style:{display:'flex',gap:6,alignItems:'center'}},'Rổ đi',orderBasketControl(trip,o,'workOut','Rổ đi',canEditTripQty)),
+                  isWelstoryOrder(o)&&!hideTripOptionalColumns&&h('div',{className:'trip-order-baskets',style:{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',marginTop:8}},
+                    h('label',{style:{display:'flex',gap:6,alignItems:'center'}},'Rổ đi',orderBasketControl(trip,o,'workOut','Rổ đi',canEditTripQty)),
                     h('label',{style:{display:'flex',gap:6,alignItems:'center'}},'Rổ về',orderBasketControl(trip,o,'workReturn','Rổ về',canEditTripQty))
                   ),
                   h('div',{className:'trip-order-footer'},
