@@ -63,6 +63,10 @@ button:hover{background:var(--bg2)}
 .delivery-point-name{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .delivery-table-text{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important}
 .delivery-center-head,.delivery-center-cell,.delivery-qty-head{text-align:center!important}
+.delivery-product-qty-head-cell{padding:0!important}
+.delivery-product-qty-head-grid{display:grid;grid-template-columns:minmax(0,var(--delivery-product-column-width,240px)) 85px 85px 85px;align-items:center;width:100%;height:100%}
+.delivery-product-qty-head-grid>div{padding:9px 8px;text-align:center;white-space:nowrap}
+.delivery-product-qty-head-grid>div:first-child{text-align:left}
 .delivery-product-qty-cell{vertical-align:middle!important;padding:0!important}
 .delivery-product-qty-content{width:100%;max-width:100%}
 .delivery-product-qty-row{display:grid;grid-template-columns:minmax(0,var(--delivery-product-column-width,240px)) 85px 85px 85px;gap:0;align-items:center;min-height:32px;padding:5px 0}
@@ -74,6 +78,10 @@ button:hover{background:var(--bg2)}
 .delivery-line-note-list{width:100%;max-width:100%}
 .delivery-line-note-row{display:flex;align-items:center;min-height:32px;padding:5px 10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;color:var(--tx)}
 .delivery-line-note-row+.delivery-line-note-row{border-top:1px dashed var(--bd)}
+.delivery-group-header-cell{background:#2d6a4f!important;color:#fff!important;font-weight:700!important;font-size:13px!important;padding:5px 12px!important}
+.delivery-group-header{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
+.delivery-group-summary{white-space:nowrap;font-size:12px;font-weight:700}
+.delivery-group-header-mobile{background:#2d6a4f;color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex-wrap:wrap}
 .delivery-detail-columns-toggle{box-shadow:0 0 0 2px rgba(37,112,82,.08)}
 .delivery-prod-shift-display{display:grid;gap:4px;justify-items:center;min-width:0}
 .delivery-production-shift-name{display:flex!important;justify-content:center;max-width:100%;white-space:normal;text-align:center;line-height:1.2}

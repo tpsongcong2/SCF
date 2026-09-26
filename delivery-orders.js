@@ -3045,17 +3045,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(classicLabels.length)openLabelPrintWindow(classicLabels,printOrders,'classic');
   };
   const orderTableRows=[];
-  let currentGroup=null,groupKL=0,groupCount=0;
-  pagedList.forEach((o,i)=>{
+  let currentGroup=null,currentGroupHeader=null;
+  pagedList.forEach(o=>{
     const group=groupInfoForOrder(o);
     if(!currentGroup||group.key!==currentGroup.key){
-      if(currentGroup)orderTableRows.push({_sub:true,group:currentGroup,kl:groupKL,cnt:groupCount});
-      currentGroup=group;groupKL=0;groupCount=0;
-      orderTableRows.push({_hdr:true,group});
+      currentGroup=group;
+      currentGroupHeader={_hdr:true,group,kl:0,cnt:0};
+      orderTableRows.push(currentGroupHeader);
     }
-    groupKL+=o._totalW;groupCount++;
+    currentGroupHeader.kl+=o._totalW;
+    currentGroupHeader.cnt++;
     orderTableRows.push(o);
-    if(i===pagedList.length-1&&currentGroup)orderTableRows.push({_sub:true,group:currentGroup,kl:groupKL,cnt:groupCount});
   });
   const renderPagination=position=>h('div',{key:'pagination_'+position,className:'delivery-pagination'},
     h('span',{className:'delivery-pagination-label'},'Mỗi trang'),
@@ -3449,10 +3449,14 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             'Ngày giao'
           ),
           h('th',null,'Địa điểm giao'),
-          h('th',{title:productColumnTitle},'Tên sản phẩm'),
-          h('th',{className:'delivery-qty-head'},'SL ĐẶT'),
-          h('th',{className:'delivery-qty-head'},'SL HĐ'),
-          h('th',{className:'delivery-qty-head'},'SL Giao'),
+          h('th',{colSpan:4,className:'delivery-product-qty-head-cell'},
+            h('div',{className:'delivery-product-qty-head-grid',style:{'--delivery-product-column-width':productColumnWidth+'px'}},
+              h('div',{title:productColumnTitle},'Tên sản phẩm'),
+              h('div',null,'SL ĐẶT'),
+              h('div',null,'SL HĐ'),
+              h('div',null,'SL Giao')
+            )
+          ),
           h('th',{className:'delivery-center-head'},'Giờ'),
           detailColumnsHidden&&h('th',null,'Chú ý'),
           !detailColumnsHidden&&[
@@ -3464,13 +3468,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           ]
         )),
         h('tbody',null,list.length?orderTableRows.map((o,_i)=>{
-          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:detailColumnsHidden?8:12,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'5px 12px'}},(o.group?.mode==='trip'?'🚚 Chuyến: ':'📍 Khu vực: ')+(o.group?.label||'')));
-          if(o._sub) return detailColumnsHidden
-            ?h('tr',{key:'os'+_i},h('td',{colSpan:8,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng trên trang · '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg'))
-            :h('tr',{key:'os'+_i},
-              h('td',{colSpan:8,style:{background:'#e8f5e9',fontWeight:600,fontSize:12,padding:'4px 12px',color:'#2d6a4f',textAlign:'right'}},'Tổng trên trang · '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg'),
-              h('td',{colSpan:4,style:{background:'#e8f5e9'}})
-            );
+          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:detailColumnsHidden?8:12,className:'delivery-group-header-cell'},
+            h('div',{className:'delivery-group-header'},
+              h('span',null,(o.group?.mode==='trip'?'🚚 Chuyến: ':'📍 Khu vực: ')+(o.group?.label||'')),
+              h('span',{className:'delivery-group-summary'},o.cnt+' đơn — '+o.kl.toFixed(1)+' kg')
+            )
+          ));
           const ctx=o._ctx||orderContext(o);
           const totalW=o._totalW||calcOrderWeight(ctx);
           const prodShiftMode=o.prodShiftAssignMode==='manual'?'manual':'auto';
@@ -3586,8 +3589,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     ),
     h('div',{className:'mobile-only mobile-card-list'},
       list.length?orderTableRows.map((o,_i)=>{
-        if(o._hdr)return h('div',{key:'moh'+_i,style:{background:'#2d6a4f',color:'#fff',fontWeight:700,fontSize:13,padding:'8px 12px',borderRadius:10}},(o.group?.mode==='trip'?'Chuyến: ':'Khu vực: ')+(o.group?.label||''));
-        if(o._sub)return h('div',{key:'mos'+_i,style:{background:'#e8f5e9',color:'#2d6a4f',fontWeight:600,fontSize:12,padding:'8px 12px',borderRadius:10}},'Tổng trên trang · '+(o.group?.summaryLabel||'')+': '+o.cnt+' đơn — '+o.kl.toFixed(1)+' kg');
+        if(o._hdr)return h('div',{key:'moh'+_i,className:'delivery-group-header delivery-group-header-mobile'},
+          h('span',null,(o.group?.mode==='trip'?'Chuyến: ':'Khu vực: ')+(o.group?.label||'')),
+          h('span',{className:'delivery-group-summary'},o.cnt+' đơn — '+o.kl.toFixed(1)+' kg')
+        );
         const ctx=o._ctx||orderContext(o);
         const totalW=o._totalW||calcOrderWeight(ctx);
         const tripMode=o.tripAssignMode==='manual'?'manual':'auto';
