@@ -70,6 +70,11 @@ button:hover{background:var(--bg2)}
 .delivery-product-info{min-width:0;line-height:1.35;padding:0 12px}
 .delivery-product-name{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .delivery-product-qty-value{line-height:1.35;white-space:nowrap;text-align:center}
+.delivery-line-note-cell{padding:0!important;vertical-align:middle!important}
+.delivery-line-note-list{width:100%;max-width:100%}
+.delivery-line-note-row{display:flex;align-items:center;min-height:32px;padding:5px 10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;color:var(--tx)}
+.delivery-line-note-row+.delivery-line-note-row{border-top:1px dashed var(--bd)}
+.delivery-detail-columns-toggle{box-shadow:0 0 0 2px rgba(37,112,82,.08)}
 .delivery-prod-shift-display{display:grid;gap:4px;justify-items:center;min-width:0}
 .delivery-production-shift-name{display:flex!important;justify-content:center;max-width:100%;white-space:normal;text-align:center;line-height:1.2}
 .delivery-production-shift-date{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important;color:var(--tx2);white-space:nowrap}
