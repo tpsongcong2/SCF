@@ -1,22 +1,20 @@
-const CACHE = 'scf-v391';
+const CACHE = 'scf-v402';
 const ASSETS = [
   './',
   './index.html',
-  './vendor/tabler-icons.min.css?v=358',
-  './vendor/fonts/tabler-icons.ttf?v3.2.0',
-  './vendor/fonts/tabler-icons.woff',
+  './vendor/tabler-icons.min.css?v=394',
   './vendor/fonts/tabler-icons.woff2?v3.2.0',
   './vendor/supabase.min.js?v=358',
   './vendor/react.production.min.js?v=358',
   './vendor/react-dom.production.min.js?v=358',
-  './styles.css?v=391',
+  './styles.css?v=396',
   './runtime.js?v=311',
-  './storage.js?v=366',
+  './storage.js?v=400',
   './print-agent.js',
   './helpers.js',
   './defaults.js',
   './auth.js',
-  './server-auth.js?v=365',
+  './server-auth.js?v=400',
   './templates.js',
   './ui-common.js',
   './catalogs.js?v=341',
@@ -24,22 +22,22 @@ const ASSETS = [
   './organization.js',
   './notifications.js',
   './user-guide.js',
-  './operations.js?v=352',
-  './navigation-reports.js?v=363',
+  './operations.js?v=402',
+  './navigation-reports.js?v=402',
   './order-detail.js?v=347',
   './delivery-shifts.js',
-  './auth-workforce.js?v=343',
+  './auth-workforce.js?v=396',
   './quotations.js',
   './finance.js?v=347',
-  './delivery-orders.js?v=347',
+  './delivery-orders.js?v=399',
   './qrcode.min.js?v=357',
   './import-tools.js?v=360',
-  './trips.js?v=391',
+  './trips.js?v=401',
   './production.js?v=341',
-  './permissions.js?v=352',
-  './permission-settings.js?v=352',
-  './app.js?v=391',
-  './bootstrap.js?v=391',
+  './permissions.js?v=395',
+  './permission-settings.js?v=402',
+  './app.js?v=402',
+  './bootstrap.js?v=402',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
@@ -47,9 +45,17 @@ const ASSETS = [
   './icon-maskable-512.png'
 ];
 
+// Chỉ lưu sẵn phần vỏ nhẹ. Các file nghiệp vụ sẽ được cache khi trình duyệt
+// thật sự cần tới; tránh tải lặp toàn bộ ứng dụng và ba bản font ngay lần mở đầu.
+const PRECACHE_ASSETS = [
+  './index.html',
+  './styles.css?v=396',
+  './vendor/tabler-icons.min.css?v=394'
+];
+
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(PRECACHE_ASSETS)).then(() => self.skipWaiting())
   );
 });
 

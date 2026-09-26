@@ -15,8 +15,10 @@ document.addEventListener('keydown',function(e){
 
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('./sw.js?v=391')
-      .then(function(r){})
+    // Không tự tải lại khi service worker mới giành quyền điều khiển. Trang vừa
+    // mở đã dùng bộ file mới; tải lại ở đây chỉ làm người dùng chờ hai lần.
+    navigator.serviceWorker.register('./sw.js?v=402',{updateViaCache:'none'})
+      .then(function(r){r.update().catch(function(){});})
       .catch(function(e){console.log('SW err:',e);});
   });
 }

@@ -26,7 +26,10 @@ async function invokeScfAuth(options,timeoutMs=SCF_AUTH_REQUEST_TIMEOUT_MS){
 
 async function serverFunctionErrorMessage(error,data,fallback){
   const finish=message=>{
-    const text=String(message||fallback);
+    const raw=String(message||fallback);
+    const text=/Failed to send a request to the Edge Function|Failed to fetch|NetworkError|Load failed/i.test(raw)
+      ?'Không kết nối được máy chủ xác thực. Vui lòng kiểm tra mạng hoặc cập nhật Edge Function rồi thử lại.'
+      :raw;
     if(text.includes('Phiên đăng nhập không hợp lệ')&&!window.__SCF_SESSION_REPLACEMENT_PENDING){
       window.__SCF_SESSION_REPLACEMENT_PENDING=true;
       setTimeout(()=>window.dispatchEvent(new CustomEvent('scf-session-replaced')),0);
@@ -62,7 +65,7 @@ async function serverFunctionErrorMessage(error,data,fallback){
 async function serverUsernameLogin(username,password,forceTakeover=false){
   if(!sb)throw new Error('Chưa kết nối được máy chủ xác thực.');
   const{data,error}=await invokeScfAuth({
-    body:{action:'login',username:String(username||'').trim(),password:String(password||''),deviceId:window.scfDeviceId?.()||'',deviceLabel:window.scfDeviceLabel?.()||'',forceTakeover:forceTakeover===true}
+    body:{action:'login',username:String(username||'').trim(),password:String(password||''),deviceId:window.scfDeviceId?.()||'',deviceLabel:window.scfDeviceLabel?.()||'',deviceType:window.scfDeviceType?.()||'desktop',forceTakeover:forceTakeover===true}
   });
   if(error)throw new Error(await serverFunctionErrorMessage(error,data,'Không thể đăng nhập qua máy chủ.'));
   if(data?.code==='SESSION_ACTIVE'){
@@ -105,6 +108,12 @@ async function serverLoadEmployees(){
   const data=await serverLoadEmployeeContext();
   window.__SCF_CURRENT_EMPLOYEE=data.currentEmployee||null;
   return data.employees;
+}
+async function serverRegisterOwnFace(faceTemplate){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ nhân viên.');
+  const{data,error}=await invokeScfAuth({body:{action:'register_own_face',faceTemplate}},20000);
+  if(error||!data?.ok||!data?.employee)throw new Error(await serverFunctionErrorMessage(error,data,'Không đăng ký được khuôn mặt.'));
+  return data.employee;
 }
 async function serverLoadPermittedCollection(key){
   if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
@@ -165,6 +174,10 @@ async function serverSavePermittedCollection(key,value,expectedUpdatedAt='',base
     const duplicate=new Error(data.error||'Mã đơn hàng bị trùng. Vui lòng nhập lại mã khác.');
     duplicate.code='SCF_DUPLICATE_ORDER_CODE';throw duplicate;
   }
+  if(data?.duplicateOrder){
+    const duplicate=new Error(data.error||'Đơn hàng này đã tồn tại trên máy chủ.');
+    duplicate.code='SCF_DUPLICATE_DELIVERY_ORDER';throw duplicate;
+  }
   if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Không đồng bộ được dữ liệu.'));
   return{value:data.value||value,updatedAt:data.updatedAt||''};
 }
@@ -177,6 +190,10 @@ async function serverPatchPermittedCollection(key,patches,expectedUpdatedAt='',r
   if(data?.conflict){
     const conflict=new Error('Dữ liệu trên máy chủ vừa thay đổi. App sẽ tự đồng bộ lại thay đổi này.');
     conflict.code='SCF_WRITE_CONFLICT';throw conflict;
+  }
+  if(data?.duplicateOrder){
+    const duplicate=new Error(data.error||'Đơn hàng này đã tồn tại trên máy chủ.');
+    duplicate.code='SCF_DUPLICATE_DELIVERY_ORDER';throw duplicate;
   }
   if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Không đồng bộ được thay đổi của đơn hàng.'));
   return{items:Array.isArray(data.items)?data.items:[],updatedAt:data.updatedAt||'',patched:true};
