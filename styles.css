@@ -351,12 +351,14 @@ th{font-family:var(--ui-header-family)!important}
 .trip-filter-row>*{width:auto!important;min-width:0;flex:0 0 auto}
 .trip-filter-row>button{white-space:nowrap}
 .trip-filter-image{min-width:126px!important}
-.trip-quick-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.trip-quick-filter-grid{display:grid;grid-template-columns:1fr;gap:8px 12px}
 .trip-quick-filter-grid .fl{margin-bottom:8px}
-.trip-quick-driver{display:block;margin-top:5px;color:var(--pri3);font-weight:700;line-height:1.25;white-space:normal}
+.trip-quick-shift-row{display:grid;grid-template-columns:minmax(110px,180px) minmax(0,1fr);align-items:center;gap:10px}
+.trip-quick-driver{display:block;color:#000;font-weight:700;line-height:1.25;white-space:normal}
 .trip-quick-order-filter{grid-column:1/-1}
 .trip-quick-order-card{border:1px solid var(--bd);border-radius:12px;padding:12px;background:#fff}
 .trip-quick-order-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
+.trip-quick-order-tools{justify-content:flex-end}
 .trip-quick-order-head small{display:block;color:var(--tx2);margin-top:3px}
 .trip-quick-invoice-actions{display:flex;gap:4px;flex-shrink:0}
 .trip-quick-invoice-actions button{font-size:20px;padding:6px}
@@ -626,7 +628,11 @@ th{font-family:var(--ui-header-family)!important}
   .empty-st{padding:2rem 1rem}
   .overlay{align-items:flex-start;padding:10px;overflow:auto}
   .modal,.modal.wide,.modal.xl{width:100%;max-width:100%;max-height:none;min-height:auto;padding:14px;border-radius:10px}
-  .trip-quick-filter-grid{grid-template-columns:1fr 1fr}
+  .trip-quick-filter-grid{grid-template-columns:1fr}
+  .modal.trip-quick-fullscreen{width:100vw!important;max-width:none!important;height:100dvh;min-height:100dvh;max-height:100dvh;margin:0;padding:14px;border:0;border-radius:0;overflow-y:auto;background:#fff;color:#000}
+  .modal.trip-quick-fullscreen .mh{position:sticky;top:-14px;z-index:5;margin:-14px -14px 12px;padding:14px;background:#fff;border-bottom:1px solid #ddd}
+  .modal.trip-quick-fullscreen input,.modal.trip-quick-fullscreen select{color:#000;background:#fff;border-color:#aaa}
+  .modal.trip-quick-fullscreen .trip-quick-order-card,.modal.trip-quick-fullscreen .trip-quick-baskets{color:#000;background:#fff;border-color:#bbb}
   .mh{margin-bottom:14px;gap:8px}.mh h2{font-size:16px;line-height:1.25}
   .ptrow{align-items:flex-start;flex-wrap:wrap}
   .att-stat{display:flex!important;gap:8px;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;margin-bottom:12px;scroll-snap-type:x proximity}

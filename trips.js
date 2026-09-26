@@ -861,19 +861,21 @@ function TripMobileQuickUpdateModal({trips,orders,customers,initialDate,canEditT
   const selectedOrder=tripOrders.find(order=>String(order.id)===String(orderId))||tripOrders[0]||null;
   useEffect(()=>{setTripId('');setOrderId('');},[date]);
   useEffect(()=>{setOrderId('');},[selectedTrip?.id]);
-  return h(Modal,{title:'Cập nhật SL giao và HĐ',lg:true,onClose},
+  return h(Modal,{title:'Cập nhật SL giao và HĐ',lg:true,className:'trip-quick-fullscreen',onClose},
     h('div',{className:'trip-quick-filter-grid'},
       h('div',{className:'fl'},h('label',null,'Ngày'),h('input',{type:'date',value:date,onChange:event=>setDate(event.target.value)})),
-      h('div',{className:'fl'},h('label',null,'Ca giao'),h('select',{value:selectedTrip?.id||'',onChange:event=>setTripId(event.target.value)},
-        tripsOnDate.length?tripsOnDate.map(trip=>h('option',{key:trip.id,value:trip.id},trip.shiftName||trip.id)):h('option',{value:''},'Không có chuyến')
-      ),selectedTrip&&h('small',{className:'trip-quick-driver'},'Lái xe: '+(selectedTrip.driverName||'Chưa có lái xe'))),
+      h('div',{className:'fl'},h('label',null,'Ca giao - Tên lái xe'),h('div',{className:'trip-quick-shift-row'},
+        h('select',{value:selectedTrip?.id||'',onChange:event=>setTripId(event.target.value)},
+          tripsOnDate.length?tripsOnDate.map(trip=>h('option',{key:trip.id,value:trip.id},trip.shiftName||trip.id)):h('option',{value:''},'Không có chuyến')
+        ),
+        h('span',{className:'trip-quick-driver'},selectedTrip?.driverName||'Chưa có lái xe')
+      )),
       h('div',{className:'fl trip-quick-order-filter'},h('label',null,'Địa điểm - giờ'),h('select',{value:selectedOrder?.id||'',onChange:event=>setOrderId(event.target.value)},
         tripOrders.length?tripOrders.map(order=>h('option',{key:order.id,value:order.id},(order.pointName||order.customer||'Chưa có địa điểm')+' - '+(order.deliveryTime||selectedTrip?.deliveryTime||'—'))):h('option',{value:''},'Không có đơn trong ca này')
       ))
     ),
     selectedOrder&&h('div',{className:'trip-quick-order-card'},
-      h('div',{className:'trip-quick-order-head'},
-        h('div',null,h('b',null,selectedOrder.pointName||selectedOrder.customer||selectedOrder.id),h('small',null,(selectedOrder.deliveryTime||selectedTrip?.deliveryTime||'—')+' · '+(selectedOrder.id||''))),
+      h('div',{className:'trip-quick-order-head trip-quick-order-tools'},
         h('div',{className:'trip-quick-invoice-actions'},
           h('button',{type:'button',className:'bi trip-quick-optional-toggle',title:optionalVisible?'Ẩn chú ý, Rổ đi và Rổ về':'Hiện chú ý, Rổ đi và Rổ về','aria-label':optionalVisible?'Ẩn chú ý, Rổ đi và Rổ về':'Hiện chú ý, Rổ đi và Rổ về',onClick:()=>setOptionalVisible(value=>!value)},h('i',{className:optionalVisible?'ti ti-eye':'ti ti-eye-off'})),
           selectedOrder.invoiceImage&&h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(selectedOrder.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check'})),
