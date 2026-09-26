@@ -98,9 +98,9 @@ async function serverTouchSession(){
   return true;
 }
 
-async function serverLoadEmployeeContext(){
+async function serverLoadEmployeeContext(requestTimeoutMs=15000){
   if(!sb)throw new Error('Chưa kết nối được máy chủ nhân viên.');
-  const{data,error}=await invokeScfAuth({body:{action:'load_employees',appVariant:window.SCF_APP_VARIANT||'scfood'}},15000);
+  const{data,error}=await invokeScfAuth({body:{action:'load_employees',appVariant:window.SCF_APP_VARIANT||'scfood'}},requestTimeoutMs);
   if(error||!Array.isArray(data?.employees))throw new Error(await serverFunctionErrorMessage(error,data,'Không tải được danh sách nhân viên.'));
   return data;
 }

@@ -331,6 +331,8 @@ th{font-family:var(--ui-header-family)!important}
 .trip-desktop-tools-center{justify-content:center}
 .trip-desktop-tools-right{justify-content:flex-end}
 .trip-desktop-trip-tools .bi{display:inline-flex;align-items:center;justify-content:center;width:32px;min-width:32px;height:32px;min-height:32px;padding:4px;font-size:16px}
+.trip-order-mode-button.auto{background:#e1f5ee!important;color:#0f6e56!important;border-color:#9bd8c4!important}
+.trip-order-mode-button.manual{background:#f2b824!important;color:#503500!important;border-color:#c98a00!important}
 .trip-desktop-tool-meta{color:var(--pri);font-size:12px;font-weight:600;white-space:nowrap}
 .trip-filter-row{display:flex!important;align-items:center;flex-wrap:nowrap!important;gap:6px!important;overflow-x:auto;padding-bottom:2px}
 .trip-filter-row>*{width:auto!important;min-width:0;flex:0 0 auto}
@@ -338,6 +340,7 @@ th{font-family:var(--ui-header-family)!important}
 .trip-filter-image{min-width:126px!important}
 .trip-filter-period{width:108px!important}
 .trip-filter-date{width:150px!important}
+.trip-filter-group{width:165px!important}
 .trip-filter-trip{width:235px!important}
 .trip-filter-shift{width:155px!important}
 .trip-filter-driver{width:185px!important}

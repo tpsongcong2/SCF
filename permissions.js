@@ -66,6 +66,7 @@ const PAGE_ACCESS = {
   marketsales:  ['admin','manager','staff'],
   invoicereport:['admin','manager','staff'],
   powdersales:  ['admin','manager','staff'],
+  deliverysequence:['admin','manager','staff'],
 };
 // Default permissions by role
 function roleDefaults(role) {
