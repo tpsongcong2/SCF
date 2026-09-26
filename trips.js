@@ -863,14 +863,11 @@ function TripMobileQuickUpdateModal({trips,orders,customers,initialDate,canEditT
   useEffect(()=>{setOrderId('');},[selectedTrip?.id]);
   return h(Modal,{title:'Cập nhật SL giao và HĐ',lg:true,className:'trip-quick-fullscreen',onClose},
     h('div',{className:'trip-quick-filter-grid'},
-      h('div',{className:'fl'},h('label',null,'Ngày'),h('input',{type:'date',value:date,onChange:event=>setDate(event.target.value)})),
-      h('div',{className:'fl'},h('label',null,'Ca giao - Tên lái xe'),h('div',{className:'trip-quick-shift-row'},
-        h('select',{value:selectedTrip?.id||'',onChange:event=>setTripId(event.target.value)},
-          tripsOnDate.length?tripsOnDate.map(trip=>h('option',{key:trip.id,value:trip.id},trip.shiftName||trip.id)):h('option',{value:''},'Không có chuyến')
-        ),
-        h('span',{className:'trip-quick-driver'},selectedTrip?.driverName||'Chưa có lái xe')
+      h('div',{className:'fl'},h('input',{'aria-label':'Ngày giao',title:'Ngày giao',type:'date',value:date,onChange:event=>setDate(event.target.value)})),
+      h('div',{className:'fl'},h('select',{'aria-label':'Ca giao và tên lái xe',title:'Ca giao và tên lái xe',value:selectedTrip?.id||'',onChange:event=>setTripId(event.target.value)},
+        tripsOnDate.length?tripsOnDate.map(trip=>h('option',{key:trip.id,value:trip.id},(trip.shiftName||trip.id)+' — '+(trip.driverName||'Chưa có lái xe'))):h('option',{value:''},'Không có chuyến')
       )),
-      h('div',{className:'fl trip-quick-order-filter'},h('label',null,'Địa điểm - giờ'),h('select',{value:selectedOrder?.id||'',onChange:event=>setOrderId(event.target.value)},
+      h('div',{className:'fl trip-quick-order-filter'},h('select',{'aria-label':'Địa điểm và giờ giao',title:'Địa điểm và giờ giao',value:selectedOrder?.id||'',onChange:event=>setOrderId(event.target.value)},
         tripOrders.length?tripOrders.map(order=>h('option',{key:order.id,value:order.id},(order.pointName||order.customer||'Chưa có địa điểm')+' - '+(order.deliveryTime||selectedTrip?.deliveryTime||'—'))):h('option',{value:''},'Không có đơn trong ca này')
       ))
     ),

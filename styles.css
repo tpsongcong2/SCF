@@ -353,15 +353,14 @@ th{font-family:var(--ui-header-family)!important}
 .trip-filter-image{min-width:126px!important}
 .trip-quick-filter-grid{display:grid;grid-template-columns:1fr;gap:8px 12px}
 .trip-quick-filter-grid .fl{margin-bottom:8px}
-.trip-quick-shift-row{display:grid;grid-template-columns:minmax(110px,180px) minmax(0,1fr);align-items:center;gap:10px}
-.trip-quick-driver{display:block;color:#000;font-weight:700;line-height:1.25;white-space:normal}
 .trip-quick-order-filter{grid-column:1/-1}
 .trip-quick-order-card{border:1px solid var(--bd);border-radius:12px;padding:12px;background:#fff}
 .trip-quick-order-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
-.trip-quick-order-tools{justify-content:flex-end}
+.trip-quick-order-tools{justify-content:center}
 .trip-quick-order-head small{display:block;color:var(--tx2);margin-top:3px}
-.trip-quick-invoice-actions{display:flex;gap:4px;flex-shrink:0}
-.trip-quick-invoice-actions button{font-size:20px;padding:6px}
+.trip-quick-invoice-actions{display:flex;align-items:center;justify-content:center;gap:14px;flex:1}
+.trip-quick-invoice-actions button{width:52px;height:52px;display:inline-flex;align-items:center;justify-content:center;font-size:25px;padding:0;border-radius:12px}
+.trip-quick-invoice-actions button i{font-size:25px!important}
 .trip-quick-optional-toggle{color:var(--pri)!important;background:#e1f5ee!important;border-radius:8px!important}
 .trip-quick-warning{margin:10px 0;padding:8px 10px;border-radius:8px;background:#fff3cd;color:#7a5200;font-size:12px}
 .trip-quick-lines{display:grid;gap:8px;margin-top:10px}
