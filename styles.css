@@ -354,27 +354,32 @@ th{font-family:var(--ui-header-family)!important}
 .trip-quick-filter-grid{display:grid;grid-template-columns:1fr;gap:8px 12px}
 .trip-quick-filter-grid .fl{margin-bottom:8px}
 .trip-quick-order-filter{grid-column:1/-1}
-.trip-quick-order-card{border:1px solid var(--bd);border-radius:12px;padding:12px;background:#fff}
-.trip-quick-order-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
+.trip-quick-order-card{border:0;border-radius:0;padding:0;background:#fff}
+.trip-quick-order-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0 10px;border-bottom:0}
 .trip-quick-order-tools{justify-content:center}
 .trip-quick-order-head small{display:block;color:var(--tx2);margin-top:3px}
 .trip-quick-invoice-actions{display:flex;align-items:center;justify-content:center;gap:14px;flex:1}
 .trip-quick-invoice-actions button{width:52px;height:52px;display:inline-flex;align-items:center;justify-content:center;font-size:25px;padding:0;border-radius:12px}
 .trip-quick-invoice-actions button i{font-size:25px!important}
-.trip-quick-optional-toggle{color:var(--pri)!important;background:#e1f5ee!important;border-radius:8px!important}
+.trip-quick-optional-toggle{color:#111!important;background:#fff!important;border:1px solid #bbb!important;border-radius:12px!important}
 .trip-quick-warning{margin:10px 0;padding:8px 10px;border-radius:8px;background:#fff3cd;color:#7a5200;font-size:12px}
-.trip-quick-lines{display:grid;gap:8px;margin-top:10px}
-.trip-quick-line{display:block;padding:10px;border-radius:9px;background:var(--bg2)}
+.trip-quick-lines{display:grid;gap:0;margin-top:2px;border:1px solid #c8c8c8;border-radius:10px;overflow:hidden;background:#fff}
+.trip-quick-line{display:block;padding:12px;background:#fff;color:#000;border-radius:0!important}
+.trip-quick-line+.trip-quick-line{border-top:1px solid #d8d8d8}
 .trip-quick-line-main{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
 .trip-quick-product{min-width:0}
 .trip-quick-product b{display:block;white-space:normal}
 .trip-quick-product small{display:block;margin-top:4px;color:var(--tx2)}
+.trip-quick-delivered{display:grid;justify-items:center;gap:3px}
+.trip-quick-delivered>small{font-size:11px;font-weight:700;color:#555}
+.trip-quick-delivered input{background:#fff!important;border:1px solid #999!important;color:#000!important;font-size:18px!important;font-weight:700!important;min-height:44px}
 .trip-quick-line-note{display:grid;grid-template-columns:58px minmax(0,1fr);align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--bd2)}
 .trip-quick-line-note>span{font-size:12px;font-weight:700;color:var(--tx2)}
 .trip-quick-line-note .trip-order-note-confirm{min-width:0!important}
-.trip-quick-baskets{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid var(--bd);border-radius:9px;background:#fff}
+.trip-quick-baskets{display:flex;align-items:end;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid #c8c8c8;border-radius:9px;background:#fff}
 .trip-quick-baskets label{display:flex;align-items:center;gap:7px;font-weight:700}
 .trip-quick-baskets label>span:first-child{white-space:nowrap}
+.trip-quick-fullscreen .trip-order-note-confirm input,.trip-quick-fullscreen .trip-number-confirm input{background:#fff!important;border:1px solid #aaa!important;color:#000!important}
 .trip-print-choice{display:grid;gap:8px;margin:4px 0 14px;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg2)}
 .trip-print-choice label{display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer}
 .trip-print-choice input[type="radio"]{width:auto;flex:0 0 auto}
@@ -622,6 +627,7 @@ th{font-family:var(--ui-header-family)!important}
   .trip-filter-row{display:grid!important;grid-template-columns:1fr 1fr;gap:6px!important;margin-bottom:10px!important;overflow:visible}
   .trip-filter-row>*{width:100%!important;min-width:0!important}
   .trip-filter-row>.trip-filter-image{grid-column:1/-1}
+  .trip-filter-row>.trip-filter-mobile-date{grid-column:1/-1}
   .trip-filter-row>.trip-filter-group,.trip-filter-row>.trip-filter-shift,.trip-filter-row>.trip-filter-driver,.trip-filter-row>.trip-filter-orders,.trip-filter-row>.trip-filter-clear{grid-column:1/-1}
   th,td{padding:8px 9px}
   .empty-st{padding:2rem 1rem}
