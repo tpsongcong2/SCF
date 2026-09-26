@@ -595,7 +595,7 @@ th{font-family:var(--ui-header-family)!important}
   .trip-filter-row{display:grid!important;grid-template-columns:1fr 1fr;gap:6px!important;margin-bottom:10px!important;overflow:visible}
   .trip-filter-row>*{width:100%!important;min-width:0!important}
   .trip-filter-row>.trip-filter-image{grid-column:1/-1}
-  .trip-filter-row>*:nth-child(n+4){grid-column:1/-1}
+  .trip-filter-row>.trip-filter-group,.trip-filter-row>.trip-filter-shift,.trip-filter-row>.trip-filter-driver,.trip-filter-row>.trip-filter-orders,.trip-filter-row>.trip-filter-clear{grid-column:1/-1}
   th,td{padding:8px 9px}
   .empty-st{padding:2rem 1rem}
   .overlay{align-items:flex-start;padding:10px;overflow:auto}
