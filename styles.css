@@ -351,6 +351,23 @@ th{font-family:var(--ui-header-family)!important}
 .trip-filter-row>*{width:auto!important;min-width:0;flex:0 0 auto}
 .trip-filter-row>button{white-space:nowrap}
 .trip-filter-image{min-width:126px!important}
+.trip-quick-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.trip-quick-filter-grid .fl{margin-bottom:8px}
+.trip-quick-order-filter{grid-column:1/-1}
+.trip-quick-order-card{border:1px solid var(--bd);border-radius:12px;padding:12px;background:#fff}
+.trip-quick-order-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
+.trip-quick-order-head small{display:block;color:var(--tx2);margin-top:3px}
+.trip-quick-invoice-actions{display:flex;gap:4px;flex-shrink:0}
+.trip-quick-invoice-actions button{font-size:20px;padding:6px}
+.trip-quick-warning{margin:10px 0;padding:8px 10px;border-radius:8px;background:#fff3cd;color:#7a5200;font-size:12px}
+.trip-quick-lines{display:grid;gap:8px;margin-top:10px}
+.trip-quick-line{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px;border-radius:9px;background:var(--bg2)}
+.trip-quick-product{min-width:0}
+.trip-quick-product b{display:block;white-space:normal}
+.trip-quick-product small{display:block;margin-top:4px;color:var(--tx2)}
+.trip-print-choice{display:grid;gap:8px;margin:4px 0 14px;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg2)}
+.trip-print-choice label{display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer}
+.trip-print-choice input[type="radio"]{width:auto;flex:0 0 auto}
 .trip-filter-period{width:108px!important}
 .trip-filter-date{width:150px!important}
 .trip-filter-group{width:165px!important}
@@ -600,6 +617,7 @@ th{font-family:var(--ui-header-family)!important}
   .empty-st{padding:2rem 1rem}
   .overlay{align-items:flex-start;padding:10px;overflow:auto}
   .modal,.modal.wide,.modal.xl{width:100%;max-width:100%;max-height:none;min-height:auto;padding:14px;border-radius:10px}
+  .trip-quick-filter-grid{grid-template-columns:1fr 1fr}
   .mh{margin-bottom:14px;gap:8px}.mh h2{font-size:16px;line-height:1.25}
   .ptrow{align-items:flex-start;flex-wrap:wrap}
   .att-stat{display:flex!important;gap:8px;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;margin-bottom:12px;scroll-snap-type:x proximity}

@@ -848,6 +848,78 @@ function TripDayImageModal({trips,orders,products,customers,date,onClose}){
   );
 }
 
+function TripMobileQuickUpdateModal({trips,orders,customers,initialDate,canEditTrip,onDeliveredQty,onInvoice,onClose}){
+  const toIso=value=>{const parts=String(value||'').split('/');return parts.length===3?parts.reverse().join('-'):String(value||'');};
+  const dateOptions=[...new Set((trips||[]).map(trip=>toIso(trip.deliveryDate)).filter(Boolean))].sort();
+  const [date,setDate]=useState(dateOptions.includes(initialDate)?initialDate:(dateOptions[0]||initialDate||isoDate()));
+  const tripsOnDate=(trips||[]).filter(trip=>toIso(trip.deliveryDate)===date);
+  const [tripId,setTripId]=useState('');
+  const selectedTrip=tripsOnDate.find(trip=>String(trip.id)===String(tripId))||tripsOnDate[0]||null;
+  const tripOrders=selectedTrip?sortTripOrdersByDeliveryOrder(selectedTrip,(orders||[]).filter(order=>(selectedTrip.orderIds||[]).some(id=>String(id)===String(order.id))&&order.status!=='cancelled'),customers||[]):[];
+  const [orderId,setOrderId]=useState('');
+  const selectedOrder=tripOrders.find(order=>String(order.id)===String(orderId))||tripOrders[0]||null;
+  useEffect(()=>{setTripId('');setOrderId('');},[date]);
+  useEffect(()=>{setOrderId('');},[selectedTrip?.id]);
+  return h(Modal,{title:'Cập nhật SL giao và HĐ',lg:true,onClose},
+    h('div',{className:'trip-quick-filter-grid'},
+      h('div',{className:'fl'},h('label',null,'Ngày'),h('input',{type:'date',value:date,onChange:event=>setDate(event.target.value)})),
+      h('div',{className:'fl'},h('label',null,'Ca giao'),h('select',{value:selectedTrip?.id||'',onChange:event=>setTripId(event.target.value)},
+        tripsOnDate.length?tripsOnDate.map(trip=>h('option',{key:trip.id,value:trip.id},(trip.shiftName||trip.id)+(trip.driverName?' — '+trip.driverName:''))):h('option',{value:''},'Không có chuyến')
+      )),
+      h('div',{className:'fl trip-quick-order-filter'},h('label',null,'Địa điểm - giờ'),h('select',{value:selectedOrder?.id||'',onChange:event=>setOrderId(event.target.value)},
+        tripOrders.length?tripOrders.map(order=>h('option',{key:order.id,value:order.id},(order.pointName||order.customer||'Chưa có địa điểm')+' - '+(order.deliveryTime||selectedTrip?.deliveryTime||'—'))):h('option',{value:''},'Không có đơn trong ca này')
+      ))
+    ),
+    selectedOrder&&h('div',{className:'trip-quick-order-card'},
+      h('div',{className:'trip-quick-order-head'},
+        h('div',null,h('b',null,selectedOrder.pointName||selectedOrder.customer||selectedOrder.id),h('small',null,(selectedOrder.deliveryTime||selectedTrip?.deliveryTime||'—')+' · '+(selectedOrder.id||''))),
+        h('div',{className:'trip-quick-invoice-actions'},
+          selectedOrder.invoiceImage&&h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(selectedOrder.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check'})),
+          h('button',{type:'button',className:'bi',title:selectedOrder.invoiceImage?'Chụp lại hóa đơn':'Chụp ảnh hóa đơn','aria-label':selectedOrder.invoiceImage?'Chụp lại hóa đơn':'Chụp ảnh hóa đơn',onClick:()=>onInvoice(selectedOrder)},h('i',{className:selectedOrder.invoiceImage?'ti ti-camera-up':'ti ti-camera-plus'}))
+        )
+      ),
+      !canEditTrip(selectedTrip)&&h('div',{className:'trip-quick-warning'},'Chuyến này đang ở trạng thái không cho sửa số lượng giao.'),
+      h('div',{className:'trip-quick-lines'},(selectedOrder.lines||[]).map((line,index)=>h('div',{key:line.id||index,className:'trip-quick-line',style:scfTripProductHighlightStyle(line.productName)},
+        h('div',{className:'trip-quick-product'},h('b',null,(index+1)+'. '+(line.productName||'Sản phẩm')),h('small',null,'SL đơn: '+tripOrderedQty(line).toLocaleString('vi-VN')+(line.unit?' '+line.unit:''))),
+        canEditTrip(selectedTrip)
+          ?h(TripDeliveredQtyConfirm,{line,onCommit:value=>onDeliveredQty(selectedTrip,selectedOrder.id,line.id,value),style:{width:88}})
+          :h('b',null,tripDeliveredQty(line).toLocaleString('vi-VN'))
+      )))
+    ),
+    !selectedOrder&&h('div',{className:'empty-st'},'Chưa có đơn phù hợp với bộ lọc.')
+  );
+}
+
+function TripMobilePrintModal({trips,orders,customers,initialDate,onPrintTrip,onPrintOrder,onClose}){
+  const toIso=value=>{const parts=String(value||'').split('/');return parts.length===3?parts.reverse().join('-'):String(value||'');};
+  const dateOptions=[...new Set((trips||[]).map(trip=>toIso(trip.deliveryDate)).filter(Boolean))].sort();
+  const [date,setDate]=useState(dateOptions.includes(initialDate)?initialDate:(dateOptions[0]||initialDate||isoDate()));
+  const tripsOnDate=(trips||[]).filter(trip=>toIso(trip.deliveryDate)===date);
+  const [tripId,setTripId]=useState('');
+  const selectedTrip=tripsOnDate.find(trip=>String(trip.id)===String(tripId))||tripsOnDate[0]||null;
+  const tripOrders=selectedTrip?sortTripOrdersByDeliveryOrder(selectedTrip,(orders||[]).filter(order=>(selectedTrip.orderIds||[]).some(id=>String(id)===String(order.id))&&order.status!=='cancelled'),customers||[]):[];
+  const [mode,setMode]=useState('trip');const [orderId,setOrderId]=useState('');
+  const selectedOrder=tripOrders.find(order=>String(order.id)===String(orderId))||tripOrders[0]||null;
+  useEffect(()=>{setTripId('');setOrderId('');},[date]);
+  useEffect(()=>{setOrderId('');},[selectedTrip?.id]);
+  return h(Modal,{title:'In đơn theo ngày và ca giao',lg:true,onClose},
+    h('div',{className:'trip-quick-filter-grid'},
+      h('div',{className:'fl'},h('label',null,'Ngày'),h('input',{type:'date',value:date,onChange:event=>setDate(event.target.value)})),
+      h('div',{className:'fl'},h('label',null,'Ca giao'),h('select',{value:selectedTrip?.id||'',onChange:event=>setTripId(event.target.value)},
+        tripsOnDate.length?tripsOnDate.map(trip=>h('option',{key:trip.id,value:trip.id},(trip.shiftName||trip.id)+(trip.driverName?' — '+trip.driverName:''))):h('option',{value:''},'Không có chuyến')
+      ))
+    ),
+    selectedTrip&&h('div',{className:'trip-print-choice'},
+      h('label',null,h('input',{type:'radio',name:'trip-print-mode',checked:mode==='trip',onChange:()=>setMode('trip')}),' In đơn tổng của chuyến'),
+      h('label',null,h('input',{type:'radio',name:'trip-print-mode',checked:mode==='order',onChange:()=>setMode('order')}),' In một đơn trong ca giao')
+    ),
+    selectedTrip&&mode==='order'&&h('div',{className:'fl'},h('label',null,'Đơn cần in — địa điểm - giờ'),h('select',{value:selectedOrder?.id||'',onChange:event=>setOrderId(event.target.value)},
+      tripOrders.length?tripOrders.map(order=>h('option',{key:order.id,value:order.id},(order.pointName||order.customer||order.id)+' - '+(order.deliveryTime||selectedTrip.deliveryTime||'—'))):h('option',{value:''},'Không có đơn trong ca này')
+    )),
+    h('button',{type:'button',className:'bp',disabled:mode==='trip'?!selectedTrip:!selectedOrder,onClick:()=>mode==='trip'?onPrintTrip(selectedTrip):onPrintOrder(selectedOrder)},h('i',{className:'ti ti-printer'}),mode==='trip'?' In đơn tổng chuyến':' In đơn đã chọn')
+  );
+}
+
 function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,customers,products,quotes,financeDebts,setFinanceDebts,company,currentUser,notify}){
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[open,so]=useState(null);const[additionalTrip,setAdditionalTrip]=useState(null);const[printOrder,setPrintOrder]=useState(null);
   const[hideTripOptionalColumns,setHideTripOptionalColumns]=useLS('scf_trip_hide_optional_columns_v2',true);
@@ -1580,6 +1652,8 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
   return h('div',null,
     h('div',{className:'ptitle'},h('i',{className:'ti ti-steering-wheel',style:{fontSize:20}}),'Chuyến giao hàng'),
     h('div',{className:'trip-filter-row',style:{display:'flex',gap:8,marginBottom:'1rem',flexWrap:'wrap'}},
+      canCreateTripImages&&h('button',{className:'mobile-only trip-filter-image trip-mobile-quick-action','data-scf-action':'write',onClick:()=>sm('quick-update')},h('i',{className:'ti ti-checkup-list'}),' Cập nhật SL giao và HĐ'),
+      canCreateTripImages&&h('button',{className:'mobile-only trip-filter-image trip-mobile-quick-action','data-scf-action':'view',onClick:()=>sm('mobile-print')},h('i',{className:'ti ti-printer'}),' In đơn'),
       canCreateTripImages&&h('button',{className:'trip-filter-image','data-scf-action':'view',disabled:!filteredTrips.length,onClick:()=>sm('images')},h('i',{className:'ti ti-photo'}),' Tạo ảnh chuyến'),
       canCreateTripImages&&fPeriod==='day'&&h('button',{className:'trip-filter-image trip-filter-day-image','data-scf-action':'view',disabled:!fDate||!filteredTrips.length,onClick:()=>sm('day-image')},h('i',{className:'ti ti-photo-search'}),' XEM ẢNH ĐƠN TỔNG'),
       h('select',{className:'trip-filter-period',value:fPeriod,onChange:e=>{sfTrip('');sfPeriod(e.target.value);},style:{padding:'6px 10px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:13}},
@@ -1613,6 +1687,8 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     ),
     canCreateTripImages&&modal==='images'&&h(TripImagesModal,{trips:filteredTrips.filter(trip=>trip.status!=='cancelled'),orders,products,customers,onClose:()=>sm(null)}),
     canCreateTripImages&&fPeriod==='day'&&modal==='day-image'&&h(TripDayImageModal,{trips:filteredTrips.filter(trip=>trip.status!=='cancelled'),orders,products,customers,date:fDate?fDate.split('-').reverse().join('/'):fmtDate(),onClose:()=>sm(null)}),
+    canCreateTripImages&&modal==='quick-update'&&h(TripMobileQuickUpdateModal,{trips:visibleTrips.filter(trip=>trip.status!=='cancelled'),orders,customers,initialDate:fDate,canEditTrip:canEditQtyForTrip,onDeliveredQty:updateDeliveredQty,onInvoice:pickOrderInvoiceImage,onClose:()=>sm(null)}),
+    canCreateTripImages&&modal==='mobile-print'&&h(TripMobilePrintModal,{trips:visibleTrips.filter(trip=>trip.status!=='cancelled'),orders,customers,initialDate:fDate,onPrintTrip:trip=>{sm(null);printTrip(trip);},onPrintOrder:order=>{sm(null);setPrintOrder(order);},onClose:()=>sm(null)}),
     filteredTrips.length?h('div',{style:{display:'flex',flexDirection:'column',gap:'1rem'}},
       filteredTrips.map(trip=>{
         const tripOrders=sortedTripOrders(trip);
