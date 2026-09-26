@@ -136,7 +136,7 @@ function TripNumberConfirm({value,onCommit,label,min=0,integer=false,placeholder
 function TripBasketInput({value,onCommit,label}){return h(TripNumberConfirm,{value,onCommit,label,min:0,width:62});}
 function TripDeliveryOrderConfirm({value,onCommit}){return h(TripNumberConfirm,{value,onCommit,label:'Số thứ tự',min:1,integer:true,placeholder:'...',width:64});}
 function TripForm({trip,orders,employees,shifts,customers,products,currentUser,onSave,onClose}){
-  const drivers=employees.filter(e=>e.role==='driver'||e.dept==='Lái xe');
+  const drivers=employees.filter(e=>e.role==='driver'||employeeHasDepartment(e,'Lái xe'));
   const[f,sf]=useState(trip?{driverWork:0,weightRate:0,tripAllowance:0,attendanceStatus:'pending',...trip}:{driverName:'',driverId:'',shiftId:'',shiftName:'',deliveryDate:fmtDate(),deliveryTime:'07:00',orderIds:[],note:'',status:'planning',driverWork:0,weightRate:0,tripAllowance:0,attendanceStatus:'pending'});
   const s=(k,v)=>sf(p=>({...p,[k]:v}));
   // Bộ lọc đơn hàng
@@ -342,7 +342,7 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
   const [selShifts,setSelShifts]=useState(initialShift?[initialShift]:[]); // shift ids
   const [driver,setDriver]=useState('');
   const [driverName,setDriverName]=useState('');
-  const drivers=employees.filter(e=>e.role==='driver'||e.dept==='Lái xe');
+  const drivers=employees.filter(e=>e.role==='driver'||employeeHasDepartment(e,'Lái xe'));
 
   // Lấy khu vực của đơn
   const getOArea=o=>{
@@ -504,7 +504,7 @@ function DriverTripWorkReportTab({trips,orders,products,customers,currentUser}){
   const[month,setMonth]=useState(isoDate().slice(0,7));
   const[driverFilter,setDriverFilter]=useState('');
   const[shiftFilter,setShiftFilter]=useState('');
-  const isDriver=currentUser?.role==='driver';
+  const isDriver=currentUser?.role==='driver'||employeeHasDepartment(currentUser,'Lái xe');
   const cleanName=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
   const isOwnTrip=trip=>trip?.driverId
     ?String(trip.driverId)===String(currentUser?.id||'')
@@ -935,16 +935,15 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[open,so]=useState(null);const[additionalTrip,setAdditionalTrip]=useState(null);const[printOrder,setPrintOrder]=useState(null);
   const[hideTripOptionalColumns,setHideTripOptionalColumns]=useLS('scf_trip_hide_optional_columns_v2',true);
   const _td1=fmtDate();const _ti1=_td1.split('/').reverse().join('-');const[fPeriod,sfPeriod]=useState('day');const[fDate,sfDate]=useState(_ti1);const[fMonth,sfMonth]=useState(_ti1.slice(0,7));const[fTrip,sfTrip]=useState('');const[fTripGroup,sfTripGroup]=useState('');const[fShift,sfShift]=useState('');const[fDriver,sfDriver]=useState('');const[fOrderState,sfOrderState]=useState('with');
-  const isDriver=currentUser?.role==='driver';
-  const canOpenTrips=canAccess(currentUser?.role,'trips',currentUser?.permissions,currentUser?.dept);
+  const isDriver=currentUser?.role==='driver'||employeeHasDepartment(currentUser,'Lái xe');
+  const canOpenTrips=canAccess(currentUser?.role,'trips',currentUser?.permissions,employeeDepartments(currentUser));
   const canManageTrips=canOpenTrips&&canTripAction(currentUser,'manage');
   const canDeleteTrips=canOpenTrips&&canTripAction(currentUser,'delete');
   const canDispatchTrips=canOpenTrips&&canTripAction(currentUser,'dispatch');
   const canEnterActualQty=canOpenTrips&&canTripAction(currentUser,'actualQty');
   const canUseDriverWorkflow=canOpenTrips&&canTripAction(currentUser,'driverWorkflow');
   const canUploadTripSummaryInvoice=canOpenTrips&&canTripAction(currentUser,'summaryInvoice');
-  const deptKey=String(currentUser?.dept||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const isAccounting=deptKey.includes('ke toan');
+  const isAccounting=employeeDepartmentIncludes(currentUser,'Kế toán');
   const isAdmin=['admin','administrator'].includes(String(currentUser?.role||'').trim().toLowerCase());
   const canCreateTripImages=isAdmin||isAccounting;
   const canReviewTrips=canOpenTrips&&canTripAction(currentUser,'review');
@@ -968,11 +967,11 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     notify?.({recipientId,title,message,icon,sourceType:'trip',sourceId:trip.id,targetPage:'trips'});
     return true;
   };
-  const accountingRecipientIds=(employees||[]).filter(e=>e.role==='admin'||String(e.dept||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('ke toan')).map(e=>e.id).filter(Boolean);
+  const accountingRecipientIds=(employees||[]).filter(e=>e.role==='admin'||employeeDepartmentIncludes(e,'Kế toán')).map(e=>e.id).filter(Boolean);
   const canCreateAdditionalOrder=trip=>{
     if(!trip||!['planning','assigned','active'].includes(trip.status))return false;
     if(isDriver)return canUseDriverWorkflow&&isOwnTrip(trip)&&trip.status==='active'&&!isDriverCompletionLocked(trip);
-    return canManageTrips&&canAccess(currentUser?.role,'delivery',currentUser?.permissions,currentUser?.dept)
+    return canManageTrips&&canAccess(currentUser?.role,'delivery',currentUser?.permissions,employeeDepartments(currentUser))
       &&canWrite(currentUser?.role,'delivery',currentUser?.permLevels);
   };
   const openAdditionalOrder=trip=>{
