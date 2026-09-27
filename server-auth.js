@@ -122,6 +122,15 @@ async function serverLoadPermittedCollection(key){
   return{value:data.value,updatedAt:data.updatedAt||''};
 }
 
+async function serverLoadPermittedCollectionVersions(keys){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
+  const requested=[...new Set((keys||[]).map(String).filter(Boolean))];
+  if(!requested.length)return[];
+  const{data,error}=await invokeScfAuth({body:{action:'load_permitted_collection_versions',keys:requested}});
+  if(error||!data?.ok||!Array.isArray(data?.versions))throw new Error(await serverFunctionErrorMessage(error,data,'Không kiểm tra được phiên bản dữ liệu.'));
+  return data.versions;
+}
+
 function serverEmployeeIsPrivileged(employee){
   const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const role=normalize(employee?.role).replace(/\s+/g,'');
