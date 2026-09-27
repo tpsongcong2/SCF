@@ -1443,7 +1443,7 @@ function PrintByCustomerModal({orders,customers,products,company,initialDate,onC
 
   return h(Modal,{title:'In phiếu giao hàng theo khách hàng',lg:true,onClose},
     h('div',{className:'g4'},
-      h(F,{label:'Khách hàng'},h('select',{value:custId,onChange:e=>sCust(e.target.value)},
+      h(F,{label:'Khách hàng'},h('select',{value:custId,onChange:e=>{const id=e.target.value;sCust(id);const customer=customers.find(item=>String(item.id||'')===String(id));if(customer)setTpl(resolveOrderPrintTemplate({},customer));}},
         h('option',{value:''},'— Tất cả —'),
         customers.map(c=>h('option',{key:c.id,value:c.id},c.name))
       )),
@@ -3696,7 +3696,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     ),
     totalPages>1&&renderPagination('bottom'),
         modal==='f'&&h(OrderForm,{order:edit||copyDraft,copyMode:!!copyDraft,customers,products,prodCats,quotes,employees,currentUser,prodShifts,onSave:save,onClose:()=>{sm(null);se(null);setCopyDraft(null);}}),
-    print&&h(PrintTemplateModal,{order:print,company,onClose:()=>spr(null)}),
+    print&&h(PrintTemplateModal,{order:print,company,initialTemplate:resolveOrderPrintTemplate(print,(customers||[]).find(customer=>String(customer.id||'')===String(print.customerId||''))),onClose:()=>spr(null)}),
     invoiceView&&h(Modal,{title:'Ảnh hóa đơn - '+invoiceView.id,lg:true,onClose:()=>setInvoiceView(null)},
       h('div',{style:{display:'grid',gap:10}},
         h('div',{style:{fontSize:13,color:'var(--tx2)'}},
