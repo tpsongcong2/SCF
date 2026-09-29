@@ -364,8 +364,9 @@ th{font-family:var(--ui-header-family)!important}
 .trip-quick-order-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0 10px;border-bottom:0}
 .trip-quick-order-tools{justify-content:center}
 .trip-quick-order-head small{display:block;color:var(--tx2);margin-top:3px}
-.trip-quick-invoice-actions{display:flex;align-items:center;justify-content:center;gap:14px;flex:1}
+.trip-quick-invoice-actions{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:14px;flex:1}
 .trip-quick-invoice-actions button{width:52px;height:52px;display:inline-flex;align-items:center;justify-content:center;font-size:25px;padding:0;border-radius:12px}
+.trip-quick-invoice-actions button.trip-quick-retry{width:auto;max-width:165px;min-height:52px;height:auto;padding:8px 10px;font-size:12px;line-height:1.25;text-align:center}
 .trip-quick-invoice-actions button i{font-size:25px!important}
 .trip-quick-optional-toggle{color:#111!important;background:#fff!important;border:1px solid #bbb!important;border-radius:12px!important}
 .trip-quick-warning{margin:10px 0;padding:8px 10px;border-radius:8px;background:#fff3cd;color:#7a5200;font-size:12px}
@@ -889,4 +890,37 @@ tbody tr:hover td{background:var(--bg)}
   .fuel-entry-modal .fuel-photo-field button{min-height:44px;font-size:13px;border-radius:8px}
   .fuel-save-bar{position:sticky;bottom:-16px;z-index:2;background:#fff;margin:16px -16px -16px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--bd)}
   .fuel-save-bar .bp{margin-top:0!important;min-height:52px!important;font-size:18px!important;border-radius:12px}
+}
+
+/* Direct stock entry, desktop and mobile. */
+.stock-quick-input{width:120px;max-width:100%;min-height:44px;padding:9px 12px;font-size:17px;font-weight:600;border:1px solid var(--bd);border-radius:9px;background:#fff;color:var(--tx);box-sizing:border-box;font-variant-numeric:tabular-nums}
+.stock-quick-input:focus{outline:2px solid var(--pri);outline-offset:1px}
+.stock-quick-input[readonly]{background:var(--bg2);border-color:transparent}
+.stock-entry-help{font-size:13px;color:var(--tx2);margin-bottom:12px}
+.stock-mobile-list{display:none}
+.stock-save-bar{position:sticky;bottom:12px;z-index:8;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:12px 16px;background:#fff;border:1px solid var(--bd);border-radius:12px;box-shadow:0 -3px 18px rgba(0,0,0,.06)}
+.stock-save-bar span{font-size:13px;color:var(--tx2)}
+.stock-save-bar .bp{min-height:46px;white-space:nowrap}
+@media(max-width:768px){
+ .stock-page{padding-bottom:16px}
+ .stock-page .stock-desktop-table{display:none}
+ .stock-mobile-list{display:grid;gap:12px}
+ .stock-mobile-card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:14px;min-width:0}
+ .stock-mobile-card.is-dirty{border-color:#d3a331;background:#fffdf6}
+ .stock-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+ .stock-card-heading strong{font-size:16px;line-height:1.4;color:var(--pri3);overflow-wrap:anywhere}
+ .stock-card-heading small{display:block;font-size:12px;color:var(--tx2);margin-top:3px}
+ .stock-card-heading .badge{flex-shrink:0}
+ .stock-card-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ .stock-card-fields label{min-width:0;display:grid;gap:6px}
+ .stock-card-fields label>span{font-size:13px;color:var(--tx2)}
+ .stock-card-fields .stock-quick-input{width:100%;min-height:50px;font-size:21px}
+ .stock-card-footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-top:12px;font-size:11px;color:var(--tx2)}
+ .stock-card-footer b{color:#936200}
+ .stock-page .search-wrap{width:100%}
+ .stock-page select,.stock-page .search-wrap input{font-size:16px;min-height:44px;max-width:100%}
+ .stock-page .pill{min-height:44px}
+ .stock-save-bar{bottom:calc(76px + env(safe-area-inset-bottom));padding:10px;gap:8px;flex-wrap:wrap}
+ .stock-save-bar .bp{flex:1;min-width:150px}
+ .stock-save-bar span{flex:1;min-width:100px}
 }
