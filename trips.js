@@ -5,6 +5,15 @@ function tripAdditionalProductLine(product,quantity,currentUser){
   const qty=numFmt(quantity),stamp=fmtDT();
   return {id:'PSL'+uid(),productId:product.id,productName:product.name||'',unit:product.unit||'',weightPerUnit:numFmt(product.weightPerUnit),qtyProd:qty,qtyInvoice:qty,qtyDelivered:qty,isAdditionalProduct:true,additionalProductAt:stamp,additionalProductBy:currentUser?.name||'',additionalProductById:currentUser?.id||''};
 }
+function filterTripAdditionalProducts(products,prodCats,orderLines,category,query){
+  if(!['tp','hh'].includes(category))return [];
+  const text=normalizeLookupText(query||'');
+  const tokens=text.split(/\s+/).filter(Boolean);
+  return (products||[]).filter(product=>product?.active!==false&&!(orderLines||[]).some(line=>String(line.productId||'')===String(product.id||''))&&(isGoodsProduct(product,prodCats||[])?category==='hh':category==='tp')).filter(product=>{
+    const haystack=normalizeLookupText([product.code,product.name].filter(Boolean).join(' '));
+    return tokens.every(token=>haystack.includes(token));
+  }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'vi',{numeric:true}));
+}
 function scfTripProductTone(value){
   const name=normalizePlainText(value).replace(/[^a-z0-9]+/g,' ').trim();
   if(/(?:^|\s)(?:banh|b)\s+cuon(?:\s|$)/.test(name))return 'yellow';
@@ -871,7 +880,7 @@ function scfInvoiceStatus(order){
   const pending=scfInvoiceUploads.has(id)||!!(queuedPatch&&queuedPatch.base?.invoiceImage!==queuedPatch.value?.invoiceImage)||!!(queuedOrder&&baseOrder&&queuedOrder.invoiceImage!==baseOrder.invoiceImage);
   return pending?'◷ HĐ đang chờ lưu':scfInvoiceRetryFiles.has(String(order.id))?'! Ảnh chưa tải lên':order.invoiceImage?'✓ Đã có HĐ':'○ Chưa có HĐ';
 }
-function TripMobileQuickUpdateModal({trip,orders,customers,products,canEditTrip,canAddProduct,onAddProduct,onDeliveredQty,onInvoice,onRetryLocalInvoice,renderLineNote,renderBasket,onClose}){
+function TripMobileQuickUpdateModal({trip,orders,customers,products,prodCats,canEditTrip,canAddProduct,onAddProduct,onDeliveredQty,onInvoice,onRetryLocalInvoice,renderLineNote,renderBasket,onClose}){
   const [,refreshSync]=useState(0);
   useEffect(()=>{const refresh=()=>refreshSync(value=>value+1);window.addEventListener('scf-sync-state',refresh);return()=>window.removeEventListener('scf-sync-state',refresh);},[]);
   const selectedTrip=trip||null;
@@ -880,16 +889,20 @@ function TripMobileQuickUpdateModal({trip,orders,customers,products,canEditTrip,
   const [optionalVisible,setOptionalVisible]=useState(true);
   const [addProductOpen,setAddProductOpen]=useState(false);
   const [productId,setProductId]=useState('');
+  const [productCategory,setProductCategory]=useState('');
+  const [productQuery,setProductQuery]=useState('');
+  const [productSearchOpen,setProductSearchOpen]=useState(false);
   const [productQty,setProductQty]=useState('');
   const [addingProduct,setAddingProduct]=useState(false);
   const addingProductRef=useRef(false);
   const selectedOrder=tripOrders.find(order=>String(order.id)===String(orderId))||tripOrders[0]||null;
-  useEffect(()=>{setAddProductOpen(false);setProductId('');setProductQty('');},[selectedOrder?.id]);
-  const availableProducts=(products||[]).filter(product=>product.active!==false&&!(selectedOrder?.lines||[]).some(line=>String(line.productId||'')===String(product.id||'')));
+  useEffect(()=>{setAddProductOpen(false);setProductId('');setProductCategory('');setProductQuery('');setProductQty('');},[selectedOrder?.id]);
+  const availableProducts=filterTripAdditionalProducts(products,prodCats,selectedOrder?.lines,productCategory,productQuery);
+  const selectedProduct=(products||[]).find(product=>String(product.id||'')===String(productId||''));
   const submitAdditionalProduct=async()=>{
     if(addingProductRef.current||!selectedTrip||!selectedOrder)return;
     addingProductRef.current=true;setAddingProduct(true);
-    try{if(await onAddProduct(selectedTrip,selectedOrder,productId,productQty)){setAddProductOpen(false);setProductId('');setProductQty('');}}
+    try{if(await onAddProduct(selectedTrip,selectedOrder,productId,productQty,productCategory)){setAddProductOpen(false);setProductId('');setProductCategory('');setProductQuery('');setProductQty('');}}
     catch(error){window.showToast(error?.message||'Chưa thêm được sản phẩm PS.','error');}
     finally{addingProductRef.current=false;setAddingProduct(false);}
   };
@@ -927,10 +940,15 @@ function TripMobileQuickUpdateModal({trip,orders,customers,products,canEditTrip,
         !addProductOpen?h('button',{type:'button',className:'bi','data-scf-action':'write',onClick:()=>setAddProductOpen(true)},h('i',{className:'ti ti-plus'}),' Thêm sản phẩm PS'):
           h('div',{className:'trip-quick-add-product-form'},
             h('b',null,'Thêm sản phẩm phát sinh vào đơn này'),
-            h('select',{value:productId,disabled:addingProduct,onChange:event=>setProductId(event.target.value),'aria-label':'Sản phẩm phát sinh'},h('option',{value:''},'— Chọn sản phẩm —'),availableProducts.map(product=>h('option',{key:product.id,value:product.id},product.name||product.id))),
+            h('select',{value:productCategory,disabled:addingProduct,onChange:event=>{setProductCategory(event.target.value);setProductId('');setProductQuery('');setProductSearchOpen(false);},'aria-label':'Loại sản phẩm phát sinh'},h('option',{value:''},'— Chọn TP hoặc HH trước —'),h('option',{value:'tp'},'TP — Thành phẩm'),h('option',{value:'hh'},'HH — Hàng hóa')),
+            productCategory&&h('div',{className:'trip-quick-product-search'},
+              h('input',{type:'search',value:productQuery,disabled:addingProduct,onFocus:()=>setProductSearchOpen(true),onBlur:()=>setTimeout(()=>setProductSearchOpen(false),160),onChange:event=>{setProductQuery(event.target.value);setProductId('');setProductSearchOpen(true);},placeholder:'Gõ tên hoặc mã sản phẩm…',autoComplete:'off','aria-label':'Tìm sản phẩm phát sinh'}),
+              selectedProduct&&h('small',{className:'trip-quick-product-selected'},'Đã chọn: '+[selectedProduct.code,selectedProduct.name].filter(Boolean).join(' · ')),
+              productSearchOpen&&h('div',{className:'trip-quick-product-results'},availableProducts.length?availableProducts.slice(0,30).map(product=>h('button',{type:'button',key:product.id,onMouseDown:event=>event.preventDefault(),onClick:()=>{setProductId(product.id);setProductQuery([product.code,product.name].filter(Boolean).join(' - '));setProductSearchOpen(false);}},[product.code,product.name].filter(Boolean).join(' - '))):h('div',{className:'trip-quick-product-empty'},'Không tìm thấy sản phẩm phù hợp'))
+            ),
             h('input',{type:'number',min:'0.01',step:'0.01',inputMode:'decimal',value:productQty,disabled:addingProduct,onChange:event=>setProductQty(event.target.value),placeholder:'Số lượng phát sinh','aria-label':'Số lượng phát sinh'}),
             h('small',null,'Số lượng này được ghi là SL đơn và SL giao. Nếu hóa đơn đã chụp, hãy kiểm tra và chụp lại khi cần.'),
-            h('div',{className:'trip-quick-add-product-actions'},h('button',{type:'button',disabled:addingProduct,onClick:()=>setAddProductOpen(false)},'Hủy'),h('button',{type:'button',className:'bp',disabled:addingProduct||!productId||numFmt(productQty)<=0,onClick:submitAdditionalProduct},addingProduct?'Đang lưu…':'Lưu sản phẩm PS'))
+            h('div',{className:'trip-quick-add-product-actions'},h('button',{type:'button',disabled:addingProduct,onClick:()=>setAddProductOpen(false)},'Hủy'),h('button',{type:'button',className:'bp',disabled:addingProduct||!productCategory||!productId||numFmt(productQty)<=0,onClick:submitAdditionalProduct},addingProduct?'Đang lưu…':'Lưu sản phẩm PS'))
           )
       ),
       optionalVisible&&h('div',{className:'trip-quick-baskets'},
@@ -1317,13 +1335,14 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     return withinLimit&&!['completion_pending','completed'].includes(trip.status);
   };
   const canAddAdditionalProduct=(trip,order)=>canEditOrderInTrip(trip,order)&&canEditQtyForTrip(trip);
-  const addAdditionalProduct=async(trip,order,productId,quantity)=>{
+  const addAdditionalProduct=async(trip,order,productId,quantity,category)=>{
     const liveTrip=(trips||[]).find(item=>String(item.id)===String(trip?.id||''));
     const liveOrder=(orders||[]).find(item=>String(item.id)===String(order?.id||''));
     if(!canAddAdditionalProduct(liveTrip,liveOrder)){window.showToast('Bạn không có quyền thêm sản phẩm PS hoặc chuyến đã khóa.','warn');return false;}
     const product=(products||[]).find(item=>String(item.id)===String(productId)&&item.active!==false);
     const qty=numFmt(quantity);
     if(!product||!Number.isFinite(qty)||qty<=0){window.showToast('Hãy chọn sản phẩm và nhập số lượng lớn hơn 0.','warn');return false;}
+    if(!['tp','hh'].includes(category)||(isGoodsProduct(product,prodCats||[])?category!=='hh':category!=='tp')){window.showToast('Hãy chọn đúng nhóm TP hoặc HH của sản phẩm.','warn');return false;}
     if((liveOrder.lines||[]).some(line=>String(line.productId||'')===String(product.id))){window.showToast('Sản phẩm đã có trong đơn. Hãy sửa số lượng ở dòng hiện tại.','warn');return false;}
     const line=tripAdditionalProductLine(product,qty,currentUser),stamp=fmtDT();
     setOrders(previous=>previous.map(item=>String(item.id)===String(liveOrder.id)?{...item,lines:[...(item.lines||[]),line],updatedAt:stamp,updatedBy:currentUser?.name||'',orderHistory:[...(item.orderHistory||[]),{id:'LS'+uid(),action:'Thêm sản phẩm phát sinh trong chuyến',changes:['Chuyến: '+(liveTrip.shiftName||liveTrip.id),'Sản phẩm: '+(product.name||product.id),'Số lượng đơn và giao: '+qty+(product.unit?' '+product.unit:'')],at:stamp,atIso:new Date().toISOString(),by:currentUser?.name||'',byId:currentUser?.id||''}]}:item));
@@ -1825,7 +1844,7 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     ),
     canCreateTripImages&&modal==='images'&&h(TripImagesModal,{trips:filteredTrips.filter(trip=>trip.status!=='cancelled'),orders,products,customers,onClose:()=>sm(null)}),
     canCreateTripImages&&fPeriod==='day'&&modal==='day-image'&&h(TripDayImageModal,{trips:filteredTrips.filter(trip=>trip.status!=='cancelled'),orders,products,customers,date:fDate?fDate.split('-').reverse().join('/'):fmtDate(),onClose:()=>sm(null)}),
-    canCreateTripImages&&modal==='quick-update'&&h(TripMobileQuickUpdateModal,{trip:filteredTrips[0]||null,orders,customers,products,canEditTrip:canEditQtyForTrip,canAddProduct:canAddAdditionalProduct,onAddProduct:addAdditionalProduct,onDeliveredQty:updateDeliveredQty,onInvoice:pickOrderInvoiceImage,onRetryLocalInvoice:retryLocalOrderInvoiceImage,renderLineNote:(trip,order,line,index)=>lineNoteControl(trip,order,line,index,{fontSize:13,padding:'6px 8px'}),renderBasket:(trip,order,field,label)=>orderBasketControl(trip,order,field,label,canEditQtyForTrip(trip)),onClose:()=>sm(null)}),
+    canCreateTripImages&&modal==='quick-update'&&h(TripMobileQuickUpdateModal,{trip:filteredTrips[0]||null,orders,customers,products,prodCats,canEditTrip:canEditQtyForTrip,canAddProduct:canAddAdditionalProduct,onAddProduct:addAdditionalProduct,onDeliveredQty:updateDeliveredQty,onInvoice:pickOrderInvoiceImage,onRetryLocalInvoice:retryLocalOrderInvoiceImage,renderLineNote:(trip,order,line,index)=>lineNoteControl(trip,order,line,index,{fontSize:13,padding:'6px 8px'}),renderBasket:(trip,order,field,label)=>orderBasketControl(trip,order,field,label,canEditQtyForTrip(trip)),onClose:()=>sm(null)}),
     canCreateTripImages&&modal==='mobile-print'&&h(TripMobilePrintModal,{trip:filteredTrips[0]||null,orders,customers,onPrintTrip:trip=>{sm(null);printTrip(trip);},onPrintOrder:order=>{sm(null);setPrintOrder(order);},onClose:()=>sm(null)}),
     filteredTrips.length?h('div',{style:{display:'flex',flexDirection:'column',gap:'1rem'}},
       filteredTrips.map(trip=>{
