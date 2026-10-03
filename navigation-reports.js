@@ -2195,6 +2195,7 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
   const canShowInlineInvoices=['admin','administrator'].includes(String(currentUser?.role||'').trim().toLowerCase())||(String(currentUser?.role||'').trim().toLowerCase()==='manager'&&employeeDepartmentIncludes(currentUser,'Kế toán'));
   const[inlineInvoicePreference,setInlineInvoicePreference]=useLS('scf_debt_inline_invoices_'+String(currentUser?.id||''),false);
   const[inlineInvoiceSize,setInlineInvoiceSize]=useLS('scf_inline_invoice_size_'+String(currentUser?.id||''),'medium');
+  const[inlineInvoiceLandscape,setInlineInvoiceLandscape]=useLS('scf_inline_invoice_landscape_'+String(currentUser?.id||''),false);
   const showInlineInvoices=canShowInlineInvoices&&inlineInvoicePreference===true;
   const invoiceSize=['small','medium','large'].includes(inlineInvoiceSize)?inlineInvoiceSize:'medium';
   const customerOptions=scfSalesDebtCustomerOptions(customers,orders);
@@ -2323,7 +2324,8 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
     h('div',{className:'card',style:{marginBottom:14}},
       canShowInlineInvoices&&h('div',{className:'debt-invoice-display-controls'},
         h('button',{type:'button',className:'bs trip-invoice-mode-toggle'+(showInlineInvoices?' active':''),'data-scf-action':'view','aria-pressed':showInlineInvoices,onClick:()=>setInlineInvoicePreference(!showInlineInvoices)},h('i',{className:showInlineInvoices?'ti ti-photo-off':'ti ti-photo'}),showInlineInvoices?' Ẩn ảnh hóa đơn':' Hiện ảnh hóa đơn'),
-        showInlineInvoices&&h(InvoiceImageSizeSelect,{value:invoiceSize,onChange:setInlineInvoiceSize})
+        showInlineInvoices&&h(InvoiceImageSizeSelect,{value:invoiceSize,onChange:setInlineInvoiceSize}),
+        showInlineInvoices&&h(InvoiceLandscapeToggle,{value:inlineInvoiceLandscape===true,onChange:setInlineInvoiceLandscape})
       ),
       h('div',{className:'g3'},
         h(F,{label:'Lọc thời gian'},h('select',{value:dateMode,onChange:event=>setDateMode(event.target.value)},
@@ -2361,7 +2363,8 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
     ),
     h('div',{className:'card'},
       h('div',{style:{fontWeight:700,color:'var(--pri3)',marginBottom:10}},'Các hóa đơn đã nhập'),
-      h('div',{className:'tw'},h('table',null,
+      h('div',{className:'tw'},h('table',{className:'debt-invoice-table',style:{'--debt-invoice-image-width':showInlineInvoices?({small:'205px',medium:'280px',large:'420px'}[invoiceSize]):'90px'}},
+        h('colgroup',null,...['driver','date','point','product','qty','qty','time','image'].map((kind,index)=>h('col',{key:index,className:'debt-invoice-col-'+kind}))),
         h('thead',null,h('tr',null,...['Lái xe','Ngày giao','Địa điểm','Sản phẩm','SL hóa đơn','SL đã giao','Giờ giao','Ảnh HĐ'].map(label=>h('th',{key:label},label)))),
         h('tbody',null,invoiceRows.length?invoiceRows.map(({order,line,lineIndex})=>{
           const invoice=line?(numFmt(line.qtyInvoice)||0):0;
@@ -2370,13 +2373,13 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
             h('td',null,h('b',null,driverFor(order))),
             h('td',null,fmtAnyDate(order.deliveryDate||order.date)||'—'),
             h('td',null,order.pointName||order.address||'—'),
-            h('td',{style:{minWidth:240}},line?.productName||'—'),
-            h('td',null,qty(invoice)),
-            h('td',null,h('b',{style:{color:'var(--pri)'}},qty(delivered))),
+            h('td',null,line?.productName||'—'),
+            h('td',{className:'debt-invoice-qty'},qty(invoice)),
+            h('td',{className:'debt-invoice-qty'},h('b',{style:{color:'var(--pri)'}},qty(delivered))),
             h('td',null,h('b',null,order.deliveryTime||'—')),
             // One image cell spans this order's visible product lines.
             lineIndex===0&&h('td',{rowSpan:visibleLines(order).length,style:{textAlign:'center'}},order.invoiceImage
-              ?showInlineInvoices?h(TripInvoicePreview,{key:order.invoiceImage,src:order.invoiceImage,size:invoiceSize,label:'Hóa đơn '+(order.pointName||order.address||'')+' · '+(fmtAnyDate(order.deliveryDate||order.date)||'')})
+              ?showInlineInvoices?h(TripInvoicePreview,{key:order.invoiceImage,src:order.invoiceImage,size:invoiceSize,landscape:inlineInvoiceLandscape===true,label:'Hóa đơn '+(order.pointName||order.address||'')+' · '+(fmtAnyDate(order.deliveryDate||order.date)||'')})
                 :h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(order.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}}))
               :'—')
           );

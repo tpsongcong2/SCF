@@ -61,11 +61,27 @@ function InvoiceImageSizeSelect({value,onChange}){
     )
   );
 }
-function TripInvoicePreview({src,label,size='medium'}){
+function InvoiceLandscapeToggle({value,onChange}){
+  return h('button',{type:'button',className:'bs invoice-landscape-toggle'+(value?' active':''),'data-scf-action':'view','aria-pressed':!!value,title:'Tự xoay ảnh dọc 90° sang ngang; có thể chỉnh từng ảnh bằng nút xoay',onClick:()=>onChange(!value)},h('i',{className:'ti ti-rotate-2'}),' Tự xoay ngang');
+}
+function scfInvoiceImageLayout(width,height,angle){
+  const w=Number(width)>0?Number(width):3,h=Number(height)>0?Number(height):4;
+  const rotation=((Number(angle)||0)%360+360)%360,sideways=rotation===90||rotation===270;
+  return{rotation,sideways,ratio:sideways?h/w:w/h,imageWidth:(sideways?w/h:1)*100+'%',imageHeight:(sideways?h/w:1)*100+'%'};
+}
+function TripInvoicePreview({src,label,size='medium',landscape=false}){
   const safeSize=['small','medium','large'].includes(size)?size:'medium';
   const[url,setUrl]=useState(src);
   const[phase,setPhase]=useState('ready');
   const[reload,setReload]=useState(0);
+  const[natural,setNatural]=useState({width:0,height:0});
+  const[manualRotation,setManualRotation]=useState(null);
+  const[viewer,setViewer]=useState(false);
+  const autoRotation=landscape&&natural.height>natural.width?270:0;
+  const angle=manualRotation?.src===src&&manualRotation?.landscape===landscape?manualRotation.angle:autoRotation;
+  const layout=scfInvoiceImageLayout(natural.width,natural.height,angle);
+  const rotate=delta=>setManualRotation({src,landscape,angle:(layout.rotation+delta+360)%360});
+  const original=()=>setManualRotation({src,landscape,angle:0});
   const attempt=React.useRef(false),generation=React.useRef(0);
   useEffect(()=>()=>{generation.current++;},[]);
   const refresh=async()=>{
@@ -84,15 +100,29 @@ function TripInvoicePreview({src,label,size='medium'}){
     }catch(error){if(version===generation.current)setPhase('failed');}
     finally{clearTimeout(timer);}
   };
-  return h('figure',{className:'trip-invoice-preview invoice-size-'+safeSize},
+  const controls=()=>h('div',{className:'invoice-image-rotation-controls'},
+    h('button',{type:'button',className:'bi','data-scf-action':'view','aria-label':'Xoay trái ảnh '+label,title:'Xoay trái 90°',onClick:()=>rotate(-90)},h('i',{className:'ti ti-rotate'})),
+    h('button',{type:'button',className:'bi','data-scf-action':'view','aria-label':'Xoay phải ảnh '+label,title:'Xoay phải 90°',onClick:()=>rotate(90)},h('i',{className:'ti ti-rotate-clockwise'})),
+    h('button',{type:'button',className:'bs','data-scf-action':'view','aria-label':'Trả về chiều gốc ảnh '+label,title:'Trả về chiều ảnh gốc',onClick:original},'Ảnh gốc')
+  );
+  const imageStage=full=>h('div',{className:'invoice-photo-stage',style:{'--invoice-ratio':layout.ratio,aspectRatio:String(layout.ratio)}},
+    // This component renews expired URLs once; skip the document-wide image retry.
+    h('img',{key:reload,src:url,alt:label,loading:full?'eager':'lazy',decoding:'async','data-scf-photo-refreshing':'1',
+      style:{width:layout.imageWidth,height:layout.imageHeight,transform:'translate(-50%, -50%) rotate('+layout.rotation+'deg)'},
+      onLoad:event=>{const img=event?.currentTarget;if(img?.naturalWidth&&img?.naturalHeight)setNatural({width:img.naturalWidth,height:img.naturalHeight});setPhase('ready');},onError:refresh})
+  );
+  const failure=()=>h('div',{className:'trip-invoice-preview-error',role:'status'},'Chưa tải được ảnh.',
+    h('button',{type:'button',className:'bs','data-scf-action':'view',onClick:()=>{attempt.current=false;setPhase('ready');setReload(value=>value+1);}},'Thử lại'));
+  return h('figure',{className:'trip-invoice-preview invoice-size-'+safeSize+(layout.sideways?' invoice-rotated-sideways':'')},
     h('figcaption',null,label),
-    h('button',{type:'button',className:'trip-invoice-image-button','data-scf-action':'view','aria-label':'Mở ảnh '+label,onClick:()=>window.open(url,'_blank','noopener'),style:phase==='failed'?{display:'none'}:undefined},
-      // This component renews expired URLs once; skip the document-wide image retry.
-      h('img',{key:reload,src:url,alt:label,loading:'lazy',decoding:'async','data-scf-photo-refreshing':'1',onLoad:()=>setPhase('ready'),onError:refresh})
-    ),
+    h('button',{type:'button',className:'trip-invoice-image-button','data-scf-action':'view','aria-label':'Mở ảnh '+label,onClick:()=>setViewer(true),style:phase==='failed'?{display:'none'}:undefined},imageStage(false)),
+    phase!=='failed'&&controls(),
     phase==='refreshing'&&h('small',{role:'status'},'Đang tải lại ảnh…'),
-    phase==='failed'&&h('div',{className:'trip-invoice-preview-error',role:'status'},'Chưa tải được ảnh.',
-      h('button',{type:'button',className:'bs','data-scf-action':'view',onClick:()=>{attempt.current=false;setPhase('ready');setReload(value=>value+1);}},'Thử lại')
+    phase==='failed'&&failure(),
+    viewer&&h(Modal,{title:label,lg:'xl',className:'invoice-photo-viewer',onClose:()=>setViewer(false)},
+      controls(),phase==='failed'?failure():imageStage(true),
+      phase==='refreshing'&&h('small',{role:'status'},'Đang tải lại ảnh…'),
+      h('button',{type:'button',className:'bs','data-scf-action':'view',onClick:()=>window.open(url,'_blank','noopener')},'Mở tệp ảnh gốc')
     )
   );
 }

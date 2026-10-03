@@ -366,18 +366,39 @@ th{font-family:var(--ui-header-family)!important}
 .trip-invoice-preview.invoice-size-large{--invoice-width:300px;--invoice-height:400px;--invoice-mobile-height:460px}
 .trip-invoice-preview figcaption{font-size:12px;color:var(--tx2);font-weight:600;overflow-wrap:anywhere}
 .trip-invoice-image-button{display:block;width:100%;padding:0;border:1px solid var(--bd);border-radius:8px;background:#fff;cursor:zoom-in;overflow:hidden}
-.trip-invoice-image-button img{display:block;width:100%;height:var(--invoice-height);object-fit:contain}
+.trip-invoice-preview{--invoice-view-width:var(--invoice-width);--invoice-view-height:var(--invoice-height)}
+.trip-invoice-preview.invoice-rotated-sideways{--invoice-view-width:var(--invoice-height);--invoice-view-height:var(--invoice-width);width:var(--invoice-view-width)}
+.invoice-photo-stage{position:relative;overflow:hidden;width:min(100%,calc(var(--invoice-view-height) * var(--invoice-ratio)));margin:auto;background:#fff}
+.invoice-photo-stage img{position:absolute;left:50%;top:50%;display:block;max-width:none;max-height:none;object-fit:contain;transform-origin:center}
+.invoice-image-rotation-controls{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.invoice-image-rotation-controls button{min-width:34px;min-height:34px;padding:5px;font-size:12px}
+.invoice-image-rotation-controls .bi{font-size:18px}
+.invoice-landscape-toggle.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.modal.invoice-photo-viewer{width:min(1100px,calc(100vw - 24px));max-width:1100px}
+.invoice-photo-viewer .invoice-photo-stage{--invoice-view-height:68dvh;margin:12px auto;border:1px solid var(--bd);border-radius:8px}
 .trip-invoice-preview small,.trip-invoice-preview-error{font-size:12px;color:var(--tx2)}
 .trip-invoice-preview-error{padding:12px;border:1px solid var(--bd);border-radius:8px;display:grid;gap:8px}
 .trip-inline-invoice-list{display:grid;gap:12px;margin-top:12px}
 .trip-inline-invoice-list .trip-invoice-preview{width:100%;margin:0}
-.trip-inline-invoice-list .trip-invoice-image-button img{height:var(--invoice-mobile-height)}
+.trip-inline-invoice-list .invoice-photo-stage{--invoice-view-height:var(--invoice-mobile-height)}
+.tw .debt-invoice-table{table-layout:fixed;min-width:calc(792px + var(--debt-invoice-image-width,120px))}
+.debt-invoice-col-driver{width:132px}
+.debt-invoice-col-date{width:106px}
+.debt-invoice-col-point{width:138px}
+.debt-invoice-col-product{width:190px}
+.debt-invoice-col-qty{width:78px}
+.debt-invoice-col-time{width:70px}
+.debt-invoice-table td,.debt-invoice-table th{padding:8px 10px;overflow-wrap:anywhere}
+.debt-invoice-table .debt-invoice-qty{white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.debt-invoice-table th:nth-child(5),.debt-invoice-table th:nth-child(6){text-align:right}
 .invoice-image-size-control{display:inline-flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
 .invoice-image-size-control select{width:auto;min-width:96px;min-height:36px;border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;background:var(--bg2);color:var(--tx)}
 .debt-invoice-display-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}
 @media(max-width:768px){
   .trip-filter-row .trip-invoice-mode-toggle{min-height:42px;grid-column:1/-1;order:7;justify-content:center}
   .trip-filter-row .invoice-image-size-control{grid-column:1/-1;order:7;justify-content:flex-end}
+  .trip-filter-row .invoice-landscape-toggle{grid-column:1/-1;order:7;min-height:42px;justify-content:center}
+  .invoice-image-rotation-controls button{min-height:40px;min-width:40px}
 }
 .driver-report-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;margin-bottom:16px}
 .driver-report-filters label,.driver-report-owner{display:grid;gap:6px;min-width:0}
@@ -1062,4 +1083,8 @@ tbody tr:hover td{background:var(--bg)}
 .shift-driver-history p{margin:0}
 .shift-driver-history-entry{display:grid;gap:6px;padding:14px;border:1px solid var(--bd);border-radius:12px;background:var(--bg2);line-height:1.5}
 .shift-driver-history-entry small{color:var(--tx2)}
+
+
+/* Keep the invoice viewer within small screens, including tall original photos. */
+.modal.invoice-photo-viewer{max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain}
 
