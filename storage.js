@@ -394,6 +394,36 @@ function scfVerifyOrderTripSave(key,saved,value,patches){
   window.__SCF_CONFIRMED_ORDER_TRIPS=window.__SCF_CONFIRMED_ORDER_TRIPS||{};
   for(const row of rows||[])window.__SCF_CONFIRMED_ORDER_TRIPS[String(row.id)]={tripId:String(row.tripId||''),tripAssignMode:row.tripAssignMode||''};
 }
+function scfSavedOrderPatchesMatch(saved,patches){
+  if(!Array.isArray(saved?.items)||!Array.isArray(patches)||!patches.length)return false;
+  return patches.every(patch=>{
+    const row=saved.items.find(item=>String(item?.id||'')===String(patch.id||''));
+    if(!row)return false;
+    const before=patch.base||{},after=patch.value||{};
+    return [...new Set([...Object.keys(before),...Object.keys(after)])].every(field=>{
+      if(field==='id')return true;
+      const baseHas=Object.prototype.hasOwnProperty.call(before,field),nextHas=Object.prototype.hasOwnProperty.call(after,field);
+      if(baseHas===nextHas&&JSON.stringify(before[field])===JSON.stringify(after[field]))return true;
+      return Object.prototype.hasOwnProperty.call(row,field)===nextHas&&JSON.stringify(row[field])===JSON.stringify(after[field]);
+    });
+  });
+}
+async function scfSavePermittedCollection(key,val,patches,expectedUpdatedAt,baseValue,timeoutMs){
+  const payload=patches?{key,patches,expectedUpdatedAt}:{key,value:val,baseValue,expectedUpdatedAt};
+  return measuredCollectionSave(key,patches?'patch':'full',payload,async()=>{
+    try{return await withRemoteTimeout(patches?serverPatchPermittedCollection(key,patches,expectedUpdatedAt,timeoutMs):serverSavePermittedCollection(key,val,expectedUpdatedAt,baseValue,timeoutMs),timeoutMs);}
+    catch(error){
+      if(error?.code!=='SCF_REMOTE_TIMEOUT'||key!=='scf_orders'||!patches?.length)throw error;
+      // A timed-out HTTP response is ambiguous: the server may already have
+      // committed the patch. Read only the changed orders before retrying it.
+      try{
+        const saved=await serverLoadOrderSyncRecords(patches.map(patch=>patch.id),15000);
+        if(scfSavedOrderPatchesMatch(saved,patches))return saved;
+      }catch(checkError){console.warn('Order save verification:',checkError?.message||checkError);}
+      throw error;
+    }
+  });
+}
 async function performDbSet(key,val,queuedAt='',mode=''){
   if(serverAuthEnabled()){
     if(!sb){if(!readSyncQueue()[key])queueRemoteWrite(key,val,{updatedAt:queuedAt});return false;}
@@ -420,14 +450,13 @@ async function performDbSet(key,val,queuedAt='',mode=''){
       const expectedUpdatedAt=queued.expectedUpdatedAt??String(scfRemoteVersions.get(key)||'');
       const baseValue=Object.prototype.hasOwnProperty.call(queued,'baseValue')?queued.baseValue:scfRemoteSnapshots.get(key);
       const patches=Array.isArray(queued.patches)&&queued.patches.length?queued.patches:null;
-      const payload=patches?{key,patches,expectedUpdatedAt}:{key,value:val,baseValue,expectedUpdatedAt};
-      const timeoutMs=remoteTimeoutFor(payload);
-      const saved=await measuredCollectionSave(key,patches?'patch':'full',payload,()=>withRemoteTimeout(patches?serverPatchPermittedCollection(key,patches,expectedUpdatedAt,timeoutMs):serverSavePermittedCollection(key,val,expectedUpdatedAt,baseValue,timeoutMs),timeoutMs));
+      const timeoutMs=remoteTimeoutFor(patches?{key,patches,expectedUpdatedAt}:{key,value:val,baseValue,expectedUpdatedAt});
+      const saved=await scfSavePermittedCollection(key,val,patches,expectedUpdatedAt,baseValue,timeoutMs);
       scfVerifyInvoiceSave(key,saved,val,patches);
       scfVerifyOrderTripSave(key,saved,val,patches);
       const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(val);
       if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(val));
-      scfRemoteVersions.set(key,merged?'':String(saved?.updatedAt||''));removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');
+      scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');
       if(merged)setTimeout(()=>window.scfSyncNow?.(),100);return true;
     }catch(e){
       console.warn('serverSavePermittedCollection:',e.message);
@@ -516,19 +545,20 @@ async function runPendingWrites(){
       if(scfWriteChains[key])await scfWriteChains[key].catch(()=>false);
       item=readSyncQueue()[key];if(!item){waitingResolvers.forEach(done=>done(true));continue;}
       if(serverAuthEnabled()&&(key==='scf_employees'||key==='scf_privileged_employees')){const timeoutMs=remoteTimeoutFor(item.value);await withRemoteTimeout(serverSaveEmployees(item.value,timeoutMs),timeoutMs);}
-      else if(serverAuthEnabled()&&key==='scf_trips'&&(item.mode==='auto-trips'||(Array.isArray(item.value)&&item.value.some(trip=>trip?.autoCreated)))){const timeoutMs=remoteTimeoutFor(item.value);await withRemoteTimeout(serverSaveAutoTrips(item.value,timeoutMs),timeoutMs);}
+      // Manual trip writes must keep their permission/duplicate validation on
+      // retry, even when the collection also contains automatically made trips.
+      else if(serverAuthEnabled()&&key==='scf_trips'&&item.mode==='auto-trips'){const timeoutMs=remoteTimeoutFor(item.value);await withRemoteTimeout(serverSaveAutoTrips(item.value,timeoutMs),timeoutMs);}
       else if(serverAuthEnabled()&&SCF_EDGE_WRITE_KEYS.has(key)){
         const expectedUpdatedAt=item.expectedUpdatedAt??String(scfRemoteVersions.get(key)||'');
         const baseValue=Object.prototype.hasOwnProperty.call(item,'baseValue')?item.baseValue:scfRemoteSnapshots.get(key);
         const patches=Array.isArray(item.patches)&&item.patches.length?item.patches:null;
-        const payload=patches?{key,patches,expectedUpdatedAt}:{key,value:item.value,baseValue,expectedUpdatedAt};
-        const timeoutMs=remoteTimeoutFor(payload);
-        const saved=await measuredCollectionSave(key,patches?'patch':'full',payload,()=>withRemoteTimeout(patches?serverPatchPermittedCollection(key,patches,expectedUpdatedAt,timeoutMs):serverSavePermittedCollection(key,item.value,expectedUpdatedAt,baseValue,timeoutMs),timeoutMs));
+        const timeoutMs=remoteTimeoutFor(patches?{key,patches,expectedUpdatedAt}:{key,value:item.value,baseValue,expectedUpdatedAt});
+        const saved=await scfSavePermittedCollection(key,item.value,patches,expectedUpdatedAt,baseValue,timeoutMs);
         scfVerifyInvoiceSave(key,saved,item.value,patches);
         scfVerifyOrderTripSave(key,saved,item.value,patches);
         const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(item.value);
         if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(item.value));
-        scfRemoteVersions.set(key,merged?'':String(saved?.updatedAt||''));
+        scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));
         if(merged)setTimeout(()=>window.scfSyncNow?.(),100);
       }
       else{

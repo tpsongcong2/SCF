@@ -2321,8 +2321,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(!fArea)return true;
     const selectedArea=areaKey(fArea);
     if(selectedArea==='SSTN')return samsungTripOrder(o)!==undefined;
-    if(selectedArea==='DT')return samsungTripOrder(o)===undefined;
-    return getArea(o)===fArea;
+    const trip=deliveryTripForOrder(o);
+    const shiftName=normalizeLookupText(trip?.shiftName||getOrderTripShiftName(o,prodShifts||[]));
+    const tripArea=areaKey(trip?.area||'');
+    const orderArea=areaKey(getArea(o));
+    if(selectedArea==='DT')return tripArea==='DT'||/^dt(?:\s|$)/.test(shiftName)||(!trip&&orderArea==='DT');
+    if(selectedArea==='KV')return tripArea==='KV'||/^kv(?:\s|$)/.test(shiftName)||(!trip&&orderArea==='KV');
+    return orderArea===selectedArea;
   };
   const prepareAutomaticTripForSave=d=>{
     if(d?.tripAssignMode==='manual'||!['pending','assigned',''].includes(String(d?.status||'')))return d;
@@ -2390,7 +2395,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const confirmManualTripSave=async(orderId,newTripId)=>{
     // Chờ React ghi thay đổi vào hàng đồng bộ trước khi kiểm tra kết quả.
     await new Promise(resolve=>setTimeout(resolve,0));
-    const confirmed=await(window.scfWaitForCollectionSync?.('scf_orders',35000)??Promise.resolve(false));
+    const confirmed=await(window.scfWaitForCollectionSync?.('scf_orders',50000)??Promise.resolve(false));
     const saved=window.__SCF_CONFIRMED_ORDER_TRIPS?.[String(orderId)];
     const exact=!serverAuthEnabled()||String(saved?.tripId||'')===String(newTripId||'')&&saved?.tripAssignMode==='manual';
     if(confirmed&&exact){window.showToast(newTripId?'Máy chủ đã xác nhận chuyển chuyến.':'Máy chủ đã xác nhận rút đơn khỏi chuyến.','success');return true;}
@@ -3191,7 +3196,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         h('select',{value:fArea,onChange:e=>sfArea(e.target.value),
           style:{padding:'5px 8px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:12,width:120}},
           h('option',{value:''},'Tất cả KV'),
-          [...new Set(customers.flatMap(c=>(c.points||[]).map(p=>p.area)).filter(Boolean))].sort().map(a=>h('option',{key:a,value:a},a))
+          [...new Map(['SS TN','ĐT','KV',...customers.flatMap(c=>(c.points||[]).map(p=>p.area)),...trips.map(t=>t.area)].filter(Boolean).map(area=>[areaKey(area),area])).values()].sort((a,b)=>a.localeCompare(b,'vi')).map(a=>h('option',{key:areaKey(a),value:a},a))
         ),
         (hasDateFilter||fPoint||fProduct||fTime||fArea)&&h('button',{
           onClick:resetDeliveryFilters,
