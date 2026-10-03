@@ -2393,13 +2393,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const desiredName=normalizeLookupText(shiftName||'');
     const tripId=String(trip?.shiftId||'').trim();
     const tripName=normalizeLookupText(trip?.shiftName||'');
-    return (!!desiredId&&tripId===desiredId)|| (!!desiredName&&(tripName===desiredName||sameArea(trip?.shiftName,shiftName)));
+    return desiredId?tripId===desiredId:(!!desiredName&&tripName===desiredName);
   };
   const autoTripForOrder=(o,plannedProdShift)=>{
     const ctx=orderContext(o);
-    const configuredProdShift=plannedProdShift
-      ||(ctx?.prodShiftAssignMode==='manual'&&ctx?.prodShiftId?(prodShifts||[]).find(s=>String(s?.id||'')===String(ctx.prodShiftId)):null)
-      ||getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
+    const configuredProdShift=plannedProdShift||(ctx?.prodShiftAssignMode==='manual'
+      ?(prodShifts||[]).find(s=>String(s?.id||'')===String(ctx.prodShiftId||''))
+      :getProdShiftForOrder(ctx,prodShifts||[],customers||[]));
     if(!configuredProdShift)return null;
     const preferredDate=addDaysVN(ctx.deliveryDate,Number(configuredProdShift.tripDateOffset??0));
     const configuredShiftId=String(configuredProdShift.tripShiftId||'').trim();
@@ -2410,12 +2410,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const configuredShiftByName=configuredShiftName?(shifts||[]).find(s=>normalizeLookupText(s?.name||'')===configuredShiftName):null;
     const configuredShiftById=configuredShiftId?(shifts||[]).find(s=>String(s?.id||'')===configuredShiftId):null;
     const configuredShift=configuredShiftByName||configuredShiftById;
-    if(!configuredShift)return null;
+    if(!configuredShift||configuredShift.active===false)return null;
     const preferredShiftId=String(configuredShift.id||'');
     const preferredShiftName=String(configuredShift.name||'');
     const options=tripOptionsForOrder(ctx);
     if(!options.length||!preferredDate)return null;
-    const candidates=options.filter(t=>sameTripDate(t.deliveryDate,preferredDate)&&tripMatchesShift(t,preferredShiftId,preferredShiftName));
+    const candidates=options.filter(t=>!t.driverDispatchedAt&&!['active','completion_pending','completed','cancelled'].includes(t.status)&&sameTripDate(t.deliveryDate,preferredDate)&&tripMatchesShift(t,preferredShiftId,preferredShiftName));
     if(!candidates.length)return null;
     return [...candidates].sort((a,b)=>{
       const currentScore=t=>String(t.id||'')===String(o.tripId||'')?20:0;
@@ -2430,6 +2430,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const deliveryTripForOrder=o=>{
     const ctx=orderContext(o);
     const storedTrip=ctx.tripId?tripById.get(String(ctx.tripId)):null;
+    if(storedTrip&&(storedTrip.driverDispatchedAt||['active','completion_pending','completed','cancelled'].includes(storedTrip.status)||!['','pending','assigned'].includes(String(ctx.status||''))))return storedTrip;
     const automaticTrip=autoTripForOrder({...ctx,tripId:null});
     return ctx.tripAssignMode==='manual'?(storedTrip||automaticTrip||null):(automaticTrip||null);
   };
@@ -2451,14 +2452,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return orderArea===selectedArea;
   };
   const prepareAutomaticTripForSave=d=>{
-    if(d?.tripAssignMode==='manual'||!['pending','assigned',''].includes(String(d?.status||'')))return d;
+    const linked=tripById.get(String(d?.tripId||''));
+    if(!['pending','assigned',''].includes(String(d?.status||''))||linked&&(linked.driverDispatchedAt||['active','completion_pending','completed','cancelled'].includes(linked.status)))return d;
     const ctx=orderContext(d);
     const manualProdShift=d?.prodShiftAssignMode==='manual'&&d?.prodShiftId?(prodShifts||[]).find(s=>String(s?.id||'')===String(d.prodShiftId)):null;
-    const plannedShift=manualProdShift||getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
-    if(!plannedShift)return d;
-    const nextCtx=manualProdShift?{...ctx,prodShiftAssignMode:'manual',prodShiftId:manualProdShift.id}:{...ctx,prodShiftAssignMode:'auto',prodShiftId:plannedShift.id};
-    const autoTrip=autoTripForOrder(nextCtx,plannedShift);
-    return {...d,...(manualProdShift?{}:{prodShiftAssignMode:'auto',prodShiftId:plannedShift.id}),tripAssignMode:'auto',tripId:autoTrip?.id||null,status:autoTrip?'assigned':'pending'};
+    const plannedShift=d?.prodShiftAssignMode==='manual'?manualProdShift:getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
+    const next=scfApplyAutomaticProduction(d,plannedShift);
+    if(d?.tripAssignMode==='manual')return next;
+    const nextCtx=manualProdShift?{...ctx,prodShiftAssignMode:'manual',prodShiftId:manualProdShift.id}:{...ctx,prodShiftAssignMode:'auto',prodShiftId:plannedShift?.id||''};
+    const autoTrip=plannedShift?autoTripForOrder(nextCtx,plannedShift):null;
+    const tripId=autoTrip?.id||null,status=autoTrip?'assigned':'pending';
+    return String(next.tripId||'')===String(tripId||'')&&next.status===status&&next.tripAssignMode==='auto'?next:{...next,tripAssignMode:'auto',tripId,status};
   };
   const syncTripOrderIds=nextOrders=>{
     setTrips(prevTrips=>{
@@ -2475,8 +2479,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       return changed?nextTrips:prevTrips;
     });
   };
-  // Chỉ ghi dữ liệu tự động khi người dùng thao tác hoặc bấm cập nhật,
-  // tránh vừa mở tab đã quét + lưu lại toàn bộ đơn hàng.
+  // App tự đồng bộ kế hoạch sau tải/tạo/import; thao tác ở tab dùng cùng quy tắc.
   const applyOrdersAndTripSync=updater=>{
     setOrders(prev=>{
       const nextOrders=typeof updater==='function'?updater(prev):updater;
@@ -2675,54 +2678,20 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   });
   const statusCount=value=>value==='all'?statusScope.length:statusScope.filter(order=>order.status===value).length;
   const updateAutoProductionTimes=()=>{
-    const targetRowKeys=new Set(list.filter(o=>o.status!=='cancelled'&&o.tripAssignMode!=='manual').map(orderRowKey));
-    let changed=0,lineChanged=0,miss=0,tripMiss=0,timeChanged=0;
+    const targetRowKeys=new Set(list.map(orderRowKey));
+    let changed=0,miss=0,tripMiss=0;
     const nextOrders=orders.map((o,index)=>{
-      if(!targetRowKeys.has(allOrderRowKeys[index]))return o;
-      const rawDeliveryTime=String(o.deliveryTime??'').trim();
-      const normalizedDeliveryTime=/h/i.test(rawDeliveryTime)?normalizeCustomerImportTime(rawDeliveryTime):rawDeliveryTime;
-      const deliveryTimeChanged=normalizedDeliveryTime!==rawDeliveryTime;
-      if(deliveryTimeChanged)timeChanged++;
-      const ctx=orderContext({...o,deliveryTime:normalizedDeliveryTime});
-      if(o.prodShiftAssignMode==='manual'){
-        const manualShift=o.prodShiftId?(prodShifts||[]).find(s=>String(s?.id||'')===String(o.prodShiftId)):null;
-        const autoTrip=autoTripForOrder(ctx,manualShift||undefined);
-        const nextTripId=autoTrip?.id||null;
-        if(!nextTripId)tripMiss++;
-        const nextStatus=nextTripId?'assigned':'pending';
-        const touched=deliveryTimeChanged||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
-        if(touched)changed++;
-        return touched?{...o,deliveryTime:normalizedDeliveryTime,tripId:nextTripId,tripAssignMode:'auto',status:nextStatus,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:o;
-      }
-      const autoShift=getProdShiftForOrder(ctx,prodShifts||[],customers||[]);
-      if(!autoShift){
-        miss++;
-        if(!deliveryTimeChanged)return o;
-        changed++;
-        return {...o,deliveryTime:normalizedDeliveryTime,updatedAt:fmtDT(),updatedBy:currentUser?.name||''};
-      }
-      const autoProdTime=autoShift.actualProdTime||autoShift.endTime||'';
-      const autoProdDate=addDaysVN(o.deliveryDate,autoShift.prodDateOffset||0);
-      const autoLabelTime=autoShift.labelPrintTime||'';
-      const autoLabelDate=addDaysVN(o.deliveryDate,autoShift.labelPrintDateOffset||0);
-      const nextCtx={...ctx,area:ctx.area||'',prodShiftAssignMode:'auto',prodShiftId:autoShift.id};
-      const autoTrip=autoTripForOrder(nextCtx,autoShift);
-      const nextTripId=autoTrip?.id||null;
-      if(!nextTripId)tripMiss++;
-      const nextStatus=nextTripId?'assigned':'pending';
-      let touched=deliveryTimeChanged||o.prodShiftAssignMode!=='auto'||o.prodShiftId!==autoShift.id||o.tripId!==nextTripId||o.status!==nextStatus||o.tripAssignMode!=='auto';
-      const lines=(o.lines||[]).map(l=>{
-        if(l.shiftOverride)return l;
-        const next={...l,prodTime:autoProdTime,prodDate:autoProdDate,labelTime:autoLabelTime,labelDate:autoLabelDate};
-        if(l.prodTime!==next.prodTime||l.prodDate!==next.prodDate||l.labelTime!==next.labelTime||l.labelDate!==next.labelDate){lineChanged++;touched=true;}
-        return next;
-      });
-      if(touched)changed++;
-      return touched?{...o,deliveryTime:normalizedDeliveryTime,prodShiftAssignMode:'auto',prodShiftId:autoShift.id,tripId:nextTripId,tripAssignMode:'auto',status:nextStatus,lines,updatedAt:fmtDT(),updatedBy:currentUser?.name||''}:o;
+      if(changed>=25||!targetRowKeys.has(allOrderRowKeys[index]))return o;
+      const next=prepareAutomaticTripForSave(o);
+      if(!next.prodShiftId)miss++;
+      if(!next.tripId)tripMiss++;
+      if(next===o)return o;
+      changed++;
+      return {...next,updatedAt:fmtDT(),updatedBy:currentUser?.name||''};
     });
     if(changed){
       applyOrdersAndTripSync(nextOrders);
-      window.showToast((timeChanged?'Đã chuẩn hóa giờ cho '+timeChanged+' đơn. ':'')+'Đã cập nhật tự động ca SX, ngày SX, giờ SX, ngày in tem, giờ in tem và chuyến xe cho '+changed+' đơn, '+lineChanged+' dòng'+(miss?'. '+miss+' đơn chưa tìm thấy ca SX.':'')+(tripMiss?'. '+tripMiss+' đơn chưa tìm thấy chuyến phù hợp.':''),'success',7000);
+      window.showToast('Đã cập nhật SX và chuyến cho '+changed+' đơn. Các đơn còn lại sẽ tự cập nhật sau khi đồng bộ.'+(miss?' Có đơn chưa có ca SX phù hợp.':''),'info',7000);
       return;
     }
     window.showToast(miss
@@ -2783,7 +2752,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const storedTrip=ctx.tripId?tripById.get(String(ctx.tripId)):null;
     const autoTrip=tripMode==='manual'?storedTrip:autoTripForOrder({...ctx,tripId:null});
     const manualTrip=storedTrip||null;
-    const effectiveTrip=tripMode==='manual'?(manualTrip||autoTrip||null):autoTrip;
+    const effectiveTrip=deliveryTripForOrder(ctx);
     const preferredTripDate=getOrderTripDate(ctx,prodShifts||[])||'';
     const preferredTripShiftName=getOrderTripShiftName(ctx,prodShifts||[])||'';
     return {...o,_ctx:ctx,_autoTrip:autoTrip,_effectiveTrip:effectiveTrip,_preferredTripDate:preferredTripDate,_preferredTripShiftName:preferredTripShiftName,_area:o._area||getArea(ctx)||''};
@@ -2815,7 +2784,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       }
       const pendingKey=[o._preferredTripDate,o._preferredTripShiftName||o._area||''].join('|');
       const pendingLabel=[o._preferredTripDate,o._preferredTripShiftName||o._area].filter(Boolean).join(' · ');
-      const label=(pendingLabel?pendingLabel+' · ':'')+'Chưa tạo chuyến';
+      const label=(pendingLabel?pendingLabel+' · ':'')+(o._preferredTripDate?'Chưa tạo chuyến':'Chưa có ca phù hợp');
       const pendingDateObj=parseAnyDate(o._preferredTripDate||'');
       const shiftMeta=matchShiftSchedule({shiftName:o._preferredTripShiftName,area:o._area,deliveryTime:o._ctx?.deliveryTime});
       const selectedArea=areaKey(fArea);
@@ -3670,7 +3639,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           const tripDateOffsetLabel=(tripDateOffset===null||tripDateOffset===undefined||Number.isNaN(tripDateOffset))?'?':tripDateOffset;
           const preferredTripDate=o._preferredTripDate||getOrderTripDate(prodShiftCtx,prodShifts||[])||'';
           const preferredTripShiftName=o._preferredTripShiftName||getOrderTripShiftName(prodShiftCtx,prodShifts||[]);
-          const autoTrip=o._autoTrip===undefined?autoTripForOrder(prodShiftCtx):o._autoTrip;
+          const autoTrip=deliveryTripForOrder(prodShiftCtx);
           // Chọn tay phải đọc toàn bộ kho chuyến đã đồng bộ; ngày được lọc bên trong ManualTripPicker.
           const tripOptions=(trips||[]).filter(t=>!closedTrip(t)||String(t.id||'')===String(ctx.tripId||''));
           const selectedTripId=tripMode==='manual'?(ctx.tripId||''):(autoTrip?.id||'');
@@ -3703,7 +3672,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           );
           const productionShiftName=firstPlanForDisplay
             ?h('span',{className:'badge delivery-production-shift-name',title:prodShiftMode==='manual'?'Ca SX chọn tay':'Ca SX tự động',style:{background:firstPlanForDisplay.shift.color,color:firstPlanForDisplay.shift.textColor,border:prodShiftMode==='manual'?'1px solid '+firstPlanForDisplay.shift.textColor:'1px dashed '+firstPlanForDisplay.shift.textColor}},firstPlanForDisplay.shift.name)
-            :h('span',{className:'delivery-table-text',style:{color:'var(--tx2)'}},'—');
+            :h('span',{className:'delivery-table-text',style:{color:'var(--tx2)'}},'Chưa có ca phù hợp');
           const productionShiftDisplay=h('div',{className:'delivery-prod-shift-display'},
             productionShiftName,
             h('div',{className:'delivery-production-shift-date'},'Ngày SX: '+(firstPlanForDisplay?.prodDate||'—'))
