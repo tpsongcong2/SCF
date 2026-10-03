@@ -2192,6 +2192,11 @@ function scfDebtDeliveredQty(line,order,completedOrderIds,completedTrips){
 }
 function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
   const today=isoDate();
+  const canShowInlineInvoices=['admin','administrator'].includes(String(currentUser?.role||'').trim().toLowerCase())||(String(currentUser?.role||'').trim().toLowerCase()==='manager'&&employeeDepartmentIncludes(currentUser,'Kế toán'));
+  const[inlineInvoicePreference,setInlineInvoicePreference]=useLS('scf_debt_inline_invoices_'+String(currentUser?.id||''),false);
+  const[inlineInvoiceSize,setInlineInvoiceSize]=useLS('scf_inline_invoice_size_'+String(currentUser?.id||''),'medium');
+  const showInlineInvoices=canShowInlineInvoices&&inlineInvoicePreference===true;
+  const invoiceSize=['small','medium','large'].includes(inlineInvoiceSize)?inlineInvoiceSize:'medium';
   const customerOptions=scfSalesDebtCustomerOptions(customers,orders);
   const welstoryCustomerId=scfSalesDebtWelstoryCustomerId(customerOptions);
   const canSelectAllCustomers=canViewAllDebtCustomers(currentUser);
@@ -2316,6 +2321,10 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
       h(ExportBtn,{onClick:exportExcel})
     ),
     h('div',{className:'card',style:{marginBottom:14}},
+      canShowInlineInvoices&&h('div',{className:'debt-invoice-display-controls'},
+        h('button',{type:'button',className:'bs trip-invoice-mode-toggle'+(showInlineInvoices?' active':''),'data-scf-action':'view','aria-pressed':showInlineInvoices,onClick:()=>setInlineInvoicePreference(!showInlineInvoices)},h('i',{className:showInlineInvoices?'ti ti-photo-off':'ti ti-photo'}),showInlineInvoices?' Ẩn ảnh hóa đơn':' Hiện ảnh hóa đơn'),
+        showInlineInvoices&&h(InvoiceImageSizeSelect,{value:invoiceSize,onChange:setInlineInvoiceSize})
+      ),
       h('div',{className:'g3'},
         h(F,{label:'Lọc thời gian'},h('select',{value:dateMode,onChange:event=>setDateMode(event.target.value)},
           h('option',{value:'range'},'Khoảng ngày'),h('option',{value:'day'},'Theo ngày'),h('option',{value:'month'},'Theo tháng')
@@ -2365,8 +2374,10 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
             h('td',null,qty(invoice)),
             h('td',null,h('b',{style:{color:'var(--pri)'}},qty(delivered))),
             h('td',null,h('b',null,order.deliveryTime||'—')),
-            h('td',{style:{textAlign:'center'}},order.invoiceImage
-              ?h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(order.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}}))
+            // One image cell spans this order's visible product lines.
+            lineIndex===0&&h('td',{rowSpan:visibleLines(order).length,style:{textAlign:'center'}},order.invoiceImage
+              ?showInlineInvoices?h(TripInvoicePreview,{key:order.invoiceImage,src:order.invoiceImage,size:invoiceSize,label:'Hóa đơn '+(order.pointName||order.address||'')+' · '+(fmtAnyDate(order.deliveryDate||order.date)||'')})
+                :h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(order.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}}))
               :'—')
           );
         }):h('tr',null,h('td',{colSpan:8,className:'empty-st'},'Không có hóa đơn đã nhập theo bộ lọc.')))

@@ -52,3 +52,47 @@ function ImportBtn({onFile}){
     h('button',{onClick:()=>ref.current.click(),'data-scf-action':'write',style:{fontSize:12,padding:'6px 12px'}},h('i',{className:'ti ti-upload',style:{fontSize:14}}),'Nhập Excel')
   );
 }
+
+function InvoiceImageSizeSelect({value,onChange}){
+  return h('label',{className:'invoice-image-size-control'},
+    h('span',null,'Cỡ ảnh'),
+    h('select',{'aria-label':'Cỡ ảnh hóa đơn','data-scf-action':'view',value,onChange:event=>onChange(event.target.value)},
+      h('option',{value:'small'},'Nhỏ'),h('option',{value:'medium'},'Vừa'),h('option',{value:'large'},'Lớn')
+    )
+  );
+}
+function TripInvoicePreview({src,label,size='medium'}){
+  const safeSize=['small','medium','large'].includes(size)?size:'medium';
+  const[url,setUrl]=useState(src);
+  const[phase,setPhase]=useState('ready');
+  const[reload,setReload]=useState(0);
+  const attempt=React.useRef(false),generation=React.useRef(0);
+  useEffect(()=>()=>{generation.current++;},[]);
+  const refresh=async()=>{
+    if(attempt.current){setPhase('failed');return;}
+    attempt.current=true;
+    const path=storagePhotoPathFromUrl(url);
+    if(!path){setPhase('failed');return;}
+    const version=generation.current;
+    let timer;
+    setPhase('refreshing');
+    try{
+      const next=await Promise.race([createPrivatePhotoUrl(path),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Photo timeout')),15000);})]);
+      if(version!==generation.current)return;
+      if(!next)throw new Error('Photo URL unavailable');
+      setUrl(next);setReload(value=>value+1);
+    }catch(error){if(version===generation.current)setPhase('failed');}
+    finally{clearTimeout(timer);}
+  };
+  return h('figure',{className:'trip-invoice-preview invoice-size-'+safeSize},
+    h('figcaption',null,label),
+    h('button',{type:'button',className:'trip-invoice-image-button','data-scf-action':'view','aria-label':'Mở ảnh '+label,onClick:()=>window.open(url,'_blank','noopener'),style:phase==='failed'?{display:'none'}:undefined},
+      // This component renews expired URLs once; skip the document-wide image retry.
+      h('img',{key:reload,src:url,alt:label,loading:'lazy',decoding:'async','data-scf-photo-refreshing':'1',onLoad:()=>setPhase('ready'),onError:refresh})
+    ),
+    phase==='refreshing'&&h('small',{role:'status'},'Đang tải lại ảnh…'),
+    phase==='failed'&&h('div',{className:'trip-invoice-preview-error',role:'status'},'Chưa tải được ảnh.',
+      h('button',{type:'button',className:'bs','data-scf-action':'view',onClick:()=>{attempt.current=false;setPhase('ready');setReload(value=>value+1);}},'Thử lại')
+    )
+  );
+}

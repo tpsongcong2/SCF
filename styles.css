@@ -361,16 +361,24 @@ th{font-family:var(--ui-header-family)!important}
 }
 .trip-attendance-list,.trip-mobile-orders{display:grid;gap:8px}
 .trip-invoice-mode-toggle.active{background:var(--pri);color:#fff;border-color:var(--pri)}
-.trip-invoice-preview{margin:0 0 8px;width:200px;max-width:100%;display:grid;gap:6px}
+.trip-invoice-preview{--invoice-width:200px;--invoice-height:260px;--invoice-mobile-height:340px;margin:0 0 8px;width:var(--invoice-width);max-width:100%;display:grid;gap:6px}
+.trip-invoice-preview.invoice-size-small{--invoice-width:140px;--invoice-height:185px;--invoice-mobile-height:240px}
+.trip-invoice-preview.invoice-size-large{--invoice-width:300px;--invoice-height:400px;--invoice-mobile-height:460px}
 .trip-invoice-preview figcaption{font-size:12px;color:var(--tx2);font-weight:600;overflow-wrap:anywhere}
 .trip-invoice-image-button{display:block;width:100%;padding:0;border:1px solid var(--bd);border-radius:8px;background:#fff;cursor:zoom-in;overflow:hidden}
-.trip-invoice-image-button img{display:block;width:100%;height:260px;object-fit:contain}
+.trip-invoice-image-button img{display:block;width:100%;height:var(--invoice-height);object-fit:contain}
 .trip-invoice-preview small,.trip-invoice-preview-error{font-size:12px;color:var(--tx2)}
 .trip-invoice-preview-error{padding:12px;border:1px solid var(--bd);border-radius:8px;display:grid;gap:8px}
 .trip-inline-invoice-list{display:grid;gap:12px;margin-top:12px}
 .trip-inline-invoice-list .trip-invoice-preview{width:100%;margin:0}
-.trip-inline-invoice-list .trip-invoice-image-button img{height:340px}
-@media(max-width:768px){.trip-filter-row .trip-invoice-mode-toggle{min-height:42px;grid-column:1/-1;order:7;justify-content:center}}
+.trip-inline-invoice-list .trip-invoice-image-button img{height:var(--invoice-mobile-height)}
+.invoice-image-size-control{display:inline-flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
+.invoice-image-size-control select{width:auto;min-width:96px;min-height:36px;border:1px solid var(--bd);border-radius:var(--r);padding:6px 10px;background:var(--bg2);color:var(--tx)}
+.debt-invoice-display-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+@media(max-width:768px){
+  .trip-filter-row .trip-invoice-mode-toggle{min-height:42px;grid-column:1/-1;order:7;justify-content:center}
+  .trip-filter-row .invoice-image-size-control{grid-column:1/-1;order:7;justify-content:flex-end}
+}
 .driver-report-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;margin-bottom:16px}
 .driver-report-filters label,.driver-report-owner{display:grid;gap:6px;min-width:0}
 .driver-report-filters select,.driver-report-filters input{width:100%;min-width:0;min-height:44px}
