@@ -1055,3 +1055,11 @@ tbody tr:hover td{background:var(--bg)}
  .stock-save-bar .bp{flex:1;min-width:150px}
  .stock-save-bar span{flex:1;min-width:100px}
 }
+
+/* Delivery shift driver history */
+.shift-driver-effective-note{margin:8px 0 16px;padding:10px 12px;border-radius:10px;background:var(--bg2);color:var(--pri3);font-size:13px;line-height:1.5}
+.shift-driver-history{display:grid;gap:12px}
+.shift-driver-history p{margin:0}
+.shift-driver-history-entry{display:grid;gap:6px;padding:14px;border:1px solid var(--bd);border-radius:12px;background:var(--bg2);line-height:1.5}
+.shift-driver-history-entry small{color:var(--tx2)}
+

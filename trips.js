@@ -214,11 +214,14 @@ function TripForm({trip,orders,employees,shifts,customers,products,currentUser,i
   const submit=()=>{
     if(!scfTripDateKey(f.deliveryDate)){window.showToast('Ngày giao không hợp lệ. Hãy nhập DD/MM/YYYY.','warn');return;}
     if(!trip&&scfTripIsPastDate(f.deliveryDate)&&!canCreatePastTrip){window.showToast('Chỉ Admin hoặc Kế toán được tạo chuyến cho ngày cũ.','warn');return;}
-    if(f.status!=='planning'&&!f.driverName){window.showToast('Vui lòng chọn hoặc nhập tên lái xe trước khi giao chuyến!','warn');return;}
+    const sh=(shifts||[]).find(shift=>String(shift.id)===String(f.shiftId));
+    const historicalDriver=!trip&&f.driverAssignMode==='auto'?scfShiftDriverAt(sh,{deliveryDate:f.deliveryDate,deliveryTime:f.deliveryTime}):null;
+    const draft={...f,...(historicalDriver||{}),...(historicalDriver?{status:historicalDriver.driverId||historicalDriver.driverName?'assigned':'planning'}:{})};
+    if(draft.status!=='planning'&&!draft.driverName){window.showToast('Vui lòng chọn hoặc nhập tên lái xe trước khi giao chuyến!','warn');return;}
     // Chuyến có thể được lập trước khi phát sinh đơn. Luôn lưu mảng rỗng thay vì
     // chặn người dùng hoặc để orderIds undefined gây lỗi ở các bước đồng bộ sau.
     const selectedOrderIds=Array.isArray(f.orderIds)?f.orderIds:[];
-    onSave({...f,orderIds:selectedOrderIds,totalWeight:totalW,updatedBy:currentUser.name,updatedAt:fmtDT()});
+    onSave({...draft,orderIds:selectedOrderIds,totalWeight:totalW,updatedBy:currentUser.name,updatedAt:fmtDT()});
   };
   // Danh sách khu vực và KH để lọc
   const allAreas=[...new Set(availOrders.map(o=>getOArea(o)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
@@ -236,7 +239,7 @@ function TripForm({trip,orders,employees,shifts,customers,products,currentUser,i
     ),
     h('div',{className:'g3'},
       h(F,{label:'Ngày giao'},h('input',{value:f.deliveryDate,onChange:e=>s('deliveryDate',e.target.value),placeholder:'DD/MM/YYYY'})),
-      h(F,{label:'Ca giao'},h('select',{value:f.shiftId,onChange:e=>{const sh=(shifts||[]).find(x=>x.id===e.target.value);sf(p=>({...p,shiftId:e.target.value,shiftName:sh?sh.name:'',deliveryTime:sh&&(sh.timeStart||sh.startTime)?(sh.timeStart||sh.startTime):p.deliveryTime,...(!p.driverId&&!p.driverName&&sh?.defaultDriverId?{driverId:sh.defaultDriverId,driverName:sh.defaultDriverName||drivers.find(d=>String(d.id)===String(sh.defaultDriverId))?.name||'',driverAssignMode:'auto'}:{})}));}},
+      h(F,{label:'Ca giao'},h('select',{value:f.shiftId,onChange:e=>{const sh=(shifts||[]).find(x=>x.id===e.target.value);sf(p=>{const driver=scfShiftDriverAt(sh,{deliveryDate:p.deliveryDate});return{...p,shiftId:e.target.value,shiftName:sh?sh.name:'',deliveryTime:sh&&(sh.timeStart||sh.startTime)?(sh.timeStart||sh.startTime):p.deliveryTime,...(p.driverAssignMode==='auto'||(!p.driverId&&!p.driverName&&p.driverAssignMode!=='manual')?{...driver,driverAssignMode:'auto'}:{})};});}},
         h('option',{value:''},'— Chọn ca —'),
         (shifts||[]).map(sh=>h('option',{key:sh.id,value:sh.id},sh.name||sh.id))
       )),
@@ -452,8 +455,9 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
 
     preview.forEach(combo=>{
       const comboShift=(shifts||[]).find(sh=>String(sh.id)===String(combo.shiftId));
-      const comboDriverId=driver||comboShift?.defaultDriverId||'';
-      const comboDriverName=manuallySelectedDriverName||comboShift?.defaultDriverName||drivers.find(d=>String(d.id)===String(comboDriverId))?.name||'';
+      const historicalDriver=scfShiftDriverAt(comboShift,{deliveryDate:dateVN});
+      const comboDriverId=driver||historicalDriver.driverId||'';
+      const comboDriverName=manuallySelectedDriverName||historicalDriver.driverName||drivers.find(d=>String(d.id)===String(comboDriverId))?.name||'';
       const [dd,mm,yy]=(dateVN||fmtDate()).split('/');
       const datePart=(dd||'')+(mm||'')+(yy||'').slice(-2);
       const shiftAbbr=(combo.shiftName||'').toUpperCase()
@@ -469,7 +473,7 @@ function BulkTripModal({orders,employees,shifts,prodShifts,customers,products,tr
       usedIds.add(id);
       const w=ordersWeight(combo.orders);
       newTrips.push({
-        id,driverName:comboDriverName,driverId:comboDriverId,driverAssignMode:driver||driverName?'manual':(comboDriverId?'auto':''),
+        id,driverName:comboDriverName,driverId:comboDriverId,driverAssignMode:driver||driverName?'manual':'auto',
         shiftId:combo.shiftId,shiftName:combo.shiftName,
         deliveryDate:dateVN,deliveryTime:'',
         orderIds:combo.orders.map(o=>o.id),
@@ -1802,12 +1806,12 @@ function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,c
     const baseId='CH'+datePart+shiftAbbr;
     let id=baseId;let seq=2;
     while(trips.find(t=>t.id===id)){id=baseId+'_'+seq;seq++;}
-    const stamp=fmtDT();
+    const stamp=fmtDT(),automaticDriver=scfShiftDriverAt(sh,{deliveryDate:dateVN});
     const draftTrip={
       id,deliveryDate:dateVN,deliveryTime:sh.timeStart||sh.startTime||'',
       shiftId:sh.id,shiftName:sh.name||sh.id,area:sh.area||'',
-      driverName:sh.defaultDriverName||'',driverId:sh.defaultDriverId||'',driverAssignMode:sh.defaultDriverId||sh.defaultDriverName?'auto':'',
-      status:sh.defaultDriverId||sh.defaultDriverName?'assigned':'planning',note:'',driverWork:0,weightRate:0,tripAllowance:0,
+      ...automaticDriver,driverAssignMode:'auto',
+      status:automaticDriver.driverId||automaticDriver.driverName?'assigned':'planning',note:'',driverWork:0,weightRate:0,tripAllowance:0,
       attendanceStatus:'pending',createdAt:stamp,updatedBy:currentUser.name,updatedAt:stamp
     };
     const matchedOrders=(orders||[]).filter(o=>orderMatchesNewAutomaticTrip(o,draftTrip));
