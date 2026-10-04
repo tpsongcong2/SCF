@@ -79,7 +79,8 @@ button:hover{background:var(--bg2)}
 .delivery-line-note-row{display:flex;align-items:center;min-height:32px;padding:5px 10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;color:var(--tx)}
 .delivery-line-note-row+.delivery-line-note-row{border-top:1px dashed var(--bd)}
 .delivery-group-header-cell{background:#2d6a4f!important;color:#fff!important;font-weight:700!important;font-size:13px!important;padding:5px 12px!important}
-.delivery-group-header{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
+.delivery-group-header{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:4px 16px;width:100%;text-align:left}
+.delivery-group-title,.delivery-group-driver{overflow-wrap:anywhere}
 .delivery-group-summary{white-space:nowrap;font-size:12px;font-weight:700}
 .delivery-group-header-mobile{background:#2d6a4f;color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex-wrap:wrap}
 .delivery-detail-columns-toggle{box-shadow:0 0 0 2px rgba(37,112,82,.08)}
@@ -363,7 +364,7 @@ th{font-family:var(--ui-header-family)!important}
 .trip-invoice-mode-toggle.active{background:var(--pri);color:#fff;border-color:var(--pri)}
 .trip-invoice-preview{--invoice-width:200px;--invoice-height:260px;--invoice-mobile-height:340px;margin:0 0 8px;width:var(--invoice-width);max-width:100%;display:grid;gap:6px}
 .trip-invoice-preview.invoice-size-small{--invoice-width:140px;--invoice-height:185px;--invoice-mobile-height:240px}
-.trip-invoice-preview.invoice-size-large{--invoice-width:300px;--invoice-height:400px;--invoice-mobile-height:460px}
+.trip-invoice-preview.invoice-size-large{--invoice-width:420px;--invoice-height:560px;--invoice-mobile-height:460px}
 .trip-invoice-preview figcaption{font-size:12px;color:var(--tx2);font-weight:600;overflow-wrap:anywhere}
 .trip-invoice-image-button{display:block;width:100%;padding:0;border:1px solid var(--bd);border-radius:8px;background:#fff;cursor:zoom-in;overflow:hidden}
 .trip-invoice-preview{--invoice-view-width:var(--invoice-width);--invoice-view-height:var(--invoice-height)}
@@ -374,6 +375,13 @@ th{font-family:var(--ui-header-family)!important}
 .invoice-image-rotation-controls button{min-width:34px;min-height:34px;padding:5px;font-size:12px}
 .invoice-image-rotation-controls .bi{font-size:18px}
 .invoice-landscape-toggle.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.invoice-orientation-status{display:grid;gap:4}
+.tw .trip-invoice-review-table{table-layout:fixed;min-width:1020px}
+.trip-invoice-review-table td{overflow-wrap:anywhere;padding:10px 8px}
+.trip-invoice-review-table th{padding:10px 8px}
+.trip-invoice-review-table .trip-driver-invoice-cell{font-size:12px}
+.trip-invoice-review-table .trip-driver-invoice-cell button{white-space:normal;font-size:12px;padding:4px}
+.trip-invoice-review-table input[type=number]{max-width:76px!important}
 .modal.invoice-photo-viewer{width:min(1100px,calc(100vw - 24px));max-width:1100px}
 .invoice-photo-viewer .invoice-photo-stage{--invoice-view-height:68dvh;margin:12px auto;border:1px solid var(--bd);border-radius:8px}
 .trip-invoice-preview small,.trip-invoice-preview-error{font-size:12px;color:var(--tx2)}
