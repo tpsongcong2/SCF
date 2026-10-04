@@ -1108,7 +1108,8 @@ function TripOrdersManageModal({trip,orders,canAdd,canEdit,onAdd,onEdit,onClose}
   );
 }
 
-function TripsTab({trips,setTrips,orders,setOrders,employees,shifts,prodShifts,customers,products,prodCats,quotes,financeDebts,setFinanceDebts,company,currentUser,notify}){
+function TripsTab({trips:storedTrips,setTrips,orders,setOrders,employees,shifts,prodShifts,customers,products,prodCats,quotes,financeDebts,setFinanceDebts,company,currentUser,notify}){
+  const trips=React.useMemo(()=>scfTripMembershipView(storedTrips,orders),[storedTrips,orders]);
   const tripOrderReader=React.useMemo(()=>scfCreateTripOrderReader(orders,customers,products),[orders,customers,products]);
   const[listSelection,setListSelection]=useState(null);
   const[modal,sm]=useState(null);const[edit,se]=useState(null);const[open,so]=useState(null);const[additionalTrip,setAdditionalTrip]=useState(null);const[printOrder,setPrintOrder]=useState(null);

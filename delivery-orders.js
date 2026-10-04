@@ -126,7 +126,7 @@ function deliveryTripIndex(trips){
   const byId=new Map(),byDate=new Map(),automatic=new Map(),legacyOrder=new Map(),search=new Map();
   const automaticKey=(date,shiftId)=>JSON.stringify([date,String(shiftId||'').trim()]);
   (trips||[]).forEach(trip=>{
-    if(!byId.has(String(trip.id||'')))byId.set(String(trip.id||''),trip);
+    byId.set(String(trip.id||''),trip);
     const date=manualTripDateToISO(trip.deliveryDate),items=byDate.get(date)||[];
     items.push(trip);byDate.set(date,items);
     (trip.orderIds||[]).forEach(id=>{if(!legacyOrder.has(String(id)))legacyOrder.set(String(id),trip);});
@@ -2541,11 +2541,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(deliveryTripCache.has(o))return deliveryTripCache.get(o);
     const ctx=orderContext(o);
     const storedTrip=ctx.tripId?tripById.get(String(ctx.tripId)):null;
-    if(storedTrip&&(ctx.tripAssignMode==='manual'||storedTrip.driverDispatchedAt||['active','completion_pending','completed','cancelled'].includes(storedTrip.status)||!['','pending','assigned'].includes(String(ctx.status||'')))){
-      deliveryTripCache.set(o,storedTrip);return storedTrip;
-    }
-    const automaticTrip=autoTripForOrder({...ctx,tripId:null});
-    const trip=ctx.tripAssignMode==='manual'?(storedTrip||automaticTrip||null):(automaticTrip||null);
+    // Display the saved assignment. Automatic planning changes tripId itself;
+    // rendering a predicted assignment here made this page disagree with Trips.
+    const trip=storedTrip||(!ctx.tripId&&ctx.tripAssignMode!=='manual'?manualTripForOrder(trips,ctx):null);
     deliveryTripCache.set(o,trip);return trip;
   };
   const deliveryTripShiftName=o=>{
@@ -3928,7 +3926,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         const preferredTripShiftName=o._preferredTripShiftName||getOrderTripShiftName(ctx,prodShifts||[]);
         const autoTrip=o._autoTrip===undefined?autoTripForOrder(ctx):o._autoTrip;
         const currentTrip=orderTrip(ctx);
-        const displayTrip=currentTrip||autoTrip;
+        const displayTrip=o._effectiveTrip===undefined?deliveryTripForOrder(ctx):o._effectiveTrip;
         const assignmentStarted=dispatchedTrip(currentTrip)||ctx.status==='delivering';
         const assignmentClosed=closedTrip(currentTrip)||ctx.status==='done';
         const assignmentLocked=assignmentClosed||(assignmentStarted&&!canWithdrawStartedOrder)||!canEditMobileOrder;

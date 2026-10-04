@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V469';
+const SCF_BUILD_VERSION='V470';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -104,18 +104,15 @@ function scfOrderTripWeight(order,products,productById){
   },0);
 }
 function scfReconcileTripOrderLinks(currentTrips,currentOrders,products){
-  const idsByTrip=new Map(),orderById=new Map((currentOrders||[]).map(order=>[String(order?.id||''),order]));
+  const originalById=new Map((currentTrips||[]).map(trip=>[String(trip.id),trip]));
+  const orderById=new Map((currentOrders||[]).map(order=>[String(order?.id||''),order]));
   const productById=new Map();
   (products||[]).forEach(product=>{const id=String(product?.id||'');if(!productById.has(id))productById.set(id,product);});
-  (currentOrders||[]).forEach(order=>{
-    const tripId=String(order?.tripId||'');if(!tripId)return;
-    if(!idsByTrip.has(tripId))idsByTrip.set(tripId,[]);
-    idsByTrip.get(tripId).push(String(order.id));
-  });
   let changed=false;
-  const trips=(currentTrips||[]).map(trip=>{
-    const wanted=[...new Set(idsByTrip.get(String(trip?.id||''))||[])];
-    const current=[...new Set((trip?.orderIds||[]).map(String))];
+  const trips=scfTripMembershipView(currentTrips,currentOrders).map(trip=>{
+    const wanted=[...new Set((trip.orderIds||[]).map(String))];
+    const original=originalById.get(String(trip.id));
+    const current=[...new Set((original?.orderIds||[]).map(String))];
     const totalWeight=wanted.reduce((sum,id)=>sum+scfOrderTripWeight(orderById.get(id),products,productById),0);
     const linksChanged=wanted.length!==current.length||wanted.some((id,index)=>id!==current[index]);
     const weightChanged=Math.abs(numFmt(trip?.totalWeight)-totalWeight)>0.001;
@@ -157,7 +154,12 @@ function scfPlanAutomaticOrders(orders,trips,prodShifts,customers,actorName,limi
       const deliveryShift=plannedShift&&(plannedShift.tripShiftId||plannedShift.tripShiftName)?resolveCurrentDeliveryShift(order,plannedShift):null;
       if(tripDate&&deliveryShift&&deliveryShift.active!==false){
         const shiftId=String(deliveryShift.id||'').trim(),shiftName=String(deliveryShift.name||'').trim();
-        trip=lookup.find(tripDate,shiftId,shiftName);
+        // Keep an existing eligible link when legacy data has multiple trips
+        // for the same date/shift; array order must not move its orders.
+        const linkedMatches=linked&&!linked.driverDispatchedAt&&['planning','assigned',''].includes(String(linked.status||''))
+          &&String(linked.deliveryDate||'')===tripDate
+          &&(shiftId?String(linked.shiftId||'')===shiftId:normalizeLookupText(linked.shiftName)===normalizeLookupText(shiftName));
+        trip=linkedMatches?linked:lookup.find(tripDate,shiftId,shiftName);
         // Không tạo chuyến trùng một ca đã giao lái xe/đóng, hoặc tự gắn
         // thêm đơn vào chuyến đó. Để Chờ xếp cho người có quyền xử lý.
         const existing=shiftId?occupiedIds.has(occupiedKey(tripDate,shiftId)):occupiedNames.has(occupiedKey(tripDate,normalizeLookupText(shiftName)));
@@ -373,6 +375,8 @@ function App(){
   const setOrders=mkSet('scf_orders',_so);
   const setTrips=mkSet('scf_trips',_st);
   const setAutoTrips=valOrFn=>_st(prev=>{
+    const pending=readSyncQueue().scf_trips;
+    if(pending&&pending.mode!=='auto-trips')return prev;
     const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;
     dbSetAutoTrips(next);
     return next;
@@ -423,6 +427,18 @@ function App(){
   const[readyPage,setReadyPage]=useState(null);
   const[autoSyncReady,setAutoSyncReady]=useState(true);
   const dataLoaderRef=React.useRef(null);
+  useEffect(()=>{
+    const receive=event=>{
+      const {key,value,writeToken}=event.detail||{};
+      if(readSyncQueue()[key]?.updatedAt!==writeToken||!Array.isArray(value))return;
+      // Apply the server's merged record through raw setters, without queuing
+      // another write or overwriting a newer local edit.
+      if(key==='scf_trips')_st(value);
+      if(key==='scf_orders')_so(normalizeOrdersForStorage(value));
+    };
+    window.addEventListener('scf-collection-reconciled',receive);
+    return()=>window.removeEventListener('scf-collection-reconciled',receive);
+  },[]);
   const cu=SCF_SERVER_AUTH_ENABLED
     ?(authEmployee&&(employees.find(e=>String(e.id)===String(authEmployee.id))||authEmployee))
     :(session?employees.find(e=>String(e.id)===String(session.id)):null);

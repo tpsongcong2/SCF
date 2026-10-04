@@ -316,6 +316,12 @@ const scfLocalWrites=new Map();
 const scfRemoteVersions=new Map();
 const scfRemoteSnapshots=new Map();
 function syncSnapshot(value){try{return JSON.parse(JSON.stringify(value))}catch{return value}}
+function scfPublishMergedCollection(key,value,requested,writeToken){
+  if(!Array.isArray(value)||readSyncQueue()[key]?.updatedAt!==writeToken)return;
+  if(JSON.stringify(value)===JSON.stringify(requested))return;
+  scfLocalWrites.set(key,{value});
+  window.dispatchEvent(new CustomEvent('scf-collection-reconciled',{detail:{key,value,writeToken}}));
+}
 async function dbGetRequired(key,def){
   if(!serverAuthEnabled())return dbGet(key,def);
   if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
@@ -483,8 +489,20 @@ async function performDbSet(key,val,queuedAt='',mode=''){
     catch(e){console.warn('serverSaveEmployees:',e.message);setSyncState('error','Không lưu được danh sách nhân viên');window.showToast&&window.showToast(e.message||'Không lưu được danh sách nhân viên.','error');scheduleSyncRetry();return false;}
   }
   if(serverAuthEnabled()&&key==='scf_trips'&&mode==='auto-trips'){
-    try{const timeoutMs=remoteTimeoutFor(val);setSyncState('syncing','Đang lưu chuyến tự động');await withRemoteTimeout(serverSaveAutoTrips(val,timeoutMs),timeoutMs);removeQueuedWrite(key,queuedAt);setSyncState('synced');return true;}
-    catch(e){console.warn('serverSaveAutoTrips:',e.message);setSyncState('error',e.message||'Không lưu được chuyến tự động');window.showToast&&window.showToast(e.message||'Không lưu được chuyến tự động.','error');scheduleSyncRetry();return false;}
+    try{
+      const timeoutMs=remoteTimeoutFor(val);setSyncState('syncing','Đang lưu chuyến tự động');
+      const saved=await withRemoteTimeout(serverSaveAutoTrips(val,timeoutMs),timeoutMs);
+      if(readSyncQueue()[key]?.updatedAt!==queuedAt)return false;
+      if(!Array.isArray(saved))throw new Error('Máy chủ chưa trả lại danh sách chuyến đã lưu.');
+      scfRemoteSnapshots.set(key,syncSnapshot(saved));scfRemoteVersions.set(key,'');
+      scfPublishMergedCollection(key,saved,val,queuedAt);
+      removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');return true;
+    }
+    catch(e){
+      if(readSyncQueue()[key]?.updatedAt!==queuedAt)return false;
+      console.warn('serverSaveAutoTrips:',e.message);setSyncState('error',e.message||'Không lưu được chuyến tự động');
+      window.showToast&&window.showToast(e.message||'Không lưu được chuyến tự động.','error');scheduleSyncRetry();return false;
+    }
   }
   if(serverAuthEnabled()&&SCF_EDGE_WRITE_KEYS.has(key)){
     try{
@@ -504,7 +522,9 @@ async function performDbSet(key,val,queuedAt='',mode=''){
       scfVerifyTripDriverSave(key,saved,val);
       const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(val);
       if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(val));
-      scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');
+      scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));
+      scfPublishMergedCollection(key,saved?.value,val,queuedAt);
+      removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');
       if(merged)setTimeout(()=>window.scfSyncNow?.(),100);return true;
     }catch(e){
       console.warn('serverSavePermittedCollection:',e.message);
@@ -578,7 +598,13 @@ function dbSetWithMode(key,val,mode='',options={}){
   });
 }
 function dbSet(key,val){return dbSetWithMode(key,val,'');}
-function dbSetAutoTrips(val){return dbSetWithMode('scf_trips',val,'auto-trips');}
+function dbSetAutoTrips(val){
+  // A scheduled automatic pass must not turn a queued manual driver edit into
+  // an automatic write; that endpoint deliberately preserves server drivers.
+  const pending=readSyncQueue().scf_trips;
+  if(pending&&pending.mode!=='auto-trips')return Promise.resolve(false);
+  return dbSetWithMode('scf_trips',val,'auto-trips');
+}
 let scfRetryTimer=null,scfRetryAttempt=0,scfFlushPromise=null;
 const SCF_MAX_AUTO_RETRIES=6;
 function scheduleSyncRetry(){
@@ -609,7 +635,13 @@ async function runPendingWrites(){
       if(serverAuthEnabled()&&(key==='scf_employees'||key==='scf_privileged_employees')){const timeoutMs=remoteTimeoutFor(item.value);await withRemoteTimeout(serverSaveEmployees(item.value,timeoutMs),timeoutMs);}
       // Manual trip writes must keep their permission/duplicate validation on
       // retry, even when the collection also contains automatically made trips.
-      else if(serverAuthEnabled()&&key==='scf_trips'&&item.mode==='auto-trips'){const timeoutMs=remoteTimeoutFor(item.value);await withRemoteTimeout(serverSaveAutoTrips(item.value,timeoutMs),timeoutMs);}
+      else if(serverAuthEnabled()&&key==='scf_trips'&&item.mode==='auto-trips'){
+        const timeoutMs=remoteTimeoutFor(item.value),saved=await withRemoteTimeout(serverSaveAutoTrips(item.value,timeoutMs),timeoutMs);
+        if(readSyncQueue()[key]?.updatedAt!==item.updatedAt)return false;
+        if(!Array.isArray(saved))throw new Error('Máy chủ chưa trả lại danh sách chuyến đã lưu.');
+        scfRemoteSnapshots.set(key,syncSnapshot(saved));scfRemoteVersions.set(key,'');
+        scfPublishMergedCollection(key,saved,item.value,item.updatedAt);
+      }
       else if(serverAuthEnabled()&&SCF_EDGE_WRITE_KEYS.has(key)){
         const expectedUpdatedAt=item.expectedUpdatedAt??String(scfRemoteVersions.get(key)||'');
         const baseValue=Object.prototype.hasOwnProperty.call(item,'baseValue')?item.baseValue:scfRemoteSnapshots.get(key);
@@ -623,6 +655,7 @@ async function runPendingWrites(){
         const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(item.value);
         if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(item.value));
         scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));
+        scfPublishMergedCollection(key,saved?.value,item.value,item.updatedAt);
         if(merged)setTimeout(()=>window.scfSyncNow?.(),100);
       }
       else{
