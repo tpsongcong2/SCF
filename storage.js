@@ -549,6 +549,22 @@ async function performDbSet(key,val,queuedAt='',mode=''){
 }
 const scfWriteChains={};
 const scfDebouncedWrites={};
+function scfSendQueuedCollection(key){
+  const pending=scfDebouncedWrites[key];
+  if(pending){clearTimeout(pending.timer);delete scfDebouncedWrites[key];}
+  const task=(scfWriteChains[key]||Promise.resolve()).catch(()=>false).then(()=>{
+    const item=readSyncQueue()[key];
+    return item?performDbSet(key,item.value,item.updatedAt,item.mode):true;
+  });
+  scfWriteChains[key]=task;
+  task.then(ok=>pending?.resolvers.forEach(done=>done(ok)),()=>pending?.resolvers.forEach(done=>done(false)));
+  return task;
+}
+window.scfSendCollectionsNow=function(keys){
+  const send=()=>Promise.all([...new Set(keys||[])].map(key=>scfSendQueuedCollection(key)));
+  // Tránh gửi trùng nếu một lượt gửi lại toàn bộ hàng đợi đã chạy trước đó.
+  return scfFlushPromise?scfFlushPromise.catch(()=>false).then(send):send();
+};
 function dbSetWithMode(key,val,mode='',options={}){
   scfLocalWrites.set(key,{value:val});
   if(allowPersistentLocalCache(key))try{localStorage.setItem(localCacheKey(key),JSON.stringify(val));}catch(e){console.warn('localStorage save:',e.message);}
@@ -557,13 +573,7 @@ function dbSetWithMode(key,val,mode='',options={}){
     const pending=scfDebouncedWrites[key]||{timer:null,value:val,queuedAt,mode,resolvers:[]};
     pending.value=val;pending.queuedAt=queuedAt;pending.mode=mode;pending.resolvers.push(resolve);
     if(pending.timer)clearTimeout(pending.timer);
-    pending.timer=setTimeout(()=>{
-      delete scfDebouncedWrites[key];
-      if(readSyncQueue()[key]?.updatedAt!==pending.queuedAt){pending.resolvers.forEach(done=>done(true));return;}
-      const task=(scfWriteChains[key]||Promise.resolve()).catch(()=>false).then(()=>performDbSet(key,pending.value,pending.queuedAt,pending.mode));
-      scfWriteChains[key]=task;
-      task.then(ok=>pending.resolvers.forEach(done=>done(ok)));
-    },SCF_SYNC_DEBOUNCE_MS);
+    pending.timer=setTimeout(()=>scfSendQueuedCollection(key),SCF_SYNC_DEBOUNCE_MS);
     scfDebouncedWrites[key]=pending;
   });
 }
@@ -679,7 +689,9 @@ window.scfWaitForTripDriverSync=async function(tripId,driverId,orderIds,timeoutM
   if(!navigator.onLine)return false;
   // Gửi ngay các thay đổi đã xếp hàng; không giữ cửa sổ chờ toàn bộ thời gian
   // timeout HTTP hoặc các lần thử lại của máy chủ.
-  window.scfFlushPendingWrites().catch(error=>console.warn('Trip driver sync:',error?.message||error));
+  // Hai collection vốn độc lập: gửi cùng lúc và không đợi các nhóm dữ liệu
+  // khác trong hàng đợi. Mỗi collection vẫn giữ chuỗi ghi riêng chống gửi trùng.
+  window.scfSendCollectionsNow(['scf_orders','scf_trips']).catch(error=>console.warn('Trip driver sync:',error?.message||error));
   const results=await Promise.all(['scf_trips','scf_orders'].map(key=>window.scfWaitForCollectionSync(key,timeoutMs)));
   if(results.some(ok=>!ok))return false;
   const trip=(scfRemoteSnapshots.get('scf_trips')||[]).find(item=>String(item.id)===String(tripId));

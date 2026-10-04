@@ -31,6 +31,23 @@ function deliveryTripDriverChange(trip,driver,orders,memberIds,currentUser){
   return {orders:nextOrders,trip:{...trip,driverId:driver.id,driverName:driver.name,driverAssignMode:'manual',orderIds,
     status:trip.status==='planning'?'assigned':trip.status,updatedAt:stamp,updatedBy:currentUser?.name||'',tripHistory:[...(trip.tripHistory||[]),entry()]}};
 }
+const deliveryTripDriverSyncNotices=new Map();
+function deliverySyncTripDriverInBackground(trip,driver,memberIds){
+  const token={},key=String(trip.id),actorId=window.__SCF_ACCESS_CONTEXT?.employeeId;
+  deliveryTripDriverSyncNotices.set(key,token);
+  const report=(message,type)=>{
+    if(deliveryTripDriverSyncNotices.get(key)!==token)return;
+    deliveryTripDriverSyncNotices.delete(key);
+    if(actorId&&String(window.__SCF_ACCESS_CONTEXT?.employeeId||'')!==String(actorId))return;
+    window.showToast(message,type,8000);
+  };
+  // Trả quyền thao tác ngay; kết quả máy chủ được thông báo riêng.
+  return Promise.resolve().then(()=>window.scfWaitForTripDriverSync?.(trip.id,driver.id,memberIds,35000)).then(confirmed=>{
+    report(confirmed?'Máy chủ đã xác nhận lái xe '+driver.name+' và '+memberIds.length+' đơn Bằng tay của chuyến '+(trip.shiftName||trip.id)+'.'
+      :'Chuyến '+(trip.shiftName||trip.id)+' đổi sang '+driver.name+' vẫn đang chờ đồng bộ. Xem trạng thái đồng bộ để kiểm tra.',confirmed?'success':'warn');
+    return !!confirmed;
+  }).catch(error=>{report('Chưa đồng bộ được lái xe chuyến '+(trip.shiftName||trip.id)+': '+(error?.message||'Lỗi kết nối'),'warn');return false;});
+}
 function DeliveryTripDriverModal({trip,employees,onSave,onClose}){
   const drivers=(employees||[]).filter(emp=>emp.role==='driver'||employeeHasDepartment(emp,'Lái xe'));
   const [driverId,setDriverId]=useState(()=>String(drivers.find(emp=>String(emp.id)===String(trip.driverId))?.id||
@@ -48,8 +65,8 @@ function DeliveryTripDriverModal({trip,employees,onSave,onClose}){
     // Cho trình duyệt vẽ trạng thái đang lưu trước khi xử lý danh sách đơn.
     await new Promise(resolve=>setTimeout(resolve,0));
     try{
-      const confirmed=await onSave(trip.id,driver);
-      if(active.current){if(confirmed)close();else setError('Đã giữ thay đổi trên máy, đang chờ đồng bộ. Bạn có thể đóng cửa sổ; app sẽ tiếp tục gửi. Bấm Lưu để kiểm tra lại.');}
+      const result=await onSave(trip.id,driver);
+      if(active.current){if(result===true||result?.queued)close();else setError('Chưa ghi được thay đổi. Hãy kiểm tra trạng thái đồng bộ rồi thử lại.');}
     }catch(e){if(active.current)setError(e?.message||'Chưa đổi được lái xe.');}
     finally{inFlight.current=false;if(active.current)setSaving(false);}
   };
@@ -2490,12 +2507,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   // chuyến ĐT sẽ không còn xuất hiện sai nhóm.
   const samsungTripShiftOrder=['SS T1','VP ĐÊM','SS T2','YP QV','SS S1','SS S2','VP NGÀY','SS C'];
   const samsungTripShiftRank=new Map(samsungTripShiftOrder.map((name,index)=>[normalizeLookupText(name),index]));
+  const deliveryTripCache=new WeakMap();
   const deliveryTripForOrder=o=>{
+    if(deliveryTripCache.has(o))return deliveryTripCache.get(o);
     const ctx=orderContext(o);
     const storedTrip=ctx.tripId?tripById.get(String(ctx.tripId)):null;
-    if(storedTrip&&(storedTrip.driverDispatchedAt||['active','completion_pending','completed','cancelled'].includes(storedTrip.status)||!['','pending','assigned'].includes(String(ctx.status||''))))return storedTrip;
+    if(storedTrip&&(ctx.tripAssignMode==='manual'||storedTrip.driverDispatchedAt||['active','completion_pending','completed','cancelled'].includes(storedTrip.status)||!['','pending','assigned'].includes(String(ctx.status||'')))){
+      deliveryTripCache.set(o,storedTrip);return storedTrip;
+    }
     const automaticTrip=autoTripForOrder({...ctx,tripId:null});
-    return ctx.tripAssignMode==='manual'?(storedTrip||automaticTrip||null):(automaticTrip||null);
+    const trip=ctx.tripAssignMode==='manual'?(storedTrip||automaticTrip||null):(automaticTrip||null);
+    deliveryTripCache.set(o,trip);return trip;
   };
   const deliveryTripShiftName=o=>{
     const ctx=orderContext(o);
@@ -2689,8 +2711,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     await new Promise(resolve=>setTimeout(resolve,0));
     const remote=serverAuthEnabled();
     if(remote){
-      const confirmed=await window.scfWaitForTripDriverSync?.(tripId,driver.id,memberIds,6000);
-      if(!confirmed){window.showToast('Đổi lái xe đang chờ đồng bộ. Máy chủ chưa xác nhận đủ chuyến và đơn hàng.','warn',10000);return false;}
+      window.showToast('Đã đổi lái trên máy và chuyển '+members.length+' đơn sang Bằng tay. Đang đồng bộ…','info',5000);
+      deliverySyncTripDriverInBackground(trip,driver,memberIds);
+      return {queued:true};
     }
     window.showToast('Đã đổi lái xe và chuyển '+members.length+' đơn trong chuyến sang Bằng tay.','success');return true;
   };
