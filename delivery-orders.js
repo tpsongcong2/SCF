@@ -120,23 +120,47 @@ function manualTripText(trip){
   if(!trip)return 'Chưa có chuyến phù hợp';
   return [trip.deliveryDate,trip.shiftName,trip.driverName||'Chưa có lái xe',trip.area].filter(Boolean).join(' · ');
 }
-function filterManualTripOptions(trips,date,query){
-  const wantedDate=manualTripDateToISO(date);
-  const wantedText=normalizeLookupText(query||'');
-  return (trips||[]).filter(trip=>{
-    if(wantedDate&&manualTripDateToISO(trip?.deliveryDate)!==wantedDate)return false;
-    if(!wantedText)return true;
-    return normalizeLookupText([trip?.deliveryDate,trip?.shiftName,trip?.driverName,trip?.area,trip?.id].filter(Boolean).join(' ')).includes(wantedText);
+const DELIVERY_TRIP_INDEX_CACHE=new WeakMap();
+function deliveryTripIndex(trips){
+  if(DELIVERY_TRIP_INDEX_CACHE.has(trips))return DELIVERY_TRIP_INDEX_CACHE.get(trips);
+  const byId=new Map(),byDate=new Map(),automatic=new Map(),legacyOrder=new Map(),search=new Map();
+  const automaticKey=(date,shiftId)=>JSON.stringify([date,String(shiftId||'').trim()]);
+  (trips||[]).forEach(trip=>{
+    if(!byId.has(String(trip.id||'')))byId.set(String(trip.id||''),trip);
+    const date=manualTripDateToISO(trip.deliveryDate),items=byDate.get(date)||[];
+    items.push(trip);byDate.set(date,items);
+    (trip.orderIds||[]).forEach(id=>{if(!legacyOrder.has(String(id)))legacyOrder.set(String(id),trip);});
+    if(!trip.driverDispatchedAt&&!['active','completion_pending','completed','cancelled'].includes(trip.status)){
+      const key=automaticKey(date,trip.shiftId),candidates=automatic.get(key)||[];
+      candidates.push(trip);automatic.set(key,candidates);
+    }
   });
+  automatic.forEach(items=>items.sort((a,b)=>String(a.id||'').localeCompare(String(b.id||''),'vi')));
+  const index={byId,byDate,legacyOrder,
+    candidates:(date,shiftId)=>automatic.get(automaticKey(manualTripDateToISO(date),shiftId))||[],
+    filter(date,query){
+      const day=manualTripDateToISO(date),text=normalizeLookupText(query||'');
+      const candidates=day?(byDate.get(day)||[]):(trips||[]);
+      if(!text)return candidates;
+      return candidates.filter(trip=>{
+        if(!search.has(trip))search.set(trip,normalizeLookupText([trip.deliveryDate,trip.shiftName,trip.driverName,trip.area,trip.id].filter(Boolean).join(' ')));
+        return search.get(trip).includes(text);
+      });
+    }};
+  if(Array.isArray(trips))DELIVERY_TRIP_INDEX_CACHE.set(trips,index);return index;
+}
+function filterManualTripOptions(trips,date,query){
+  return deliveryTripIndex(trips).filter(date,query);
 }
 function manualTripForOrder(trips,order){
+  const index=deliveryTripIndex(trips);
   const tripId=String(order?.tripId||'');
-  if(tripId)return (trips||[]).find(trip=>String(trip.id||'')===tripId)||null;
+  if(tripId)return index.byId.get(tripId)||null;
   if(order?.tripAssignMode==='manual')return null;
-  return (trips||[]).find(trip=>(trip.orderIds||[]).some(id=>String(id)===String(order?.id||'')))||null;
+  return index.legacyOrder.get(String(order?.id||''))||null;
 }
 function ManualTripPicker({trips,selectedTripId,defaultDate,disabled,title,onConfirm,compact=false}){
-  const selectedTrip=(trips||[]).find(trip=>String(trip?.id||'')===String(selectedTripId||''))||null;
+  const selectedTrip=deliveryTripIndex(trips).byId.get(String(selectedTripId||''))||null;
   const initialDate=manualTripDateToISO(selectedTrip?.deliveryDate||defaultDate||(trips||[])[0]?.deliveryDate||'');
   const [date,setDate]=useState(initialDate);
   const [query,setQuery]=useState('');
@@ -148,7 +172,7 @@ function ManualTripPicker({trips,selectedTripId,defaultDate,disabled,title,onCon
     if(next&&next!==date)setDate(next);
     setDraftTripId(selectedTripId||'');
   },[selectedTripId,defaultDate]);
-  const filtered=filterManualTripOptions(trips,date,query);
+  const filtered=React.useMemo(()=>filterManualTripOptions(trips,date,query),[trips,date,query]);
   const selectedVisible=filtered.some(trip=>String(trip?.id||'')===String(draftTripId||''));
   const hasChange=String(draftTripId||'')!==String(selectedTripId||'');
   const confirm=async()=>{
@@ -2319,6 +2343,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const[bulkSelected,setBulkSelected]=useState(()=>new Set());
   const[detailColumnsHidden,setDetailColumnsHidden]=useLS('scf_delivery_detail_columns_hidden',false);
   const[mobileEdit,setMobileEdit]=useState(null);
+  const[isMobile,setIsMobile]=useState(()=>!!window.matchMedia?.('(max-width: 768px)').matches);
+  useEffect(()=>{
+    const media=window.matchMedia?.('(max-width: 768px)');if(!media)return;
+    const update=()=>setIsMobile(media.matches);update();
+    media.addEventListener?.('change',update);
+    return()=>media.removeEventListener?.('change',update);
+  },[]);
   const canEditMobileOrder=canWrite(currentUser?.role,'delivery',currentUser?.permLevels);
   const canChangeTripDriver=canEditMobileOrder&&canTripAction(currentUser,'manage');
   const isAdmin=String(currentUser?.role||'').trim().toLowerCase()==='admin';
@@ -2334,6 +2365,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(ak==='CHUAPHANKHUVUC'||bk==='CHUAPHANKHUVUC')return false;
     return ak===bk||ak.includes(bk)||bk.includes(ak);
   };
+  const {pointMatchById,pointMatchByName,orderContext}=React.useMemo(()=>{
   const pointMatchById=new Map();
   const pointMatchByName=new Map();
   (customers||[]).forEach(customer=>(customer.points||[]).forEach(point=>{
@@ -2345,12 +2377,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       else pointMatchByName.set(nameKey,null);
     }
   }));
-  const tripById=new Map((trips||[]).map(trip=>[String(trip.id||''),trip]));
+  const contextCache=new WeakMap();
   const orderContext=o=>{
+    if(contextCache.has(o))return contextCache.get(o);
     const resolved=pointMatchById.get(String(o?.pointId||o?.ptId||''))||pointMatchByName.get(normalizeLookupText(o?.pointName||''))||findOrderPointMatch(o,customers||[]);
     const pt=resolved?.point||{};
     const cust=resolved?.customer||{};
-    return {
+    const ctx={
       ...o,
       deliveryTime:normalizeTimeInput(o?.deliveryTime||''),
       pointId:pt.id||o?.pointId||'',
@@ -2360,7 +2393,22 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       customerId:cust.id||o?.customerId||'',
       customer:cust.name||o?.customer||''
     };
+    contextCache.set(o,ctx);contextCache.set(ctx,ctx);return ctx;
   };
+  return {pointMatchById,pointMatchByName,orderContext};
+  },[customers]);
+  const tripById=React.useMemo(()=>new Map((trips||[]).map(trip=>[String(trip.id||''),trip])),[trips]);
+  const indexedTrips=React.useMemo(()=>deliveryTripIndex(trips),[trips]);
+  const pickerTrips=React.useMemo(()=>(trips||[]).filter(t=>!['completion_pending','completed'].includes(t.status)),[trips]);
+  const pickerTripsForOrder=React.useMemo(()=>{
+  const selectedOptions=new Map();
+  return order=>{
+    const selected=tripById.get(String(order.tripId||''));
+    if(!selected||!['completion_pending','completed'].includes(selected.status))return pickerTrips;
+    if(!selectedOptions.has(selected))selectedOptions.set(selected,[...pickerTrips,selected]);
+    return selectedOptions.get(selected);
+  };
+  },[pickerTrips,tripById]);
   useEffect(()=>{
     const onKey=e=>{
       if((e.ctrlKey||e.metaKey)&&!e.altKey&&String(e.key||'').toLowerCase()==='d'){
@@ -2453,21 +2501,6 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(areaFromPoint&&areaKey(areaFromPoint)!=='CHUAPHANKHUVUC')return areaFromPoint;
     return '';
   };
-  const tripDateOptionsForOrder=o=>[o?.deliveryDate,addDaysVN(o?.deliveryDate,-1),getOrderTripDate(o,prodShifts||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
-  const sameTripDate=(a,b)=>{
-    const av=toIsoDate(a),bv=toIsoDate(b);
-    if(av&&bv)return av===bv;
-    return String(a||'').trim()===String(b||'').trim();
-  };
-  const tripOptionsForOrder=o=>{
-    const dates=tripDateOptionsForOrder(o);
-    return (trips||[]).filter(t=>!t.deliveryDate||dates.some(date=>sameTripDate(t.deliveryDate,date))||t.id===o.tripId);
-  };
-  const tripMatchesArea=(trip,area)=>{
-    if(!area)return false;
-    if(sameArea(trip?.area,area)||sameArea(trip?.shiftName,area))return true;
-    return (orders||[]).some(order=>String(order?.tripId||'')===String(trip?.id||'')&&sameArea(getArea(orderContext(order)),area));
-  };
   const tripMatchesShift=(trip,shiftId,shiftName)=>{
     const desiredId=String(shiftId||'').trim();
     const desiredName=normalizeLookupText(shiftName||'');
@@ -2493,21 +2526,17 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(!configuredShift||configuredShift.active===false)return null;
     const preferredShiftId=String(configuredShift.id||'');
     const preferredShiftName=String(configuredShift.name||'');
-    const options=tripOptionsForOrder(ctx);
-    if(!options.length||!preferredDate)return null;
-    const candidates=options.filter(t=>!t.driverDispatchedAt&&!['active','completion_pending','completed','cancelled'].includes(t.status)&&sameTripDate(t.deliveryDate,preferredDate)&&tripMatchesShift(t,preferredShiftId,preferredShiftName));
+    if(!preferredDate)return null;
+    const candidates=indexedTrips.candidates(preferredDate,preferredShiftId).filter(t=>tripMatchesShift(t,preferredShiftId,preferredShiftName));
     if(!candidates.length)return null;
-    return [...candidates].sort((a,b)=>{
-      const currentScore=t=>String(t.id||'')===String(o.tripId||'')?20:0;
-      return currentScore(b)-currentScore(a)||(String(a.id||'').localeCompare(String(b.id||''),'vi'));
-    })[0]||null;
+    return candidates.find(t=>String(t.id||'')===String(o.tripId||''))||candidates[0]||null;
   };
   // Hai bộ lọc SS TN / ĐT được phân loại theo ca của chuyến, không theo khu
   // vực điểm giao. Nhờ vậy đơn thuộc khu vực SS TN nhưng đang nằm trong một
   // chuyến ĐT sẽ không còn xuất hiện sai nhóm.
   const samsungTripShiftOrder=['SS T1','VP ĐÊM','SS T2','YP QV','SS S1','SS S2','VP NGÀY','SS C'];
   const samsungTripShiftRank=new Map(samsungTripShiftOrder.map((name,index)=>[normalizeLookupText(name),index]));
-  const deliveryTripCache=new WeakMap();
+  const deliveryTripCache=React.useMemo(()=>new WeakMap(),[trips,prodShifts,customers,shifts]);
   const deliveryTripForOrder=o=>{
     if(deliveryTripCache.has(o))return deliveryTripCache.get(o);
     const ctx=orderContext(o);
@@ -2550,10 +2579,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return String(next.tripId||'')===String(tripId||'')&&next.status===status&&next.tripAssignMode==='auto'?next:{...next,tripAssignMode:'auto',tripId,status};
   };
   const syncTripOrderIds=nextOrders=>{
+    const members=new Map();
+    (nextOrders||[]).forEach(order=>{const ids=members.get(order.tripId)||[];ids.push(order.id);members.set(order.tripId,ids);});
     setTrips(prevTrips=>{
       let changed=false;
       const nextTrips=(prevTrips||[]).map(t=>{
-        const desired=nextOrders.filter(o=>o.tripId===t.id).map(o=>o.id);
+        const desired=members.get(t.id)||[];
         const current=t.orderIds||[];
         if(desired.length!==current.length||desired.some((id,idx)=>id!==current[idx])){
           changed=true;
@@ -2575,7 +2606,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   useEffect(()=>{
     if(!(orders||[]).some(order=>deliveryOrderStatusForTrip(order,tripById.get(String(order.tripId||'')))!==order.status))return;
     applyOrdersAndTripSync(prev=>prev.map(order=>{
-      const status=deliveryOrderStatusForTrip(order,(trips||[]).find(trip=>String(trip.id||'')===String(order.tripId||'')));
+      const status=deliveryOrderStatusForTrip(order,tripById.get(String(order.tripId||'')));
       return status===order.status?order:{...order,status,orderHistory:[...(order.orderHistory||[]),historyEntry('Đồng bộ trạng thái xếp chuyến',['Chuyến: '+order.tripId,'Trạng thái: '+(order.status||'—')+' → '+status])],updatedAt:fmtDT(),updatedBy:currentUser?.name||''};
     }));
   },[orders,trips]);
@@ -2770,8 +2801,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     }
     return true;
   };
-  const allOrderRowKeys=deliveryOrderRecordKeys(orders);
-  const filterDates=new Map();
+  const allOrderRowKeys=React.useMemo(()=>deliveryOrderRecordKeys(orders),[orders]);
+  const filterDates=React.useMemo(()=>new WeakMap(),[trips,prodShifts,customers,shifts]);
   const filterDateForOrder=order=>{
     if(!hasDateFilter)return '';
     if(sortMode!=='trip'||dateBasis==='order')return order.deliveryDate;
@@ -2781,11 +2812,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     }
     return filterDates.get(order);
   };
-  const orderRowKeyByObject=new Map((orders||[]).map((order,index)=>[order,allOrderRowKeys[index]]));
+  const orderRowKeyByObject=React.useMemo(()=>new Map((orders||[]).map((order,index)=>[order,allOrderRowKeys[index]])),[orders,allOrderRowKeys]);
   // Đơn gốc phải ưu tiên khóa vừa tính; một số dữ liệu cũ có thể đã lưu nhầm _rowKey nội bộ.
   const orderRowKey=order=>orderRowKeyByObject.get(order)||order?._rowKey||('delivery-order-fallback\u001f'+String(order?.id||''));
-  const listWithoutPoint=orders.filter(x=>{
-    if(filter!=='all'&&x.status!==filter) return false;
+  const baseFilterRows=React.useMemo(()=>orders.filter(x=>{
     if(q&&!String(x.customer||'').toLowerCase().includes(q.toLowerCase())&&!String(x.id||'').toLowerCase().includes(q.toLowerCase())&&!String(x.pointName||'').toLowerCase().includes(q.toLowerCase())&&!(x.lines||[]).some(line=>String(line.productName||'').toLowerCase().includes(q.toLowerCase()))) return false;
     if(!matchesDateFilter(filterDateForOrder(x)))return false;
     if(fProduct){
@@ -2795,21 +2825,20 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(fTime&&normalizeTimeInput(x.deliveryTime||'')!==fTime) return false;
     if(!matchesAreaOrTripGroup(x)) return false;
     return true;
-  });
-  const pointOptions=[...new Set(listWithoutPoint.map(x=>String(x.pointName||x.address||'').trim()).filter(Boolean))]
-    .sort((a,b)=>a.localeCompare(b,'vi',{sensitivity:'base',numeric:true}));
+  }),[orders,trips,customers,prodShifts,shifts,q,dateFilterMode,dateBasis,fDate,fDateTo,fWeek,fMonth,sortMode,fProduct,fTime,fArea]);
+  const listWithoutPoint=React.useMemo(()=>baseFilterRows.filter(x=>filter==='all'||x.status===filter),[baseFilterRows,filter]);
+  const pointOptions=React.useMemo(()=>[...new Set(listWithoutPoint.map(x=>String(x.pointName||x.address||'').trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'vi',{sensitivity:'base',numeric:true})),[listWithoutPoint]);
   useEffect(()=>{if(fPoint&&!pointOptions.includes(fPoint))sfPoint('');},[fPoint,pointOptions.join('\u0001')]);
-  const list=listWithoutPoint.filter(x=>!fPoint||String(x.pointName||x.address||'').trim()===fPoint);
-  const statusScope=orders.filter(x=>{
-    if(q&&!String(x.customer||'').toLowerCase().includes(q.toLowerCase())&&!String(x.id||'').toLowerCase().includes(q.toLowerCase())&&!String(x.pointName||'').toLowerCase().includes(q.toLowerCase())&&!(x.lines||[]).some(line=>String(line.productName||'').toLowerCase().includes(q.toLowerCase())))return false;
-    if(!matchesDateFilter(filterDateForOrder(x)))return false;
-    if(fProduct&&!(x.lines||[]).some(line=>normalizeLookupText(line.productName||'')===normalizeLookupText(fProduct)))return false;
-    if(fTime&&normalizeTimeInput(x.deliveryTime||'')!==fTime)return false;
-    if(!matchesAreaOrTripGroup(x))return false;
-    if(fPoint&&String(x.pointName||x.address||'').trim()!==fPoint)return false;
-    return true;
-  });
+  const list=React.useMemo(()=>listWithoutPoint.filter(x=>!fPoint||String(x.pointName||x.address||'').trim()===fPoint),[listWithoutPoint,fPoint]);
+  const statusScope=React.useMemo(()=>baseFilterRows.filter(x=>!fPoint||String(x.pointName||x.address||'').trim()===fPoint),[baseFilterRows,fPoint]);
   const statusCount=value=>value==='all'?statusScope.length:statusScope.filter(order=>order.status===value).length;
+  const productFilterNames=React.useMemo(()=>[...new Set((orders||[]).flatMap(order=>(order.lines||[]).map(line=>String(line.productName||'').trim())).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'vi',{sensitivity:'base',numeric:true})),[orders]);
+  const timeFilterValues=React.useMemo(()=>[...new Set(orders.map(o=>normalizeTimeInput(o.deliveryTime||'')).filter(Boolean))]
+    .sort((a,b)=>timeToMin(a)-timeToMin(b)||a.localeCompare(b,'vi')),[orders]);
+  const areaFilterValues=React.useMemo(()=>[...new Map(['SS TN','ĐT','KV',...customers.flatMap(c=>(c.points||[]).map(p=>p.area)),...trips.map(t=>t.area)]
+    .filter(Boolean).map(area=>[areaKey(area),area])).values()].sort((a,b)=>a.localeCompare(b,'vi')),[customers,trips]);
   const updateAutoProductionTimes=()=>{
     const targetRowKeys=new Set(list.map(orderRowKey));
     let changed=0,miss=0,tripMiss=0;
@@ -2841,12 +2870,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     return wpu*qty;
   };
   const calcOrderWeight=o=>(o.lines||[]).reduce((s,l)=>s+orderLineWeight(l),0);
-  const shiftScheduleMeta=(shifts||[]).map((sh,idx)=>({
+  const shiftScheduleMeta=React.useMemo(()=>(shifts||[]).map((sh,idx)=>({
     ...sh,
     _order:idx,
     _start:String(sh.timeStart||sh.startTime||'').trim(),
     _startMin:String(sh.timeStart||sh.startTime||'').trim()?timeToMin(sh.timeStart||sh.startTime):Number.MAX_SAFE_INTEGER
-  }));
+  })),[shifts]);
   const matchShiftSchedule=({shiftId,shiftName,area,deliveryTime}={})=>{
     const desiredId=String(shiftId||'').trim();
     const desiredName=normalizeLookupText(shiftName||'');
@@ -2874,11 +2903,11 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const parts=[t.deliveryDate,t.shiftName,t.area].filter(Boolean);
     return parts.join(' · ')||t.id||'Chưa có chuyến';
   };
-  const orderMeta=list.map(o=>{
+  const orderMeta=React.useMemo(()=>list.map(o=>{
     const ctx=orderContext(o);
     const area=getArea(ctx)||'';
     return {...o,_ctx:ctx,_area:area,_rowKey:orderRowKey(o)};
-  });
+  }),[list,customers,allOrderRowKeys]);
   const enrichOrderTripMeta=o=>{
     const ctx=o._ctx||orderContext(o);
     const tripMode=o.tripAssignMode==='manual'?'manual':'auto';
@@ -2890,13 +2919,18 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const preferredTripShiftName=getOrderTripShiftName(ctx,prodShifts||[])||'';
     return {...o,_ctx:ctx,_autoTrip:autoTrip,_effectiveTrip:effectiveTrip,_preferredTripDate:preferredTripDate,_preferredTripShiftName:preferredTripShiftName,_area:o._area||getArea(ctx)||''};
   };
-  const sortableOrderMeta=sortMode==='trip'?orderMeta.map(enrichOrderTripMeta):orderMeta;
+  const sortableOrderMeta=React.useMemo(()=>sortMode==='trip'?orderMeta.map(enrichOrderTripMeta):orderMeta,[orderMeta,sortMode,trips,prodShifts,customers,shifts]);
   const configuredDeliverySequence=o=>{
     const ctx=o?._ctx||orderContext(o);
     const resolved=pointMatchById.get(String(ctx?.pointId||ctx?.ptId||''))||pointMatchByName.get(normalizeLookupText(ctx?.pointName||''))||findOrderPointMatch(ctx,customers||[]);
     return numFmt(resolved?.point?.deliveryOrder??resolved?.point?.deliverySeq??resolved?.point?.deliveryIndex);
   };
+  const groupInfoCache=React.useMemo(()=>new WeakMap(),[trips,shifts,employees,fArea,sortMode]);
   const groupInfoForOrder=o=>{
+    if(!groupInfoCache.has(o))groupInfoCache.set(o,buildGroupInfoForOrder(o));
+    return groupInfoCache.get(o);
+  };
+  const buildGroupInfoForOrder=o=>{
     if(sortMode==='trip'){
       if(o._effectiveTrip){
         const label=tripGroupLabel(o._effectiveTrip);
@@ -2944,7 +2978,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       sortText:o._area||'Chưa phân khu vực'
     };
   };
-  const sortedList=[...sortableOrderMeta].sort((a,b)=>{
+  const sortedList=React.useMemo(()=>[...sortableOrderMeta].sort((a,b)=>{
     const ga=groupInfoForOrder(a),gb=groupInfoForOrder(b);
     if(sortMode==='trip'){
       const dateCmp=(ga.sortDate||0)-(gb.sortDate||0);
@@ -2975,27 +3009,35 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const pointCmp=(a._ctx.pointName||'').localeCompare(b._ctx.pointName||'','vi');
     if(pointCmp!==0)return pointCmp;
     return sortMode==='trip'?String(a.id||'').localeCompare(String(b.id||''),'vi'):(a._ctx.deliveryTime||'').localeCompare(b._ctx.deliveryTime||'');
-  });
+  }),[sortableOrderMeta,sortMode,customers,trips,shifts,employees,fArea]);
   const totalPages=Math.max(1,Math.ceil(sortedList.length/pageSize));
   const visiblePage=Math.min(Math.max(1,currentPage),totalPages);
   const pageStart=(visiblePage-1)*pageSize;
   const pageEnd=Math.min(pageStart+pageSize,sortedList.length);
-  const pagedList=sortedList.slice(pageStart,pageEnd).map(o=>{
+  const pagedList=React.useMemo(()=>sortedList.slice(pageStart,pageEnd).map(o=>{
     const enriched=Object.prototype.hasOwnProperty.call(o,'_autoTrip')?o:enrichOrderTripMeta(o);
     return {...enriched,_totalW:calcOrderWeight(enriched._ctx)};
-  });
-  const visibleProductLabels=pagedList.flatMap(order=>{
+  }),[sortedList,pageStart,pageEnd,trips,prodShifts,customers,shifts,products]);
+  const visibleProductLabels=React.useMemo(()=>pagedList.flatMap(order=>{
     const lines=(order._ctx||orderContext(order)).lines||[];
     return lines.map((line,index)=>({
       label:(index+1)+'. '+String(line?.productName||'Sản phẩm').trim(),
       name:String(line?.productName||'Sản phẩm').trim()
     }));
-  });
-  const longestVisibleProduct=visibleProductLabels.reduce((longest,item)=>deliveryProductTextWidth(item.label)>deliveryProductTextWidth(longest.label)?item:longest,{label:'',name:''});
+  }),[pagedList]);
+  const longestVisibleProduct=React.useMemo(()=>visibleProductLabels.reduce((longest,item)=>deliveryProductTextWidth(item.label)>deliveryProductTextWidth(longest.label)?item:longest,{label:'',name:''}),[visibleProductLabels]);
   const productColumnWidth=Math.max(145,Math.min(420,Math.ceil(deliveryProductTextWidth(longestVisibleProduct.label)+28)));
   const productColumnTitle=longestVisibleProduct.name
     ?'Tên dài nhất đang hiển thị: '+longestVisibleProduct.name+' ('+Array.from(longestVisibleProduct.name).length+' ký tự)'
     :'Chưa có tên sản phẩm';
+  const productionDisplayCache=React.useMemo(()=>new WeakMap(),[prodShifts,prodShiftRules,customers]);
+  const productionDisplayForOrder=ctx=>{
+    if(!productionDisplayCache.has(ctx)){
+      const plans=prodShiftPlansForOrder(ctx,prodShifts||[],prodShiftRules);
+      productionDisplayCache.set(ctx,{plans,firstPlan:plans[0]||prodShiftPlan(ctx,prodShifts||[],prodShiftRules),offset:getOrderTripDateOffset(ctx,prodShifts||[])});
+    }
+    return productionDisplayCache.get(ctx);
+  };
   // Duyệt theo danh sách khóa hiện có để số ô đã chọn và số đơn được xóa luôn đồng nhất.
   // Cách này cũng tự loại các khóa lựa chọn cũ sau khi dữ liệu đơn hàng thay đổi.
   const selectedOrderKeys=isAdmin
@@ -3437,20 +3479,19 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         h('select',{value:fProduct,onChange:e=>sfProduct(e.target.value),title:'Lọc theo tên sản phẩm đang có trong đơn hàng',
           style:{padding:'5px 8px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:12,width:160}},
           h('option',{value:''},'Tất cả sản phẩm'),
-          [...new Set((orders||[]).flatMap(order=>(order.lines||[]).map(line=>String(line.productName||'').trim())).filter(Boolean))]
-            .sort((a,b)=>a.localeCompare(b,'vi',{sensitivity:'base',numeric:true})).map(productName=>
+          productFilterNames.map(productName=>
             h('option',{key:productName,value:productName},productName)
           )
         ),
         h('select',{value:fTime,onChange:e=>sfTime(e.target.value),
           style:{padding:'5px 8px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:12,width:100}},
           h('option',{value:''},'Tất cả giờ'),
-          [...new Set(orders.map(o=>normalizeTimeInput(o.deliveryTime||'')).filter(Boolean))].sort((a,b)=>timeToMin(a)-timeToMin(b)||a.localeCompare(b,'vi')).map(t=>h('option',{key:t,value:t},t))
+          timeFilterValues.map(t=>h('option',{key:t,value:t},t))
         ),
         h('select',{value:fArea,onChange:e=>sfArea(e.target.value),
           style:{padding:'5px 8px',borderRadius:'var(--r)',border:'1px solid var(--bd)',fontSize:12,width:120}},
           h('option',{value:''},'Tất cả KV'),
-          [...new Map(['SS TN','ĐT','KV',...customers.flatMap(c=>(c.points||[]).map(p=>p.area)),...trips.map(t=>t.area)].filter(Boolean).map(area=>[areaKey(area),area])).values()].sort((a,b)=>a.localeCompare(b,'vi')).map(a=>h('option',{key:areaKey(a),value:a},a))
+          areaFilterValues.map(a=>h('option',{key:areaKey(a),value:a},a))
         ),
         (hasDateFilter||fPoint||fProduct||fTime||fArea)&&h('button',{
           onClick:resetDeliveryFilters,
@@ -3711,7 +3752,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       null
     ),
     h('div',{className:'delivery-body'},
-      h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
+      !isMobile&&h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
         h('table',{className:'delivery-orders-table'+(detailColumnsHidden?' delivery-orders-table-focus':'')},
         h('colgroup',null,
           h('col',{style:{width:95}}),
@@ -3767,15 +3808,16 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           const ctx=o._ctx||orderContext(o);
           const totalW=o._totalW||calcOrderWeight(ctx);
           const prodShiftMode=o.prodShiftAssignMode==='manual'?'manual':'auto';
-          const prodShiftCtx={...ctx,prodShiftAssignMode:prodShiftMode};
+          const prodShiftCtx=ctx;
           const tripMode=o.tripAssignMode==='manual'?'manual':'auto';
-          const tripDateOffset=getOrderTripDateOffset(prodShiftCtx,prodShifts||[]);
+          const productionData=detailColumnsHidden?null:productionDisplayForOrder(prodShiftCtx);
+          const tripDateOffset=productionData?.offset;
           const tripDateOffsetLabel=(tripDateOffset===null||tripDateOffset===undefined||Number.isNaN(tripDateOffset))?'?':tripDateOffset;
           const preferredTripDate=o._preferredTripDate||getOrderTripDate(prodShiftCtx,prodShifts||[])||'';
           const preferredTripShiftName=o._preferredTripShiftName||getOrderTripShiftName(prodShiftCtx,prodShifts||[]);
-          const autoTrip=deliveryTripForOrder(prodShiftCtx);
+          const autoTrip=o._effectiveTrip===undefined?deliveryTripForOrder(prodShiftCtx):o._effectiveTrip;
           // Chọn tay phải đọc toàn bộ kho chuyến đã đồng bộ; ngày được lọc bên trong ManualTripPicker.
-          const tripOptions=(trips||[]).filter(t=>!closedTrip(t)||String(t.id||'')===String(ctx.tripId||''));
+          const tripOptions=pickerTripsForOrder(ctx);
           const selectedTripId=tripMode==='manual'?(ctx.tripId||''):(autoTrip?.id||'');
           const currentTrip=orderTrip(ctx);
           const assignmentStarted=dispatchedTrip(currentTrip)||ctx.status==='delivering';
@@ -3783,12 +3825,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           const assignmentLocked=assignmentClosed||(assignmentStarted&&!canWithdrawStartedOrder);
           const assignmentTitle=assignmentClosed?'Chuyến đã chờ duyệt/hoàn thành':assignmentLocked?'Đơn đang giao, chỉ Kế toán hoặc Admin được rút/chuyển':assignmentStarted?'Kế toán/Admin: chuyển sang chọn tay để rút hoặc chuyển đơn':'';
           const tripLabel=autoTrip?.area||autoTrip?.shiftName||preferredTripShiftName;
-          const plansForDisplay=prodShiftPlansForOrder(prodShiftCtx,prodShifts||[],prodShiftRules);
-          const firstPlanForDisplay=plansForDisplay[0]||prodShiftPlan(prodShiftCtx,prodShifts||[],prodShiftRules);
+          const plansForDisplay=productionData?.plans||[];
+          const firstPlanForDisplay=productionData?.firstPlan;
           const planRows=plansForDisplay.length
             ?plansForDisplay.map((plan,pi)=>({key:plan.line?.id||('plan_'+pi),plan,line:plan.line||ctx.lines?.[pi]||{},productName:plan.productName||plan.line?.productName||'Sản phẩm'}))
             :(ctx.lines||[]).map((line,pi)=>({key:line.id||('line_'+pi),plan:null,line,productName:line.productName||'Sản phẩm'}));
-          const tripSelect=h('div',{className:'delivery-trip-content'},
+          const tripSelect=!detailColumnsHidden&&h('div',{className:'delivery-trip-content'},
             h('div',{style:{display:'flex',alignItems:'center',gap:6,flexWrap:'nowrap'}},
               h('span',{className:'badge',style:{background:tripMode==='manual'?'#FFF3CD':'#E8F5E9',color:tripMode==='manual'?'#8A5A00':'#1B5E20'}},tripMode==='manual'?'Chọn tay':'T.Đ ('+tripDateOffsetLabel+')'),
               tripLabel&&h('span',{className:'delivery-table-text',style:{color:'var(--tx2)'}},'Ca giao: '+tripLabel),
@@ -3877,7 +3919,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         )
       )
     ),
-    h('div',{className:'mobile-only mobile-card-list delivery-order-mobile-list'},
+    isMobile&&h('div',{className:'mobile-only mobile-card-list delivery-order-mobile-list'},
       list.length?orderTableRows.map((o,_i)=>{
         if(o._hdr)return h(DeliveryOrderGroupHeader,{key:'mobile-header-'+_i,group:o.group,count:o.cnt,weight:o.kl,mobile:true,onEditDriver:canChangeTripDriver&&deliveryTripDriverEditable(tripById.get(String(o.group.tripId)))?setDriverEditTripId:null});
         const ctx=o._ctx||orderContext(o);
@@ -3891,14 +3933,13 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         const assignmentClosed=closedTrip(currentTrip)||ctx.status==='done';
         const assignmentLocked=assignmentClosed||(assignmentStarted&&!canWithdrawStartedOrder)||!canEditMobileOrder;
         const assignmentTitle=assignmentClosed?'Chuyến đã chờ duyệt/hoàn thành':assignmentLocked?'Bạn không có quyền chuyển đơn này':'';
-        const plans=prodShiftPlansForOrder(ctx,prodShifts||[],prodShiftRules);
-        const firstPlan=plans[0]||prodShiftPlan(ctx,prodShifts||[],prodShiftRules);
+        const {plans,firstPlan}=productionDisplayForOrder(ctx);
         return h(DeliveryMobileOrderCard,{key:'mod_'+o._rowKey,rowKey:o._rowKey,order:ctx,trip:displayTrip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,
           canEdit:canEditMobileOrder,onEdit:()=>setMobileEdit(cleanDeliveryOrderRecord(o)),
           selection:isAdmin&&h('input',{type:'checkbox',checked:bulkSelected.has(o._rowKey),onChange:()=>toggleBulkOrder(o),'aria-label':'Chọn đơn '+(ctx.pointName||'')+' '+(ctx.deliveryTime||'')}),
           renderTripControls:()=>{
             if(!canEditMobileOrder)return null;
-            const tripOptions=(trips||[]).filter(t=>!closedTrip(t)||String(t.id||'')===String(ctx.tripId||''));
+            const tripOptions=pickerTripsForOrder(ctx);
             return h('div',{className:'delivery-card-trip-controls'},
             h('button',{type:'button','data-scf-action':'write',disabled:assignmentLocked||(assignmentStarted&&tripMode==='manual'),title:assignmentTitle,
               onClick:()=>setOrderTripMode(o,tripMode==='manual'?'auto':'manual')},tripMode==='manual'?'Chuyển về TĐ':'Chọn chuyến bằng tay'),
