@@ -440,6 +440,20 @@ function scfSavedOrderPatchesMatch(saved,patches){
     });
   });
 }
+function scfVerifyTripDriverSave(key,saved,value){
+  if(key!=='scf_trips')return;
+  const before=new Map((scfRemoteSnapshots.get(key)||[]).map(trip=>[String(trip.id),trip]));
+  const rows=new Map((saved?.value||[]).map(trip=>[String(trip.id),trip]));
+  for(const trip of value||[]){
+    if(trip.driverAssignMode!=='manual')continue;
+    const old=before.get(String(trip.id));
+    if(old&&String(old.driverId||'')===String(trip.driverId||'')&&String(old.driverName||'')===String(trip.driverName||'')&&old.driverAssignMode===trip.driverAssignMode)continue;
+    const row=rows.get(String(trip.id));
+    if(!row||String(row.driverId||'')!==String(trip.driverId||'')||String(row.driverName||'')!==String(trip.driverName||'')||row.driverAssignMode!=='manual'){
+      throw new Error('Máy chủ chưa xác nhận lái xe của chuyến '+trip.id+'. Thay đổi vẫn đang chờ đồng bộ.');
+    }
+  }
+}
 async function scfSavePermittedCollection(key,val,patches,expectedUpdatedAt,baseValue,timeoutMs){
   const payload=patches?{key,patches,expectedUpdatedAt}:{key,value:val,baseValue,expectedUpdatedAt};
   return measuredCollectionSave(key,patches?'patch':'full',payload,async()=>{
@@ -487,6 +501,7 @@ async function performDbSet(key,val,queuedAt='',mode=''){
       if(readSyncQueue()[key]?.updatedAt!==queuedAt)return false;
       scfVerifyInvoiceSave(key,saved,val,patches);
       scfVerifyOrderTripSave(key,saved,val,patches);
+      scfVerifyTripDriverSave(key,saved,val);
       const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(val);
       if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(val));
       scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');
@@ -594,6 +609,7 @@ async function runPendingWrites(){
         if(readSyncQueue()[key]?.updatedAt!==item.updatedAt)return false;
         scfVerifyInvoiceSave(key,saved,item.value,patches);
         scfVerifyOrderTripSave(key,saved,item.value,patches);
+        scfVerifyTripDriverSave(key,saved,item.value);
         const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(item.value);
         if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(item.value));
         scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));
@@ -658,6 +674,18 @@ window.scfWaitForCollectionSync=function(key,timeoutMs=35000){
     };
     check();
   });
+};
+window.scfWaitForTripDriverSync=async function(tripId,driverId,orderIds,timeoutMs=6000){
+  if(!navigator.onLine)return false;
+  // Gửi ngay các thay đổi đã xếp hàng; không giữ cửa sổ chờ toàn bộ thời gian
+  // timeout HTTP hoặc các lần thử lại của máy chủ.
+  window.scfFlushPendingWrites().catch(error=>console.warn('Trip driver sync:',error?.message||error));
+  const results=await Promise.all(['scf_trips','scf_orders'].map(key=>window.scfWaitForCollectionSync(key,timeoutMs)));
+  if(results.some(ok=>!ok))return false;
+  const trip=(scfRemoteSnapshots.get('scf_trips')||[]).find(item=>String(item.id)===String(tripId));
+  if(String(trip?.driverId||'')!==String(driverId)||trip?.driverAssignMode!=='manual')return false;
+  const orders=new Map((scfRemoteSnapshots.get('scf_orders')||[]).map(order=>[String(order.id),order]));
+  return (orderIds||[]).every(id=>{const order=orders.get(String(id));return String(order?.tripId||'')===String(tripId)&&order?.tripAssignMode==='manual';});
 };
 window.addEventListener('online',()=>flushPendingWrites());
 window.addEventListener('offline',()=>setSyncState('offline','Mất kết nối mạng'));
