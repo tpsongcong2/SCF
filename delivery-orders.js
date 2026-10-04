@@ -2714,10 +2714,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(window.__SCF_ACCESS_CONTEXT?.readOnly)throw new Error('Dữ liệu đang ở chế độ chỉ xem. Hãy tải lại dữ liệu trước khi đổi lái xe.');
     const trip=tripById.get(String(tripId));
     if(!deliveryTripDriverEditable(trip))throw new Error('Chuyến đã giao lái xe hoặc đã kết thúc. Hãy thu hồi chuyến trước khi đổi lái xe.');
-    const listedIds=new Set((trip.orderIds||[]).map(String));
     // Dùng toàn bộ đơn trong chuyến, kể cả đơn ngoài trang và ngoài bộ lọc đang xem.
-    const members=orders.filter(order=>order.status!=='cancelled'&&(String(order.tripId||'')===String(tripId)||
-      String(deliveryTripForOrder(order)?.id||'')===String(tripId)||(!order.tripId&&listedIds.has(String(order.id)))));
+    // Cùng nguồn liên kết với dòng tổng và trang Chuyến. Không kéo lại đơn
+    // đã rút bằng tay hoặc thuộc chuyến khác từ danh sách mã đơn cũ.
+    const members=orders.filter(order=>order.status!=='cancelled'&&String(deliveryTripForOrder(order)?.id||'')===String(tripId));
     const memberIds=members.map(order=>order.id);
     const alreadySaved=String(trip.driverId||'')===String(driver.id)&&trip.driverAssignMode==='manual'&&members.every(order=>String(order.tripId||'')===String(tripId)&&order.tripAssignMode==='manual');
     if(!alreadySaved){
