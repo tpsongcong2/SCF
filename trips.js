@@ -709,8 +709,20 @@ function AdditionalTripOrderForm({trip,customers,products,onSave,onClose}){
 }
 
 function tripDefaultPointOrder(order,customers){
-  const resolved=findOrderPointMatch(order,customers||[]);
-  return numFmt(resolved?.point?.deliveryOrder??resolved?.point?.deliverySeq??resolved?.point?.deliveryIndex);
+  return scfTripOrderLocation(order,customers).sequence;
+}
+function scfTripOrderLocation(order,customers){
+  const resolved=findOrderPointMatch(order,customers||[]),point=resolved?.point;
+  const clean=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const name=clean(point?.name||order.pointName||order.customer);
+  const address=clean(point?.address||order.address),area=clean(point?.area||order.area);
+  const pointId=String(point?.id||order.pointId||order.ptId||'');
+  const customerId=String(resolved?.customer?.id||order.customerId||order.custId||'');
+  return {
+    sequence:numFmt(point?.deliveryOrder??point?.deliverySeq??point?.deliveryIndex),
+    area:area||'\uffff',address:address||name||'\uffff',name,
+    key:JSON.stringify(pointId?[customerId,pointId]:[customerId,area,address,name])
+  };
 }
 function tripManualOrderEnabled(trip){
   return String(trip?.deliveryOrderMode||'auto')==='manual';
@@ -720,18 +732,41 @@ function tripOrderSortValue(trip,order,customers){
     ?numFmt(order?.deliveryOrder??order?.deliverySeq??order?.deliveryIndex)
     :tripDefaultPointOrder(order,customers);
 }
-function sortTripOrdersByDeliveryOrder(trip,tripOrders,customers,valueForOrder=order=>tripOrderSortValue(trip,order,customers)){
-  // Resolve each delivery point once, rather than on every sort comparison.
-  const values=new Map((tripOrders||[]).map(order=>[order,valueForOrder(order)]));
+function sortTripOrdersByDeliveryOrder(trip,tripOrders,customers,valueForOrder,locationForOrder){
+  const manual=tripManualOrderEnabled(trip);
+  // Resolve locations once and reuse them when the trip reader caches its result.
+  const locations=manual?null:new Map((tripOrders||[]).map(order=>[order,locationForOrder?locationForOrder(order):scfTripOrderLocation(order,customers)]));
+  const values=new Map((tripOrders||[]).map(order=>[order,valueForOrder?valueForOrder(order):manual?tripOrderSortValue(trip,order,customers):locations.get(order).sequence]));
+  const locationCollator=manual?null:new Intl.Collator('vi',{numeric:true});
+  const compareText=(a,b)=>locationCollator.compare(String(a||''),String(b||''));
+  const compareLocation=(a,b)=>compareText(a.area,b.area)||compareText(a.address,b.address)||compareText(a.name,b.name)||compareText(a.key,b.key);
+  if(!manual){
+    // Use one location per stop so historical address snapshots cannot split it.
+    const stops=new Map(),stopKeys=new Map();
+    for(const order of tripOrders||[]){
+      const location=locations.get(order),value=values.get(order);
+      const key=JSON.stringify([value>0?value:0,location.key]);
+      stopKeys.set(order,key);
+      const saved=stops.get(key);
+      if(!saved||compareLocation(location,saved)<0)stops.set(key,location);
+    }
+    for(const order of tripOrders||[])locations.set(order,stops.get(stopKeys.get(order)));
+  }
   return [...(tripOrders||[])].sort((a,b)=>{
     const av=values.get(a),bv=values.get(b);
     const ao=av>0?av:Number.MAX_SAFE_INTEGER,bo=bv>0?bv:Number.MAX_SAFE_INTEGER;
-    return ao-bo||String(a.deliveryTime||'').localeCompare(String(b.deliveryTime||''))||String(a.pointName||a.customer||'').localeCompare(String(b.pointName||b.customer||''),'vi');
+    if(ao!==bo)return ao-bo;
+    if(!manual){
+      const al=locations.get(a),bl=locations.get(b);
+      const byLocation=compareLocation(al,bl);
+      if(byLocation)return byLocation;
+    }
+    return String(a.deliveryTime||'').localeCompare(String(b.deliveryTime||''))||String(a.pointName||a.customer||'').localeCompare(String(b.pointName||b.customer||''),'vi');
   });
 }
 
 function scfCreateTripOrderReader(orders,customers,products){
-  const byId=new Map(),productById=new Map(),cache=new WeakMap(),defaultOrder=new WeakMap();
+  const byId=new Map(),productById=new Map(),cache=new WeakMap(),defaultLocation=new WeakMap();
   (orders||[]).forEach((order,index)=>{
     const rows=byId.get(order.id)||[];rows.push({order,index});byId.set(order.id,rows);
   });
@@ -744,16 +779,16 @@ function scfCreateTripOrderReader(orders,customers,products){
     rows.sort((a,b)=>a.index-b.index);
     result={orders:rows.map(row=>row.order)};cache.set(trip,result);return result;
   };
-  const pointOrder=order=>{
-    if(!defaultOrder.has(order))defaultOrder.set(order,tripDefaultPointOrder(order,customers));
-    return defaultOrder.get(order);
+  const pointLocation=order=>{
+    if(!defaultLocation.has(order))defaultLocation.set(order,scfTripOrderLocation(order,customers));
+    return defaultLocation.get(order);
   };
   return {
     orders:trip=>entry(trip).orders,
     hasOrders:trip=>(trip.orderIds||[]).some(id=>byId.has(id)),
     sorted(trip){
       const result=entry(trip);if(result.sorted)return result.sorted;
-      result.sorted=sortTripOrdersByDeliveryOrder(trip,result.orders,customers,tripManualOrderEnabled(trip)?undefined:pointOrder);
+      result.sorted=sortTripOrdersByDeliveryOrder(trip,result.orders,customers,undefined,tripManualOrderEnabled(trip)?undefined:pointLocation);
       return result.sorted;
     },
     weight(trip){
@@ -871,10 +906,11 @@ function scfTripImageShiftName(trip){
 function scfTripImageSortKey(trip){
   const name=scfTripImageShiftName(trip);
   const ss=['SST1','VPDEM','SST2','SSS1','SSS2','VPNGAY','SSC1'].indexOf(name);
+  const warehouse=name==='KV'||name==='KHOVAN';
   const dt=name.match(/^DT-?(\d{1,2})H(.*)$/);
   const rawDate=String(trip.deliveryDate||'');
   const date=/^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)?rawDate.split('/').reverse().join('-'):rawDate;
-  return {date,group:scfTripImageGroup(trip)==='dt'?1:0,rank:dt?Number(dt[1]):ss>=0?ss:1000,suffix:dt?dt[2]:name};
+  return {date,group:scfTripImageGroup(trip)==='dt'?1:0,rank:warehouse?2000:dt?Number(dt[1]):ss>=0?ss:1000,suffix:dt?dt[2]:name};
 }
 function scfSortTripImageTrips(trips){
   return [...(trips||[])].sort((a,b)=>{
@@ -888,9 +924,9 @@ function scfTripImageEarlyOrder(trip,row){
   if(!/^\d{1,2}:\d{2}$/.test(time))return false;
   const [hour,minute]=time.split(':').map(Number);
   if(hour>23||minute>59)return false;
-  const minutes=hour*60+minute,name=scfTripImageShiftName(trip);
-  if(name==='SST1')return minutes<21*60;
-  if(name==='SSS1')return minutes<9*60;
+  const name=scfTripImageShiftName(trip);
+  if(name==='SST1')return [20,21,16,8].includes(hour);
+  if(name==='SSS1')return [8,7,6,9].includes(hour);
   if(name==='VPDEM')return hour===13||hour===14;
   if(name==='VPNGAY')return hour===1;
   return false;

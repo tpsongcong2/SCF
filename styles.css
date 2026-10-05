@@ -733,7 +733,7 @@ th{font-family:var(--ui-header-family)!important}
   .trip-summary-quick-modal.image-screen .trip-summary-quick-result>b,.trip-summary-quick-modal.image-screen small{padding:10px 12px}
   .trip-summary-quick-modal.image-screen .trip-summary-quick-tools{padding:8px 10px;gap:6px}
   .trip-summary-quick-modal.image-screen .trip-summary-quick-tools button,.trip-summary-quick-modal.image-screen .trip-summary-quick-tools a{min-height:44px}
-  .trip-summary-quick-modal.image-screen .trip-summary-quick-image{border:0;border-radius:0;overflow:visible}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-image{border:0;border-radius:0;overflow:visible;padding-left:2px;box-sizing:border-box}
   .trip-summary-quick-modal.image-screen .trip-summary-quick-image.zoomed{max-height:none;overflow:auto}
   .mobile-nav-btn.on{color:var(--pri);background:#e5f2eb}
   .mobile-nav-btn.on::after{content:'';position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:var(--acc)}
