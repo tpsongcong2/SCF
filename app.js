@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V471';
+const SCF_BUILD_VERSION='V472';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -103,7 +103,7 @@ function scfOrderTripWeight(order,products,productById){
     return sum+(unit==='kg'||unit==='kgs'||unit==='kilogram'||unit==='kilograms'?qty:qty*numFmt(product?.weightPerUnit||line?.weightPerUnit||0));
   },0);
 }
-function scfReconcileTripOrderLinks(currentTrips,currentOrders,products){
+function scfReconcileTripOrderLinks(currentTrips,currentOrders,products,{automaticWrite=false}={}){
   const originalById=new Map((currentTrips||[]).map(trip=>[String(trip.id),trip]));
   const orderById=new Map((currentOrders||[]).map(order=>[String(order?.id||''),order]));
   const productById=new Map();
@@ -113,10 +113,14 @@ function scfReconcileTripOrderLinks(currentTrips,currentOrders,products){
     const wanted=[...new Set((trip.orderIds||[]).map(String))];
     const original=originalById.get(String(trip.id));
     const current=[...new Set((original?.orderIds||[]).map(String))];
-    const totalWeight=wanted.reduce((sum,id)=>sum+scfOrderTripWeight(orderById.get(id),products,productById),0);
+    // save_auto_trips can repair membership on a manually created trip, but
+    // only accepts cached weight on autoCreated trips. Keep its server-owned
+    // weight here; page summaries calculate weight from the actual orders.
+    const totalWeight=automaticWrite&&!original?.autoCreated?original?.totalWeight:
+      wanted.reduce((sum,id)=>sum+scfOrderTripWeight(orderById.get(id),products,productById),0);
     const linksChanged=wanted.length!==current.length||wanted.some((id,index)=>id!==current[index]);
-    const weightChanged=Math.abs(numFmt(trip?.totalWeight)-totalWeight)>0.001;
-    if(!linksChanged&&!weightChanged)return trip;
+    const weightChanged=Math.abs(numFmt(original?.totalWeight)-numFmt(totalWeight))>0.001;
+    if(!linksChanged&&!weightChanged)return original||trip;
     changed=true;return {...trip,orderIds:wanted,totalWeight};
   });
   return {trips,changed};
@@ -629,8 +633,9 @@ function App(){
     const planned=scfPlanAutomaticOrders(orders,advance.trips,prodShifts,customers,automationUser.name,25);
     const workingTrips=planned.trips,nextOrders=planned.orders;
     let tripsChanged=keptTrips.length!==(trips||[]).length||advance.changed||planned.tripsChanged;
-    // tripId của đơn là nguồn chính xác; làm sạch orderIds cũ và tổng khối lượng sau khi chuyển.
-    const reconciled=scfReconcileTripOrderLinks(workingTrips,nextOrders,products||[]);
+    // Repair only fields accepted by the automatic endpoint, so applying its
+    // merged response reaches a stable state instead of queuing another save.
+    const reconciled=scfReconcileTripOrderLinks(workingTrips,nextOrders,products||[],{automaticWrite:true});
     if(reconciled.changed)tripsChanged=true;
     if(tripsChanged)setAutoTrips(reconciled.trips);
     if(planned.changed)setOrders(nextOrders);

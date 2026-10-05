@@ -46,7 +46,8 @@ function scfTripMembershipView(trips,orders){
   return (trips||[]).map(trip=>{
     const wanted=[...new Set((index.ordersByTripId.get(String(trip.id))||[]).map(order=>order.id))];
     const current=trip.orderIds||[];
-    return wanted.length===current.length&&wanted.every((id,i)=>String(id)===String(current[i]))?trip:{...trip,orderIds:wanted,...(!wanted.length?{totalWeight:0}:{})};
+    const sameMembers=wanted.length===current.length&&wanted.every((id,i)=>String(id)===String(current[i]));
+    return sameMembers&&(wanted.length||!trip.totalWeight)?trip:{...trip,orderIds:wanted,...(!wanted.length?{totalWeight:0}:{})};
   });
 }
 const fmtDate=()=>{const d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()};
