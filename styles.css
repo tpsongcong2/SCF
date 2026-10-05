@@ -720,7 +720,21 @@ th{font-family:var(--ui-header-family)!important}
   .mobile-nav-summary i{font-size:22px}
   .mobile-nav-summary span{font-size:10px;line-height:12px}
   .trip-summary-quick-filters{grid-template-columns:minmax(0,1fr);gap:12px}
-  .trip-summary-quick-view{width:100%;justify-content:center}
+  .modal.wide.trip-summary-quick-modal{position:fixed;inset:0;width:100vw!important;max-width:none!important;height:100dvh;min-height:100dvh;max-height:100dvh;margin:0;padding:20px;border:0;border-radius:0;overflow-y:auto;background:#fff}
+  .trip-summary-quick-modal .mh{position:sticky;top:-20px;z-index:5;margin:-20px -20px 24px;padding:18px 20px;background:#fff;border-bottom:1px solid var(--bd)}
+  .trip-summary-quick-modal .mh h2{font-size:22px}
+  .trip-summary-quick-filters label{font-size:18px;gap:10px}
+  .trip-summary-quick-modal .trip-summary-quick-filters input,.trip-summary-quick-modal .trip-summary-quick-filters select{min-height:64px;font-size:22px!important;font-weight:700!important;padding:14px;width:100%;max-width:100%}
+  .trip-summary-quick-view{width:100%;min-height:72px;font-size:22px!important;font-weight:700!important;justify-content:center;margin-top:8px}
+  .trip-summary-quick-view i{font-size:26px}
+  .modal.trip-summary-quick-modal.image-screen{padding:0;display:flex;flex-direction:column;overflow:hidden}
+  .trip-summary-quick-modal.image-screen .mh{flex-shrink:0;position:static;margin:0;padding:14px 12px}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-result{width:100%;min-height:0;flex:1;overflow:auto;gap:0;align-items:stretch;padding-bottom:env(safe-area-inset-bottom)}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-result>b,.trip-summary-quick-modal.image-screen small{padding:10px 12px}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-tools{padding:8px 10px;gap:6px}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-tools button,.trip-summary-quick-modal.image-screen .trip-summary-quick-tools a{min-height:44px}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-image{border:0;border-radius:0;overflow:visible}
+  .trip-summary-quick-modal.image-screen .trip-summary-quick-image.zoomed{max-height:none;overflow:auto}
   .mobile-nav-btn.on{color:var(--pri);background:#e5f2eb}
   .mobile-nav-btn.on::after{content:'';position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:var(--acc)}
   .mobile-nav-backdrop{display:block;position:fixed;inset:0;z-index:205;background:rgba(8,25,18,.45);backdrop-filter:blur(2px)}

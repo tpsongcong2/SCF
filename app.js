@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V481';
+const SCF_BUILD_VERSION='V483';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -456,7 +456,7 @@ function App(){
     const data=await scfLoadQuickTripSummaryData(owner);
     const current=quickSummaryUserRef.current;
     if(!current||String(current.id)!==String(owner?.id)||!canViewTripQuickSummary(current))throw Error('Phiên đăng nhập đã thay đổi. Hãy mở lại đơn tổng.');
-    _st(data.trips);_so(data.orders);_sp(data.products);_scu(data.customers);
+    _st(data.trips);_so(data.orders);_sp(data.products);_scu(data.customers);_spc(data.prodCats);
     return data;
   };
   const resources={
