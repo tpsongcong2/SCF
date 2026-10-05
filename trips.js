@@ -889,18 +889,10 @@ function scfTripImageEarlyOrder(trip,row){
   const [hour,minute]=time.split(':').map(Number);
   if(hour>23||minute>59)return false;
   const minutes=hour*60+minute,name=scfTripImageShiftName(trip);
+  if(name==='SST1')return minutes<21*60;
   if(name==='SSS1')return minutes<9*60;
   if(name==='VPDEM')return hour===13||hour===14;
   if(name==='VPNGAY')return hour===1;
-  if(name==='SST1'){
-    // SS T1 crosses midnight. Compare the order day so 00:30 on the trip day stays normal.
-    const dateKey=value=>{
-      const date=String(value||'');
-      return /^\d{2}\/\d{2}\/\d{4}$/.test(date)?date.split('/').reverse().join('-'):/^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
-    };
-    const orderDate=dateKey(row[0]),tripDate=dateKey(trip.deliveryDate);
-    return !!orderDate&&!!tripDate&&orderDate<tripDate&&minutes<21*60;
-  }
   return false;
 }
 function renderTripImage(trips,orders,products,customers,title,prodCats=[]){
