@@ -44,7 +44,7 @@ function filterTripAdditionalProducts(products,prodCats,orderLines,category,quer
 function scfTripProductTone(value){
   const name=normalizePlainText(value).replace(/[^a-z0-9]+/g,' ').trim();
   if(/(?:^|\s)(?:banh|b)\s+cuon(?:\s|$)/.test(name))return 'yellow';
-  if(name.includes('banh chung')||/(?:^|\s)quay(?:\s|$)/.test(name))return 'brick';
+  if(name.includes('banh chung')||/(?:^|\s)(?:quay|pho\s+cuon)(?:\s|$)/.test(name))return 'brick';
   return '';
 }
 function scfTripProductHighlightStyle(value){
@@ -874,7 +874,7 @@ function DeliverySequenceSettingsTab({customers,setCustomers,currentUser}){
 
 function tripImageRows(trip,orders,products,customers,prodCats=[]){
   const ids=new Set((trip.orderIds||[]).map(String));
-  return sortTripOrdersByDeliveryOrder(trip,orders.filter(order=>order.status!=='cancelled'&&(order.tripId?String(order.tripId)===String(trip.id):ids.has(String(order.id)))),customers)
+  const rows=sortTripOrdersByDeliveryOrder(trip,orders.filter(order=>order.status!=='cancelled'&&(order.tripId?String(order.tripId)===String(trip.id):ids.has(String(order.id)))),customers)
     .flatMap(order=>(order.lines||[]).map(line=>{
       const product=products.find(p=>String(p.id)===String(line.productId));
       const note=order.isAdditionalTripOrder?'Đơn PS':[order.note,line.note].filter(Boolean).join(' · ');
@@ -882,6 +882,22 @@ function tripImageRows(trip,orders,products,customers,prodCats=[]){
       row.isGoods=isGoodsProduct(product||line,prodCats);
       return row;
     }));
+  return scfSortTripImageRows(trip,rows);
+}
+function scfTripImageProductRank(value){
+  const name=normalizePlainText(value).replace(/[^a-z0-9]+/g,' ').trim();
+  if(/(?:^|\s)(?:banh\s+)?pho\s+cuon(?:\s|$)/.test(name))return 0;
+  if(/(?:^|\s)(?:banh\s+)?pho\s+tuoi(?:\s|$)/.test(name))return 1;
+  if(/(?:^|\s)bun\s+tuoi\s+soi\s+to(?:\s|$)/.test(name))return 2;
+  if(/(?:^|\s)bun\s+tuoi(?:\s|$)/.test(name))return 3;
+  if(scfTripProductTone(value)==='yellow')return 4;
+  return 5;
+}
+function scfSortTripImageRows(trip,rows){
+  if(scfTripImageGroup(trip)!=='samsung'||!['KV','KHOVAN'].includes(scfTripImageShiftName(trip)))return rows;
+  // Group KV product lines while retaining delivery order within each group.
+  return rows.map((row,index)=>({row,index,rank:scfTripImageProductRank(row[2])}))
+    .sort((a,b)=>a.rank-b.rank||a.index-b.index).map(item=>item.row);
 }
 function tripImageDriverName(value){
   return String(value||'').trim()||'Chưa có lái xe';
@@ -899,7 +915,11 @@ function isDtTrip(trip){
   const value=[trip?.shiftName,trip?.shiftCode,trip?.id].filter(Boolean).join(' ').toUpperCase();
   return /(^|[^A-ZÀ-Ỹ])ĐT(?=$|[^A-ZÀ-Ỹ])/.test(value);
 }
-function scfTripImageGroup(trip){return isDtTrip(trip)?'dt':'samsung';}
+function scfTripImageGroup(trip){
+  // Image groups follow trip names, independently of driver names and delivery areas.
+  const chiHai=[trip?.shiftName,trip?.shiftCode].some(value=>/^CHI HAI(?: |$)/.test(String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim()));
+  return isDtTrip(trip)||chiHai?'dt':'samsung';
+}
 function scfTripImageShiftName(trip){
   return String(trip.shiftName||trip.shiftCode||trip.shiftId||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'D').toUpperCase().replace(/[\s\-–—]+/g,'').replace(/^VINHPHUC/,'VP');
 }
@@ -976,7 +996,7 @@ function renderTripImage(trips,orders,products,customers,title,prodCats=[]){
     rows.forEach(row=>{
       const tone=scfTripProductTone(row[2]);
       const brick=row.isGoods||scfTripImageEarlyOrder(trip,row)||tone==='brick';
-      blocks.push({cells:visibleColumns.map(index=>row[index]),fill:brick?'#f4af86':tone==='yellow'?'#ffff00':tripFill});
+      blocks.push({cells:visibleColumns.map(index=>row[index]),fill:tone==='yellow'?'#ffff00':brick?'#f4af86':tripFill});
     });
   });
   blocks.forEach(block=>{
@@ -1020,7 +1040,7 @@ function TripImagesModal({trips,orders,products,customers,prodCats=[],onClose}){
     finally{if(active.current)setBusy(false);}
   };
   return h(Modal,{title:'Tạo ảnh chuyến giao hàng',lg:true,onClose},
-    h('p',null,'Mặc định Ảnh 1 gồm các chuyến ĐT, Ảnh 2 gồm các chuyến còn lại. Chú ý lấy từ ghi chú đơn và dòng sản phẩm.'),
+    h('p',null,'Mặc định Ảnh 1 gồm các chuyến ĐT và Chị Hải, Ảnh 2 gồm các chuyến còn lại. Chú ý lấy từ ghi chú đơn và dòng sản phẩm.'),
     h('div',{style:{display:'flex',gap:8,marginBottom:12}},['1','2'].map(group=>h('button',{key:group,disabled:busy,onClick:()=>{clear();setSelection(Object.fromEntries(trips.map(trip=>[trip.id,group])));}},'Tất cả vào ảnh '+group)),h('button',{disabled:busy,onClick:()=>{clear();setSelection({});}},'Bỏ chọn')),
     h('div',{className:'tw',style:{maxHeight:330,overflow:'auto'}},h('table',null,
       h('thead',null,h('tr',null,['Chọn ảnh','Ngày giao','Chuyến / ca','Lái xe','Dòng SP'].map(label=>h('th',{key:label},label)))),
@@ -1052,8 +1072,8 @@ function TripDayImageModal({trips,orders,products,customers,prodCats=[],date,onC
     create();
     return()=>{active=false;if(imageUrl.current)URL.revokeObjectURL(imageUrl.current);};
   },[]);
-  return h(Modal,{title:'Xem ảnh đơn tổng theo ngày',lg:true,onClose},
-    h('p',null,'Ngày '+(date||fmtDate())+' · '+trips.length+' chuyến. Nền xanh/trắng xen kẽ; tên lái xe và bánh cuốn tô vàng, đơn theo giờ đặc biệt và hàng hóa tô màu gạch.'),
+  return h(Modal,{title:'Xem ảnh đơn tổng theo ngày',lg:true,className:'trip-summary-day-modal',overlayClassName:'trip-summary-day-overlay',onClose},
+    h('p',null,'Ngày '+(date||fmtDate())+' · '+trips.length+' chuyến. Nền xanh/trắng xen kẽ; tên lái xe và mọi loại bánh cuốn tô vàng. Phở cuốn, đơn theo giờ đặc biệt và hàng hóa khác tô màu gạch.'),
     busy&&h('p',null,'Đang tạo ảnh đơn tổng…'),
     error&&h('p',{role:'alert',style:{color:'#b51e20'}},error),
     image&&h('div',null,
