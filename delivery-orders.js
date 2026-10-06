@@ -2253,8 +2253,8 @@ function mergeDeliveryLineQuantity(live,base,lineIndex,field,raw){
   return {order:{...live,lines:live.lines.map((item,i)=>i===index?{...item,[field]:value}:item)},changes:[(line.productName||'Sản phẩm')+' · '+label+': '+before+' → '+value]};
 }
 function deliveryQuantityIcon(kind){
-  const paths={pencil:'M16 4l4 4M4 20l4-1L20 7a2.83 2.83 0 0 0-4-4L4 15z',check:'M5 12l4 4L19 6',close:'M6 6l12 12M18 6L6 18'};
-  return h('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true,focusable:'false'},h('path',{d:paths[kind]}));
+  const paths={pencil:'M16 4l4 4M4 20l4-1L20 7a2.83 2.83 0 0 0-4-4L4 15z',check:'M5 12l4 4L19 6'};
+  return h('svg',{viewBox:'0 0 24 24',width:14,height:14,fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true,focusable:'false'},h('path',{d:paths[kind]}));
 }
 function DeliveryQuantityCell({order,lineIndex,field,canEdit,onSave}){
   const [editing,setEditing]=useState(null),[value,setValue]=useState(''),[error,setError]=useState('');
@@ -2265,9 +2265,7 @@ function DeliveryQuantityCell({order,lineIndex,field,canEdit,onSave}){
   return h('div',{className:'delivery-quantity-cell'},
     editing?h('div',{className:'delivery-quantity-editor'},
       h('input',{autoFocus:true,type:'text',inputMode:'decimal','aria-label':title,value,onFocus:e=>e.target.select(),onChange:e=>{setValue(e.target.value);setError('');},onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){e.preventDefault();close();}}}),
-      h('div',{className:'delivery-quantity-actions'},
-        h('button',{type:'button','data-scf-action':'write',onClick:save,title:'Lưu '+label,'aria-label':'Lưu '+title},deliveryQuantityIcon('check')),
-        h('button',{type:'button','data-scf-action':'view',onClick:close,title:'Hủy','aria-label':'Hủy sửa '+title},deliveryQuantityIcon('close'))),
+      h('button',{type:'button',className:'delivery-quantity-save','data-scf-action':'write',onClick:save,title:'Lưu '+label,'aria-label':'Lưu '+title},deliveryQuantityIcon('check')),
       error&&h('div',{role:'alert',className:'delivery-quantity-error'},error)
     ):h(React.Fragment,null,
       h('span',null,mobileDeliveryQty(line,field).toLocaleString('vi-VN',{maximumFractionDigits:8})),

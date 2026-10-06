@@ -1171,15 +1171,13 @@ tbody tr:hover td{background:var(--bg)}
 
 /* Quick quantity editing stays inside the product row. */
 .delivery-quantity-cell{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0;font-weight:600}
-.delivery-quantity-pencil{display:inline-flex;align-items:center;justify-content:center;padding:3px!important;width:26px;height:26px;min-width:26px;border:1px solid #c8ddd3!important;border-radius:7px;background:#f0f7f3!important;color:#2c6951;transition:background .15s,border-color .15s}
-.delivery-quantity-pencil:hover{color:#184a37;background:#dfefe5!important;border-color:#76a58d!important}
+.delivery-quantity-pencil,.delivery-quantity-save{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;padding:2px!important;width:20px;height:22px;min-width:20px;border:0!important;border-radius:5px;background:transparent!important;color:#83958d;box-shadow:none!important}
+.delivery-quantity-pencil:hover,.delivery-quantity-save:hover{color:#184a37;background:#e6f1eb!important}
+.delivery-quantity-save{color:#217558;background:#e9f3ed!important}
 .delivery-quantity-cell svg{display:block;flex-shrink:0;pointer-events:none}
-.delivery-quantity-pencil:focus-visible,.delivery-quantity-actions button:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
-.delivery-quantity-editor{width:100%;min-width:0;white-space:normal}
+.delivery-quantity-pencil:focus-visible,.delivery-quantity-save:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.delivery-quantity-editor{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px;width:100%;min-width:0;white-space:normal}
 .delivery-quantity-editor input{width:100%;min-width:0;padding:4px 2px;text-align:center;font-size:13px;border-color:var(--pri)}
-.delivery-quantity-actions{display:flex;justify-content:center;gap:4px;margin-top:3px}
-.delivery-quantity-actions button{display:inline-flex;align-items:center;width:28px;height:26px;padding:3px;justify-content:center;border-radius:7px;font-size:14px}
-.delivery-quantity-actions button:first-child{background:var(--pri);color:#fff}
-.delivery-quantity-error{font-size:11px;line-height:1.35;color:#A32D2D;margin-top:3px;overflow-wrap:anywhere}
+.delivery-quantity-error{grid-column:1/-1;font-size:11px;line-height:1.35;color:#A32D2D;margin-top:3px;overflow-wrap:anywhere}
 .order-detail-line-grid>div{min-width:0}
-@media(max-width:768px){.delivery-quantity-pencil{width:32px;height:32px;min-width:32px}.delivery-quantity-editor input{font-size:16px}.delivery-quantity-actions button{width:36px;height:32px}}
+@media(max-width:768px){.delivery-quantity-pencil,.delivery-quantity-save{width:28px;height:30px;min-width:28px}.delivery-quantity-editor input{font-size:16px}}
