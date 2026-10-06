@@ -994,9 +994,7 @@ function renderTripImage(trips,orders,products,customers,title,prodCats=[]){
     blocks.push({cells:[shiftName,driverName,'TỔNG KHỐI LƯỢNG CHUYẾN: '+totalWeight.toLocaleString('vi-VN',{maximumFractionDigits:2})+' kg'],widths:[shiftWidth,driverWidth,canvas.width-shiftWidth-driverWidth],cellFills:[tripFill,'#ffff00',tripFill],fill:tripFill,bold:true});
     blocks.push({cells:visibleColumns.map(index=>headers[index]),fill:tripFill,bold:true});
     rows.forEach(row=>{
-      const tone=scfTripProductTone(row[2]);
-      const brick=row.isGoods||scfTripImageEarlyOrder(trip,row)||tone==='brick';
-      blocks.push({cells:visibleColumns.map(index=>row[index]),fill:tone==='yellow'?'#ffff00':brick?'#f4af86':tripFill});
+      blocks.push({cells:visibleColumns.map(index=>row[index]),fill:scfTripSummaryRowFill(trip,row,tripFill)});
     });
   });
   blocks.forEach(block=>{
@@ -1020,6 +1018,11 @@ function renderTripImage(trips,orders,products,customers,title,prodCats=[]){
     });y+=block.height;
   });
   return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Không tạo được ảnh. Hãy chọn ít chuyến hơn.')),'image/png'));
+}
+function scfTripSummaryRowFill(trip,row,tripFill){
+  const tone=scfTripProductTone(row[2]);
+  const brick=row.isGoods||scfTripImageEarlyOrder(trip,row)||tone==='brick';
+  return tone==='yellow'?'#ffff00':brick?'#f4af86':tripFill;
 }
 function TripImagesModal({trips,orders,products,customers,prodCats=[],onClose}){
   const [selection,setSelection]=useState(()=>Object.fromEntries(trips.map(trip=>[trip.id,scfTripImageGroup(trip)==='dt'?'1':'2'])));const [images,setImages]=useState([]);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
