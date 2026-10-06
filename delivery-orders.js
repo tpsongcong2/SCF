@@ -2252,6 +2252,10 @@ function mergeDeliveryLineQuantity(live,base,lineIndex,field,raw){
   if(current!==before)throw new Error('Số lượng đã được sửa ở nơi khác. Hãy mở lại ô số lượng trước khi lưu.');
   return {order:{...live,lines:live.lines.map((item,i)=>i===index?{...item,[field]:value}:item)},changes:[(line.productName||'Sản phẩm')+' · '+label+': '+before+' → '+value]};
 }
+function deliveryQuantityIcon(kind){
+  const paths={pencil:'M16 4l4 4M4 20l4-1L20 7a2.83 2.83 0 0 0-4-4L4 15z',check:'M5 12l4 4L19 6',close:'M6 6l12 12M18 6L6 18'};
+  return h('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true,focusable:'false'},h('path',{d:paths[kind]}));
+}
 function DeliveryQuantityCell({order,lineIndex,field,canEdit,onSave}){
   const [editing,setEditing]=useState(null),[value,setValue]=useState(''),[error,setError]=useState('');
   const label=field==='qtyProd'?'SL đặt':'SL HĐ',line=order.lines?.[lineIndex];
@@ -2262,12 +2266,12 @@ function DeliveryQuantityCell({order,lineIndex,field,canEdit,onSave}){
     editing?h('div',{className:'delivery-quantity-editor'},
       h('input',{autoFocus:true,type:'text',inputMode:'decimal','aria-label':title,value,onFocus:e=>e.target.select(),onChange:e=>{setValue(e.target.value);setError('');},onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape'){e.preventDefault();close();}}}),
       h('div',{className:'delivery-quantity-actions'},
-        h('button',{type:'button','data-scf-action':'write',onClick:save,title:'Lưu '+label,'aria-label':'Lưu '+title},h('i',{className:'ti ti-check'})),
-        h('button',{type:'button','data-scf-action':'view',onClick:close,title:'Hủy','aria-label':'Hủy sửa '+title},h('i',{className:'ti ti-x'}))),
+        h('button',{type:'button','data-scf-action':'write',onClick:save,title:'Lưu '+label,'aria-label':'Lưu '+title},deliveryQuantityIcon('check')),
+        h('button',{type:'button','data-scf-action':'view',onClick:close,title:'Hủy','aria-label':'Hủy sửa '+title},deliveryQuantityIcon('close'))),
       error&&h('div',{role:'alert',className:'delivery-quantity-error'},error)
     ):h(React.Fragment,null,
       h('span',null,mobileDeliveryQty(line,field).toLocaleString('vi-VN',{maximumFractionDigits:8})),
-      canEdit&&line&&h('button',{type:'button',className:'delivery-quantity-pencil','data-scf-action':'write',title:'Sửa '+title,'aria-label':'Sửa '+title,onClick:()=>{setEditing({...order,lines:order.lines.map(item=>({...item}))});setValue(String(mobileDeliveryQty(line,field)));setError('');}},h('i',{className:'ti ti-pencil'})))
+      canEdit&&line&&h('button',{type:'button',className:'delivery-quantity-pencil','data-scf-action':'write',title:'Sửa '+title,'aria-label':'Sửa '+title,onClick:()=>{setEditing({...order,lines:order.lines.map(item=>({...item}))});setValue(String(mobileDeliveryQty(line,field)));setError('');}},deliveryQuantityIcon('pencil')))
   );
 }
 function mobileDeliveryDate(value){

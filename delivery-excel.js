@@ -40,6 +40,7 @@ function scfDeliveryExcelDate(value){
 }
 function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
   const wb=new Excel.Workbook();wb.creator='SCFOOD';
+  wb.calcProperties.fullCalcOnLoad=true;
   const sheet=wb.addWorksheet('Don giao hang',{views:[{showGridLines:false,state:'frozen',ySplit:2}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.25,right:.25,top:.35,bottom:.35,header:.15,footer:.15}}});
   const widths=[16,28,32,13,13,13,12,42];sheet.columns=widths.map(width=>({width}));
   const border={style:'thin',color:{argb:'FF777777'}};
@@ -67,6 +68,7 @@ function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
     heading.getCell(4).alignment={vertical:'middle',horizontal:'left',wrapText:true};
     const header=sheet.addRow(['Ngày giao','Địa điểm','Sản phẩm','SL đặt','SL HĐ','SL giao','Giờ giao','Chú ý']);
     paint(header,fill,true);header.height=25;
+    const firstDetailRow=header.number+1;
     rows.forEach(data=>{
       const time=/^\d{1,2}:\d{2}$/.test(data[5])?data[5].split(':').map(Number):null;
       const timeValue=time&&time[0]<24&&time[1]<60?(time[0]*60+time[1])/1440:data[5];
@@ -76,6 +78,19 @@ function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
       [4,5,6].forEach(col=>row.getCell(col).numFmt=Number.isInteger(values[col-1])?'#,##0':'#,##0.########');
       const wrapped=Math.max(1,...[1,2,7].map(col=>String(values[col]||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/(widths[col]-2))),0)));
       row.height=Math.min(409,Math.max(23,wrapped*15+8));
+    });
+    const lastDetailRow=sheet.rowCount;
+    const total=sheet.addRow(['Tổng chuyến']);
+    paint(total,fill,true);total.height=26;
+    sheet.mergeCells(total.number,1,total.number,3);
+    [4,5,6].forEach(col=>{
+      const letter=String.fromCharCode(64+col);
+      const result=rows.reduce((sum,data)=>{
+        const value=col===4?data[3]:col===5?data.qtyInvoice:data.qtyDelivered;
+        return sum+(typeof value==='number'&&Number.isFinite(value)?value:0);
+      },0);
+      total.getCell(col).value={formula:rows.length?'SUM('+letter+firstDetailRow+':'+letter+lastDetailRow+')':'SUM(0)',result};
+      total.getCell(col).numFmt='#,##0.########';
     });
   });
   sheet.pageSetup.printArea='A1:H'+sheet.rowCount;
