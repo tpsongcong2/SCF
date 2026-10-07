@@ -1221,6 +1221,11 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
 function scfOrderImageProductKey(value){
  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toUpperCase().trim().replace(/[,;]\s*(KG|KGS)\s*$/,'').replace(/\s+/g,' ');
 }
+async function scfOrderImageDeadline(work){
+ const controller=new AbortController();let timer;
+ try{return await Promise.race([Promise.resolve().then(()=>work(controller.signal)),new Promise((_,reject)=>{timer=setTimeout(()=>{reject(Error('AI chưa trả kết quả sau 60 giây. Hãy thử lại hoặc nhập đơn bằng tay.'));controller.abort();},60000);})]);}
+ finally{clearTimeout(timer);}
+}
 async function scfPrepareOrderImage(file){
  // Preserve screenshot text: keep supported original files within the server limit.
  if(file.size<=8*1024*1024)return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({dataUrl:r.result});r.onerror=()=>reject(Error('Không đọc được ảnh.'));r.readAsDataURL(file);});
@@ -1441,12 +1446,16 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
   },[]);
   const runOcr=async imageFile=>{
     if(!imageFile||readingRef.current){if(!imageFile)window.showToast('Hãy dán, kéo thả hoặc chọn ảnh trước.','warn');return;}
-    readingRef.current=true;setBusy(true);setRows([]);setText('');setProgress('AI đang đọc đơn hàng...');
+    readingRef.current=true;setBusy(true);setRows([]);setText('');setProgress('AI đang đọc đơn hàng, tối đa 60 giây...');
     try{
       if(!sb)throw Error('Chưa kết nối máy chủ.');
-      const prepared=await scfPrepareOrderImage(imageFile);
-      const {data,error}=await sb.functions.invoke('scf-order-vision',{body:{imageDataUrl:prepared.dataUrl}});
-      if(error){let details;try{details=await error.context?.json();}catch{}throw Error(details?.error||'Chưa gọi được AI. Kiểm tra chức năng scf-order-vision trên máy chủ.');}
+      const data=await scfOrderImageDeadline(async signal=>{
+        const prepared=await scfPrepareOrderImage(imageFile);
+        if(signal.aborted)throw Error('Đã hết thời gian đọc ảnh.');
+        const {data,error}=await sb.functions.invoke('scf-order-vision',{body:{imageDataUrl:prepared.dataUrl},signal});
+        if(error){let details;try{details=await error.context?.json();}catch{}throw Error(details?.error||'Chưa gọi được AI. Kiểm tra chức năng scf-order-vision trên máy chủ.');}
+        return data;
+      });
       if(!data?.ok||!Array.isArray(data.orders))throw Error(data?.error||'AI trả dữ liệu không hợp lệ.');
       if(!activeRef.current)return;
       const parsed=data.orders.map(raw=>{
@@ -1461,7 +1470,8 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
       }).filter(o=>o.lines.length);
       setRows(parsed);
       setText(parsed.map(o=>[o.pointName+' '+o.deliveryDate+' '+o.deliveryTime,...o.lines.map(l=>l.productName+' '+l.qtyProd)].join('\n')).join('\n\n'));
-      setProgress(parsed.length?'AI đã đọc '+parsed.length+' đơn. Kiểm tra địa điểm, ngày, giờ và số lượng trước khi nhập.':'AI chưa đọc được đơn. Hãy thử ảnh rõ hơn.');
+      const missingPoints=parsed.filter(o=>!o.pointId).length;
+      setProgress(parsed.length?(missingPoints?'Đã đọc dòng hàng. Có '+missingPoints+' bản nháp cần chọn địa điểm bên dưới. ':'AI đã đọc '+parsed.length+' đơn. ')+'Kiểm tra sản phẩm, ngày, giờ và số lượng trước khi nhập.':'AI chưa đọc được đơn. Hãy thử ảnh rõ hơn.');
     }catch(e){if(activeRef.current){setProgress(e.message||'Chưa đọc được ảnh.');window.showToast(e.message||String(e),'error');}}
     finally{readingRef.current=false;if(activeRef.current)setBusy(false);}
   };
@@ -1534,7 +1544,7 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
                 allPoints.map(pt=>h('option',{key:pt.id,value:pt.id},pt.customerName+' - '+pt.name))
               ),
               h('input',{value:o.customer||'',readOnly:true,style:{width:'100%',fontSize:12,padding:'5px 6px',background:'#f7faf8'}}),
-              !o.pointId&&h('div',{style:{fontSize:11,color:'#A32D2D',marginTop:2}},'Chưa khớp danh mục')
+              !o.pointId&&h('div',{style:{fontSize:11,color:'#A32D2D',marginTop:2}},'Cần chọn địa điểm trước khi nhập đơn')
             ),
             h('td',null,
               h('div',{style:{fontSize:11,color:'var(--tx2)',marginBottom:5}},(o.lines||[]).length+' dòng hàng'),
