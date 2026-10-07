@@ -1406,25 +1406,54 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
     flush();
     return result.filter(o=>o.lines.length);
   };
+  const imageLoadRef=useRef(0);
+  const activeRef=useRef(true);
+  const readingRef=useRef(false);
   const setImageFile=f=>{
-    if(!f)return;
-    setFile(f);setRows([]);setText('');
+    if(!f||readingRef.current)return;
+    if(!/^image\/(png|jpeg|webp)$/i.test(f.type||'')){window.showToast('Hãy chọn ảnh PNG, JPG hoặc WebP.','warn');return;}
+    if(f.size>20*1024*1024){window.showToast('Ảnh quá lớn. Hãy chọn ảnh dưới 20 MB.','warn');return;}
+    const version=++imageLoadRef.current;
+    setFile(null);setImg('');setRows([]);setText('');setProgress('');
     const r=new FileReader();
-    r.onload=e=>setImg(e.target.result);
+    r.onload=e=>{if(activeRef.current&&version===imageLoadRef.current){setImg(e.target.result);setFile(f);}};
+    r.onerror=()=>{if(activeRef.current)window.showToast('Không mở được ảnh.','error');};
     r.readAsDataURL(f);
   };
+  useEffect(()=>{
+    activeRef.current=true;
+    const paste=e=>{
+      const f=Array.from(e.clipboardData?.items||[]).find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile();
+      if(f){e.preventDefault();setImageFile(f);}
+    };
+    window.addEventListener('paste',paste);
+    return()=>{activeRef.current=false;++imageLoadRef.current;window.removeEventListener('paste',paste);};
+  },[]);
   const runOcr=async()=>{
-    if(!file){window.showToast('Hãy chọn hoặc kéo ảnh vào trước.','warn');return;}
-    setBusy(true);setProgress('Đang đọc ảnh...');
+    if(!file||readingRef.current){if(!file)window.showToast('Hãy dán, kéo thả hoặc chọn ảnh trước.','warn');return;}
+    readingRef.current=true;setBusy(true);setRows([]);setText('');setProgress('AI đang đọc đơn hàng...');
     try{
-      if(!window.Tesseract)await window.scfLoadExternalScript('tesseract');
-      const res=await Tesseract.recognize(file,'vie+eng',{logger:m=>{if(m.status)setProgress(m.status+(m.progress?(' '+Math.round(m.progress*100)+'%'):''));}});
-      const txt=res?.data?.text||'';
-      setText(txt);
-      setRows(parseText(txt));
-      setProgress('Đã đọc xong');
-    }catch(e){window.showToast('Không đọc được ảnh: '+(e.message||e),'error');}
-    finally{setBusy(false);}
+      if(!sb)throw Error('Chưa kết nối máy chủ.');
+      const prepared=await resizeImageFile(file,2200,.9);
+      const {data,error}=await sb.functions.invoke('scf-order-vision',{body:{imageDataUrl:prepared.dataUrl}});
+      if(error){let details;try{details=await error.context?.json();}catch{}throw Error(details?.error||'Chưa gọi được AI. Kiểm tra chức năng scf-order-vision trên máy chủ.');}
+      if(!data?.ok||!Array.isArray(data.orders))throw Error(data?.error||'AI trả dữ liệu không hợp lệ.');
+      if(!activeRef.current)return;
+      const parsed=data.orders.map(raw=>{
+        const matches=customers.flatMap(c=>(c.points||[]).filter(pt=>noAccent(norm(pt.name))===noAccent(norm(raw.pointName))).map(pt=>({c,pt})));
+        const match=matches.length===1?matches[0]:null;
+        return {id:uid(),deliveryDate:String(raw.deliveryDate||''),deliveryTime:String(raw.deliveryTime||''),pointId:match?.pt.id||'',pointName:String(raw.pointName||''),customerId:match?.c.id||'',customer:match?.c.name||'',address:match?.pt.address||'',area:match?.pt.area||'',status:'pending',note:String(raw.note||''),lines:(Array.isArray(raw.lines)?raw.lines:[]).map(line=>{
+          const candidates=products.filter(p=>noAccent(norm(p.name))===noAccent(norm(line.productName)));
+          const product=candidates.length===1?candidates[0]:null;
+          const qty=typeof line.quantity==='number'&&Number.isFinite(line.quantity)&&line.quantity>=0?line.quantity:'';
+          return{id:uid(),productId:product?.id||'',productName:String(line.productName||''),unit:product?.unit||String(line.unit||''),weightPerUnit:product?.weightPerUnit||0,qtyProd:qty,qtyInvoice:qty,note:String(line.note||'')};
+        })};
+      }).filter(o=>o.lines.length);
+      setRows(parsed);
+      setText(parsed.map(o=>[o.pointName+' '+o.deliveryDate+' '+o.deliveryTime,...o.lines.map(l=>l.productName+' '+l.qtyProd)].join('\n')).join('\n\n'));
+      setProgress(parsed.length?'AI đã đọc '+parsed.length+' đơn. Kiểm tra địa điểm, ngày, giờ và số lượng trước khi nhập.':'AI chưa đọc được đơn. Hãy thử ảnh rõ hơn.');
+    }catch(e){if(activeRef.current){setProgress('Chưa đọc được ảnh.');window.showToast(e.message||String(e),'error');}}
+    finally{readingRef.current=false;if(activeRef.current)setBusy(false);}
   };
   const reparse=()=>setRows(parseText(text));
   const updateOrder=(id,data)=>setRows(p=>p.map(o=>o.id===id?{...o,...data}:o));
@@ -1445,7 +1474,9 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
     updateLine(oid,lid,{productId:p.id||'',productName:p.name||'',unit:p.unit||'',weightPerUnit:p.weightPerUnit||0});
   };
   const importRows=()=>{
+    if(busy)return;
     if(!rows.length){window.showToast('Chưa có đơn hàng nào để nhập.','warn');return;}
+    if(rows.some(o=>!o.pointId||!/^\d{2}\/\d{2}\/\d{4}$/.test(o.deliveryDate)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(o.deliveryTime)||(o.lines||[]).some(l=>l.qtyProd===''||!Number.isFinite(Number(l.qtyProd))||Number(l.qtyProd)<0))){window.showToast('Hãy kiểm tra đủ địa điểm, ngày, giờ và số lượng của từng đơn trước khi nhập.','warn');return;}
     const unmatchedLines=rows.flatMap(order=>(order.lines||[]).filter(line=>!line.productId||!(products||[]).some(product=>String(product.id)===String(line.productId))));
     if(unmatchedLines.length){
       window.showToast('Còn '+unmatchedLines.length+' dòng sản phẩm chưa khớp danh mục. Hãy chọn sản phẩm tương ứng trước khi nhập.','warn');
@@ -1464,22 +1495,22 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
       h('div',null,
         h('div',{
           onDragOver:e=>{e.preventDefault();},
-          onDrop:e=>{e.preventDefault();setImageFile(e.dataTransfer.files&&e.dataTransfer.files[0]);},
+          onDrop:e=>{e.preventDefault();setImageFile(Array.from(e.dataTransfer.files||[]).find(f=>f.type.startsWith('image/')));},
           onClick:()=>inputRef.current&&inputRef.current.click(),
           style:{border:'1.5px dashed var(--pri)',borderRadius:'var(--rl)',padding:'1.25rem',minHeight:220,display:'flex',alignItems:'center',justifyContent:'center',textAlign:'center',cursor:'pointer',background:'#f7fbf8',overflow:'hidden'}
         },
           img?h('img',{src:img,style:{maxWidth:'100%',maxHeight:260,objectFit:'contain'}})
-          :h('div',null,h('i',{className:'ti ti-photo-scan',style:{fontSize:44,color:'var(--pri)',display:'block',marginBottom:8}}),'Kéo ảnh vào đây hoặc bấm để chọn ảnh')
+          :h('div',null,h('i',{className:'ti ti-photo-scan',style:{fontSize:44,color:'var(--pri)',display:'block',marginBottom:8}}),'Dán ảnh bằng Ctrl+V, kéo thả ảnh vào đây hoặc bấm để chọn ảnh')
         ),
         h('input',{ref:inputRef,type:'file',accept:'image/*',style:{display:'none'},onChange:e=>setImageFile(e.target.files&&e.target.files[0])}),
         h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}},
-          h('button',{className:'bp',onClick:runOcr,disabled:busy},h('i',{className:'ti ti-scan-text',style:{fontSize:14}}),busy?'Đang đọc...':'AI/OCR đọc ảnh'),
+          h('button',{className:'bp',onClick:runOcr,disabled:busy},h('i',{className:'ti ti-scan-text',style:{fontSize:14}}),busy?'AI đang đọc...':'AI đọc đơn từ ảnh'),
           h('button',{onClick:reparse,disabled:busy||!text},h('i',{className:'ti ti-table-import',style:{fontSize:14}}),'Vào bảng xem trước')
         ),
         progress&&h('div',{style:{fontSize:12,color:'var(--tx2)',marginTop:8}},progress)
       ),
       h('div',null,
-        h(F,{label:'Nội dung OCR'},h('textarea',{value:text,onChange:e=>setText(e.target.value),rows:12,placeholder:'Sau khi OCR, chữ đọc được sẽ hiện ở đây. Có thể sửa rồi bấm Tách lại dữ liệu.'})),
+        h(F,{label:'Nội dung đọc từ ảnh'},h('textarea',{value:text,onChange:e=>setText(e.target.value),rows:12,placeholder:'AI sẽ đưa dữ liệu vào bảng xem trước. Có thể sửa nội dung rồi bấm Vào bảng xem trước.'})),
         h('div',{style:{fontSize:12,color:'var(--tx2)'}},'Mẹo: ảnh rõ, thẳng, đủ sáng và mỗi dòng có tên hàng + số lượng sẽ đọc tốt hơn.')
       )
     ),
