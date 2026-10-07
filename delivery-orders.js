@@ -517,14 +517,14 @@ function OrderForm({order,copyMode=false,customers,products,quotes,employees,cur
       ),
       (f.pointName||f.customerId)&&h('div',{className:'order-point-current'},'Đã chọn: '+(f.pointName||'—')+(f.customer?' · '+f.customer:'')+(f.area?' · Khu vực: '+f.area:''))
     )),
-    h('div',{className:'order-form-main-grid',style:{display:'grid',gridTemplateColumns:'140px 100px 100px 90px 90px 1fr',gap:'0 8px'}},
+    h('div',{className:'order-form-main-grid',style:{display:'grid',gridTemplateColumns:order&&!copyMode?'140px 100px 100px 90px 90px 1fr':'140px 100px 100px 1fr',gap:'0 8px'}},
       h(F,{label:'Ngày giao'},h('input',{type:'date',value:toIsoDate(f.deliveryDate),onChange:e=>s('deliveryDate',e.target.value?vnDateFromISO(e.target.value):''),title:'Chọn ngày giao'})),
       h(F,{label:'Giờ giao'},h('input',{value:f.deliveryTime,onChange:e=>s('deliveryTime',e.target.value),placeholder:'08:00'})),
       h(F,{label:'Trạng thái'},h('select',{value:f.status,disabled:lockStatus,onChange:e=>s('status',e.target.value),style:{fontSize:12}},
         [['pending','Chờ xếp'],['assigned','Đã xếp'],['delivering','Đang giao'],['done','Đã giao'],['failed','Giao lỗi'],['cancelled','Hủy']].map(([v,l])=>h('option',{key:v,value:v},l))
       )),
-      h(F,{label:'Công đi'},h('input',{type:'number',min:0,step:.5,value:f.workOut,onChange:e=>s('workOut',e.target.value),placeholder:'0'})),
-      h(F,{label:'Công về'},h('input',{type:'number',min:0,step:.5,value:f.workReturn,onChange:e=>s('workReturn',e.target.value),placeholder:'0'})),
+      order&&!copyMode&&h(F,{label:'Công đi'},h('input',{type:'number',min:0,step:.5,value:f.workOut,onChange:e=>s('workOut',e.target.value),placeholder:'0'})),
+      order&&!copyMode&&h(F,{label:'Công về'},h('input',{type:'number',min:0,step:.5,value:f.workReturn,onChange:e=>s('workReturn',e.target.value),placeholder:'0'})),
       h(F,{label:'Ghi chú chung'},h('input',{value:f.note,onChange:e=>s('note',e.target.value),placeholder:'Ghi chú cho toàn đơn...'})),
     ),
     !hasLineOverrides?h('div',{style:{padding:'9px 10px',background:prodShiftMode==='manual'?'#FFF8E1':'#E6F1FB',borderRadius:'var(--r)',marginBottom:8}},
@@ -3863,8 +3863,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             ?h('span',{className:'badge delivery-production-shift-name',title:prodShiftMode==='manual'?'Ca SX chọn tay':'Ca SX tự động',style:{background:firstPlanForDisplay.shift.color,color:firstPlanForDisplay.shift.textColor,border:prodShiftMode==='manual'?'1px solid '+firstPlanForDisplay.shift.textColor:'1px dashed '+firstPlanForDisplay.shift.textColor}},firstPlanForDisplay.shift.name)
             :h('span',{className:'delivery-table-text',style:{color:'var(--tx2)'}},'Chưa có ca phù hợp');
           const productionShiftDisplay=h('div',{className:'delivery-prod-shift-display'},
-            productionShiftName,
-            h('div',{className:'delivery-production-shift-date'},'Ngày SX: '+(firstPlanForDisplay?.prodDate||'—'))
+            h('div',{className:'delivery-production-shift-heading'},productionShiftName,
+              h('span',{className:'delivery-production-shift-date'},': '+(firstPlanForDisplay?.prodDate||'—'))),
+            h('div',{className:'delivery-production-shift-date'},'Tem: '+(firstPlanForDisplay?.labelDate||'—')+', '+(firstPlanForDisplay?.labelTime||'—'))
           );
           return h('tr',{key:o._rowKey,className:'delivery-order-row'},
             h('td',null,

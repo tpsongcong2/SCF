@@ -87,8 +87,9 @@ button:hover{background:var(--bg2)}
 .delivery-group-summary{white-space:nowrap;font-size:12px;font-weight:700}
 .delivery-group-header-mobile{background:#2d6a4f;color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex-wrap:wrap}
 .delivery-detail-columns-toggle{box-shadow:0 0 0 2px rgba(37,112,82,.08)}
-.delivery-prod-shift-display{display:grid;gap:4px;justify-items:center;min-width:0}
-.delivery-production-shift-name{display:flex!important;justify-content:center;max-width:100%;white-space:normal;text-align:center;line-height:1.2}
+.delivery-prod-shift-display{display:grid;gap:2px;justify-items:center;min-width:0}
+.delivery-production-shift-heading{display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}
+.delivery-production-shift-name{display:inline-flex!important;justify-content:center;max-width:100%;white-space:nowrap;text-align:center;line-height:1.2}
 .delivery-production-shift-date{font-size:var(--ui-table-size)!important;font-weight:var(--ui-table-weight)!important;font-style:var(--ui-table-style)!important;color:var(--tx2);white-space:nowrap}
 .delivery-trip-cell{white-space:nowrap}
 .delivery-trip-content{display:flex;align-items:center;gap:4px;min-width:0;width:100%;white-space:nowrap}
