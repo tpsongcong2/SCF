@@ -1218,6 +1218,14 @@ function ImportPreviewModal({data, customers, setCustomers, orders, setOrders, p
   );
 }
 
+function scfOrderImageProductKey(value){
+ return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toUpperCase().trim().replace(/[,;]\s*(KG|KGS)\s*$/,'').replace(/\s+/g,' ');
+}
+async function scfPrepareOrderImage(file){
+ // Preserve screenshot text: keep supported original files within the server limit.
+ if(file.size<=8*1024*1024)return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({dataUrl:r.result});r.onerror=()=>reject(Error('Không đọc được ảnh.'));r.readAsDataURL(file);});
+ return resizeImageFile(file,2600,.98);
+}
 function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,currentUser,onClose}) {
   const[file,setFile]=useState(null);
   const[img,setImg]=useState('');
@@ -1436,7 +1444,7 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
     readingRef.current=true;setBusy(true);setRows([]);setText('');setProgress('AI đang đọc đơn hàng...');
     try{
       if(!sb)throw Error('Chưa kết nối máy chủ.');
-      const prepared=await resizeImageFile(imageFile,2200,.9);
+      const prepared=await scfPrepareOrderImage(imageFile);
       const {data,error}=await sb.functions.invoke('scf-order-vision',{body:{imageDataUrl:prepared.dataUrl}});
       if(error){let details;try{details=await error.context?.json();}catch{}throw Error(details?.error||'Chưa gọi được AI. Kiểm tra chức năng scf-order-vision trên máy chủ.');}
       if(!data?.ok||!Array.isArray(data.orders))throw Error(data?.error||'AI trả dữ liệu không hợp lệ.');
@@ -1445,16 +1453,16 @@ function ImageOrderImportModal({customers,products,orders,setOrders,prodShifts,c
         const matches=customers.flatMap(c=>(c.points||[]).filter(pt=>noAccent(norm(pt.name))===noAccent(norm(raw.pointName))).map(pt=>({c,pt})));
         const match=matches.length===1?matches[0]:null;
         return {id:uid(),deliveryDate:String(raw.deliveryDate||''),deliveryTime:String(raw.deliveryTime||''),pointId:match?.pt.id||'',pointName:String(raw.pointName||''),customerId:match?.c.id||'',customer:match?.c.name||'',address:match?.pt.address||'',area:match?.pt.area||'',status:'pending',note:String(raw.note||''),lines:(Array.isArray(raw.lines)?raw.lines:[]).map(line=>{
-          const candidates=products.filter(p=>noAccent(norm(p.name))===noAccent(norm(line.productName)));
+          const candidates=products.filter(p=>scfOrderImageProductKey(p.name)===scfOrderImageProductKey(line.productName));
           const product=candidates.length===1?candidates[0]:null;
           const qty=typeof line.quantity==='number'&&Number.isFinite(line.quantity)&&line.quantity>=0?line.quantity:'';
-          return{id:uid(),productId:product?.id||'',productName:String(line.productName||''),unit:product?.unit||String(line.unit||''),weightPerUnit:product?.weightPerUnit||0,qtyProd:qty,qtyInvoice:qty,note:String(line.note||'')};
+          return{id:uid(),productId:product?.id||'',productName:String(line.productName||''),customerCode:String(line.customerCode||''),unit:product?.unit||String(line.unit||''),weightPerUnit:product?.weightPerUnit||0,qtyProd:qty,qtyInvoice:qty,note:String(line.note||'')};
         })};
       }).filter(o=>o.lines.length);
       setRows(parsed);
       setText(parsed.map(o=>[o.pointName+' '+o.deliveryDate+' '+o.deliveryTime,...o.lines.map(l=>l.productName+' '+l.qtyProd)].join('\n')).join('\n\n'));
       setProgress(parsed.length?'AI đã đọc '+parsed.length+' đơn. Kiểm tra địa điểm, ngày, giờ và số lượng trước khi nhập.':'AI chưa đọc được đơn. Hãy thử ảnh rõ hơn.');
-    }catch(e){if(activeRef.current){setProgress('Chưa đọc được ảnh.');window.showToast(e.message||String(e),'error');}}
+    }catch(e){if(activeRef.current){setProgress(e.message||'Chưa đọc được ảnh.');window.showToast(e.message||String(e),'error');}}
     finally{readingRef.current=false;if(activeRef.current)setBusy(false);}
   };
   readImageRef.current=runOcr;
