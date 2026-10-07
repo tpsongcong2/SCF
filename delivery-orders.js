@@ -3811,8 +3811,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('th',{colSpan:4,className:'delivery-product-qty-head-cell'},
             h('div',{className:'delivery-product-qty-head-grid',style:{'--delivery-product-column-width':productColumnWidth+'px'}},
               h('div',{title:productColumnTitle},'Tên sản phẩm'),
-              h('div',null,'SL ĐẶT'),
               h('div',null,'SL HĐ'),
+              h('div',null,'SL ĐẶT'),
               h('div',null,'SL Giao')
             )
           ),
@@ -3892,7 +3892,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                     h('div',{className:'delivery-product-info'},
                       h('div',{className:'delivery-product-name'},(pi+1)+'. '+row.productName)
                     ),
-                    ...['qtyProd','qtyInvoice'].map(field=>h('div',{key:field,className:(field==='qtyProd'?'delivery-order-qty':'delivery-invoice-qty')+' delivery-product-qty-value'},h(DeliveryQuantityCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,field,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineQuantity}))),
+                    ...['qtyInvoice','qtyProd'].map(field=>h('div',{key:field,className:(field==='qtyProd'?'delivery-order-qty':'delivery-invoice-qty')+' delivery-product-qty-value'},h(DeliveryQuantityCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,field,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineQuantity}))),
                     h('div',{className:'delivery-delivered-qty delivery-product-qty-value'},(row.line?.qtyDelivered!==undefined&&row.line?.qtyDelivered!==null&&row.line?.qtyDelivered!==''?numFmt(row.line.qtyDelivered):numFmt(row.line?.qtyProd??row.line?.qty??row.line?.quantity??row.line?.qtyInvoice??0)).toLocaleString('vi-VN',{minimumFractionDigits:0,maximumFractionDigits:2}))
                   ))
                   :h('span',{style:{fontSize:11,color:'var(--tx2)'}},'—')

@@ -2188,7 +2188,8 @@ function scfDebtOrderDelivered(order,completedOrderIds,completedTrips){
   return !!(order?.driverCompletedAt||order?.accountingConfirmedAt)||order?.status==='done'||completedOrderIds.has(String(order?.id))||completedTrips.some(trip=>String(trip.id)===String(order?.tripId))||(order?.lines||[]).some(line=>line.deliveredAt||Number(line.qtyDelivered)>0);
 }
 function scfDebtDeliveredQty(line,order,completedOrderIds,completedTrips){
-  return line?.qtyDelivered!==undefined&&line?.qtyDelivered!==''?(numFmt(line.qtyDelivered)||0):(scfDebtOrderDelivered(order,completedOrderIds,completedTrips)?(numFmt(line?.qtyInvoice)||0):0);
+  // Match the SL giao field, including an explicit accounting correction to zero.
+  return numFmt(line?.qtyDelivered!==undefined&&line?.qtyDelivered!==null&&line?.qtyDelivered!==''?line.qtyDelivered:(line?.qtyProd??line?.qty??line?.quantity??line?.qtyInvoice??0))||0;
 }
 function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
   const today=isoDate();
