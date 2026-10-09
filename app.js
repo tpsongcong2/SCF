@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V515';
+const SCF_BUILD_VERSION='V516';
 const PTITLES = {
   garages:'Gara ô tô',
   welcome:'Thời tiết', company:'Giới thiệu công ty', appearance:'Cài đặt giao diện', printtemplates:'Mẫu in Excel & mapping biến', employees:'Nhân viên', permission_settings:'Cài đặt phân quyền', attendance:'Chấm công', attendance_settings:'Cài đặt chấm công', attendance_report:'Báo cáo chấm công', advances:'Ứng lương', rewards:'Thưởng phạt', employee_errors:'Ghi lỗi nhân viên', employee_uniforms:'Cấp đồng phục nhân viên', leaves:'Xin phép nghỉ', prodshifts:'Cài đặt ca SX + ca GH tự động', deliveryrules:'Quy định giao hàng',
@@ -27,7 +27,7 @@ const SCF_PAGE_DATA={
   materials:['materials','purchases'],assets:['assets'],garages:['garages'],
   products:['products','prodcats'],depts:['depts','workcats'],workcats:['workcats','depts'],
   customers:['customers','shifts','orders','areas'],areas:['areas','customers','orders'],
-  prodshifts:['prod_shifts','prod_shift_rules','orders','customers','shifts'],deliveryrules:['delivery_rules'],deliverysequence:['customers','areas'],
+  prodshifts:['prod_shifts','prod_shift_rules','orders','customers','shifts'],deliveryrules:['delivery_rules'],deliverysequence:['customers','areas','shifts'],
   tasks:['tasks','workcats'],notifications:[],userguide:[],
   nccs:['nccs','purchases'],nccgoods:['ncc_goods','goods_purchases'],
   purchaseorders:['purchases','nccs','materials','products','prodcats'],
