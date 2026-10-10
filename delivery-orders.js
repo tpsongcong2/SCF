@@ -2352,7 +2352,21 @@ function mobileDeliveryTime(value){
   const raw=String(value||'').trim(),normalized=/^\d{1,2}:\d{2}$/.test(raw)?raw:normalizeTimeInput(raw),match=String(normalized).match(/^(\d{1,2}):(\d{2})$/);
   return match&&Number(match[1])<24&&Number(match[2])<60?match[1].padStart(2,'0')+':'+match[2]:'';
 }
-function DeliveryMobileOrderCard({order,rowKey,trip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,canEdit,onEdit,onSaveQuantity,renderTripControls,selection}){
+function scfDeliveryGroupFills(groups){
+  const unique=new Map(groups.filter(group=>group.imageSortTrip).map(group=>[group.key,group]));
+  const counts=new Map(),fills=new Map();
+  [...unique.values()].sort((a,b)=>scfCompareTripImageTrips(a.imageSortTrip,b.imageSortTrip)).forEach(group=>{
+    const trip=group.imageSortTrip,key=JSON.stringify([trip.deliveryDate||'',scfTripImageGroup(trip)]),index=counts.get(key)||0;
+    fills.set(group.key,index%2===0?'#a9d08e':'#ffffff');counts.set(key,index+1);
+  });
+  return fills;
+}
+function scfDeliveryLineFill(trip,order,line,product,prodCats,tripFill){
+  const row=[order.deliveryDate||trip?.deliveryDate||'',order.pointName||'',line.productName||product?.name||'',0,line.unit||'',order.deliveryTime||trip?.deliveryTime||'',''];
+  row.isGoods=isGoodsProduct(product||line,prodCats||[]);
+  return scfTripSummaryRowFill(trip||{},row,tripFill);
+}
+function DeliveryMobileOrderCard({order,rowKey,trip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,canEdit,onEdit,onSaveQuantity,renderTripControls,selection,lineFill}){
   const[tripOpen,setTripOpen]=useState(false),[productionOpen,setProductionOpen]=useState(false);
   const field=(label,value)=>h('div',{className:'delivery-card-field'},h('span',null,label),h('b',null,value||'—'));
   const timingRows=plans?.length?plans:(firstPlan?[firstPlan]:[{}]);
@@ -2365,7 +2379,7 @@ function DeliveryMobileOrderCard({order,rowKey,trip,tripMode,preferredTripDate,p
       h('div',{className:'delivery-card-section-head'},h('h3',null,'1. Thông tin đơn hàng'),canEdit&&h('button',{type:'button',className:'delivery-card-edit','data-scf-action':'write',onClick:onEdit,'aria-label':'Sửa thông tin đơn hàng '+(order.pointName||'')},h('i',{className:'ti ti-pencil'}),' Sửa')),
       h('div',{className:'delivery-card-location'},selection,h('b',null,order.pointName||order.customer||'—')),
       h('div',{className:'delivery-card-dates'},field('Ngày giao',mobileDeliveryDate(order.deliveryDate)),field('Giờ giao',order.deliveryTime)),
-      h('div',{className:'delivery-card-products'},(order.lines||[]).length?(order.lines||[]).map((line,index)=>h('div',{key:line.id||index,className:'delivery-card-product'},
+      h('div',{className:'delivery-card-products'},(order.lines||[]).length?(order.lines||[]).map((line,index)=>h('div',{key:line.id||index,className:'delivery-card-product',style:lineFill?{background:lineFill(line),color:'#000'}:undefined},
         h('div',{className:'delivery-card-product-name'},(index+1)+'. '+(line.productName||'Sản phẩm'),line.unit&&h('span',null,' ('+line.unit+')')),
         h('div',{className:'delivery-card-quantities'},... [['qtyProd','SL đặt'],['qtyInvoice','SL HĐ'],['qtyDelivered','SL giao']].map(([key,label])=>key==='qtyDelivered'?field(label,mobileDeliveryQty(line,key).toLocaleString('vi-VN',{maximumFractionDigits:2})):h('div',{key,className:'delivery-card-field'},h('span',null,label),h(DeliveryQuantityCell,{order,lineIndex:index,field:key,canEdit:canEdit&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:onSaveQuantity}))))
       )):h('div',{className:'delivery-card-empty'},'Chưa có sản phẩm'))
@@ -3537,6 +3551,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     if(pacLabels.length)openLabelPrintWindow(pacLabels,printOrders,'pac');
     if(classicLabels.length)openLabelPrintWindow(classicLabels,printOrders,'classic');
   };
+  const deliveryGroupFills=scfDeliveryGroupFills(sortedList.map(groupInfoForOrder));
+  const colorProductById=new Map((products||[]).map(product=>[String(product.id),product]));
+  const orderLineFill=(order,line,trip)=>scfDeliveryLineFill(trip,order,line,colorProductById.get(String(line.productId)),prodCats,deliveryGroupFills.get(groupInfoForOrder(order).key)||'#ffffff');
   const orderTableRows=[];
   let currentGroup=null,currentGroupHeader=null;
   pagedList.forEach(o=>{
@@ -3889,7 +3906,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           ]
         )),
         h('tbody',null,list.length?orderTableRows.map((o,_i)=>{
-          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:detailColumnsHidden?8:12,className:'delivery-group-header-cell'},
+          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:detailColumnsHidden?8:12,className:'delivery-group-header-cell',style:deliveryGroupFills.has(o.group.key)?{'--delivery-group-fill':deliveryGroupFills.get(o.group.key),'--delivery-group-text':'#000'}:undefined},
             h(DeliveryOrderGroupHeader,{group:o.group,count:o.cnt,weight:o.kl,onEditDriver:canChangeTripDriver&&deliveryTripDriverEditable(tripById.get(String(o.group.tripId)))?setDriverEditTripId:null})
           ));
           const ctx=o._ctx||orderContext(o);
@@ -3914,6 +3931,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           const planRows=plansForDisplay.length
             ?plansForDisplay.map((plan,pi)=>({key:plan.line?.id||('plan_'+pi),plan,line:plan.line||ctx.lines?.[pi]||{},productName:plan.productName||plan.line?.productName||'Sản phẩm'}))
             :(ctx.lines||[]).map((line,pi)=>({key:line.id||('line_'+pi),plan:null,line,productName:line.productName||'Sản phẩm'}));
+          const lineFills=planRows.map(row=>orderLineFill(o,row.line,autoTrip||{deliveryDate:preferredTripDate,shiftName:preferredTripShiftName}));
+          const commonFill=lineFills.length&&lineFills.every(fill=>fill===lineFills[0])?lineFills[0]:deliveryGroupFills.get(groupInfoForOrder(o).key)||'#ffffff';
           const tripSelect=!detailColumnsHidden&&h('div',{className:'delivery-trip-content'},
             h(DeliveryTripModeSwitch,{mode:tripMode,disabled:assignmentLocked||(assignmentStarted&&tripMode==='manual'),title:assignmentTitle,
               onChange:()=>setOrderTripMode(o,tripMode==='manual'?'auto':'manual')}),
@@ -3929,7 +3948,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
               h('span',{className:'delivery-production-shift-date'},': '+(firstPlanForDisplay?.prodDate||'—'))),
             h('div',{className:'delivery-production-shift-date'},'Tem: '+(firstPlanForDisplay?.labelDate||'—')+', '+(firstPlanForDisplay?.labelTime||'—'))
           );
-          return h('tr',{key:o._rowKey,className:'delivery-order-row'},
+          return h('tr',{key:o._rowKey,className:'delivery-order-row delivery-order-colored',style:{'--delivery-order-fill':commonFill}},
             h('td',null,
               h('div',{className:'delivery-order-date'},
                 isAdmin&&h('input',{
@@ -3951,7 +3970,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             h('td',{colSpan:4,className:'delivery-product-qty-cell'},
               h('div',{className:'delivery-product-qty-content',style:{'--delivery-product-column-width':productColumnWidth+'px'}},
                 planRows.length
-                  ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-product-qty-row'},
+                  ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-product-qty-row',style:{background:lineFills[pi],color:'#000'}},
                     h('div',{className:'delivery-product-info'},
                       h('div',{className:'delivery-product-name'},(pi+1)+'. '+row.productName)
                     ),
@@ -3964,7 +3983,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             h('td',{className:'delivery-center-cell'},ctx.deliveryTime||'—'),
             detailColumnsHidden&&h('td',{className:'delivery-line-note-cell'},
               h('div',{className:'delivery-line-note-list'},planRows.length
-                ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
+                ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-line-note-row',style:{background:lineFills[pi],color:'#000'}},h(DeliveryLineNoteCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
                 :h('div',{className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:null,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
             ),
             !detailColumnsHidden&&[
@@ -4006,7 +4025,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         const assignmentTitle=assignmentClosed?'Chuyến đã chờ duyệt/hoàn thành':assignmentLocked?'Bạn không có quyền chuyển đơn này':'';
         const {plans,firstPlan}=productionDisplayForOrder(ctx);
         return h(DeliveryMobileOrderCard,{key:'mod_'+o._rowKey,rowKey:o._rowKey,order:ctx,trip:displayTrip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,
-          canEdit:canEditMobileOrder,onEdit:()=>setMobileEdit(cleanDeliveryOrderRecord(o)),onSaveQuantity:saveLineQuantity,
+          canEdit:canEditMobileOrder,onEdit:()=>setMobileEdit(cleanDeliveryOrderRecord(o)),onSaveQuantity:saveLineQuantity,lineFill:line=>orderLineFill(o,line,displayTrip||{deliveryDate:preferredTripDate,shiftName:preferredTripShiftName}),
           selection:isAdmin&&h('input',{type:'checkbox',checked:bulkSelected.has(o._rowKey),onChange:()=>toggleBulkOrder(o),'aria-label':'Chọn đơn '+(ctx.pointName||'')+' '+(ctx.deliveryTime||'')}),
           renderTripControls:()=>{
             if(!canEditMobileOrder)return null;
