@@ -2364,7 +2364,8 @@ function scfDeliveryGroupFills(groups){
 function scfDeliveryLineFill(trip,order,line,product,prodCats,tripFill){
   const row=[order.deliveryDate||trip?.deliveryDate||'',order.pointName||'',line.productName||product?.name||'',0,line.unit||'',order.deliveryTime||trip?.deliveryTime||'',''];
   row.isGoods=isGoodsProduct(product||line,prodCats||[]);
-  return scfTripSummaryRowFill(trip||{},row,tripFill);
+  const fill=scfTripSummaryRowFill(trip||{},row,tripFill);
+  return fill==='#ffff00'?'#fff6cf':fill==='#f4af86'?'#fbe5d6':'#ffffff';
 }
 function DeliveryMobileOrderCard({order,rowKey,trip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,canEdit,onEdit,onSaveQuantity,renderTripControls,selection,lineFill}){
   const[tripOpen,setTripOpen]=useState(false),[productionOpen,setProductionOpen]=useState(false);
@@ -3857,7 +3858,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     modal==='excel'&&h(DeliveryExcelExportModal,{orders:list.map(orderContext),trips,products,customers,prodCats,tripForOrder:deliveryTripForOrder,initialGroup:fTripGroup,onExportDetail:exportDetailedExcel,onClose:()=>sm(null)}),
     h('div',{className:'delivery-body'},
       !isMobile&&h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
-        h('table',{className:'delivery-orders-table'+(detailColumnsHidden?' delivery-orders-table-focus':'')},
+        h('table',{className:'delivery-orders-table'+(detailColumnsHidden?' delivery-orders-table-focus':''),style:detailColumnsHidden?{minWidth:productColumnWidth+840}:undefined},
         h('colgroup',null,
           h('col',{style:{width:95}}),
           h('col',{style:{width:175}}),
@@ -3866,7 +3867,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('col',{style:{width:85}}),
           h('col',{style:{width:85}}),
           h('col',{style:{width:75}}),
-          detailColumnsHidden&&h('col',{style:{width:300}}),
+          detailColumnsHidden&&h('col',null),
           !detailColumnsHidden&&[
             h('col',{key:'production',style:{width:160}}),
             h('col',{key:'invoice',style:{width:80}}),
@@ -3906,7 +3907,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           ]
         )),
         h('tbody',null,list.length?orderTableRows.map((o,_i)=>{
-          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:detailColumnsHidden?8:12,className:'delivery-group-header-cell',style:deliveryGroupFills.has(o.group.key)?{'--delivery-group-fill':deliveryGroupFills.get(o.group.key),'--delivery-group-text':'#000'}:undefined},
+          if(o._hdr) return h('tr',{key:'oh'+_i},h('td',{colSpan:detailColumnsHidden?8:12,className:'delivery-group-header-cell'},
             h(DeliveryOrderGroupHeader,{group:o.group,count:o.cnt,weight:o.kl,onEditDriver:canChangeTripDriver&&deliveryTripDriverEditable(tripById.get(String(o.group.tripId)))?setDriverEditTripId:null})
           ));
           const ctx=o._ctx||orderContext(o);
@@ -3932,7 +3933,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             ?plansForDisplay.map((plan,pi)=>({key:plan.line?.id||('plan_'+pi),plan,line:plan.line||ctx.lines?.[pi]||{},productName:plan.productName||plan.line?.productName||'Sản phẩm'}))
             :(ctx.lines||[]).map((line,pi)=>({key:line.id||('line_'+pi),plan:null,line,productName:line.productName||'Sản phẩm'}));
           const lineFills=planRows.map(row=>orderLineFill(o,row.line,autoTrip||{deliveryDate:preferredTripDate,shiftName:preferredTripShiftName}));
-          const commonFill=lineFills.length&&lineFills.every(fill=>fill===lineFills[0])?lineFills[0]:deliveryGroupFills.get(groupInfoForOrder(o).key)||'#ffffff';
+          const commonFill=lineFills.length&&lineFills.every(fill=>fill===lineFills[0])?lineFills[0]:'#ffffff';
           const tripSelect=!detailColumnsHidden&&h('div',{className:'delivery-trip-content'},
             h(DeliveryTripModeSwitch,{mode:tripMode,disabled:assignmentLocked||(assignmentStarted&&tripMode==='manual'),title:assignmentTitle,
               onChange:()=>setOrderTripMode(o,tripMode==='manual'?'auto':'manual')}),
