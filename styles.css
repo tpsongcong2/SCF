@@ -1198,3 +1198,8 @@ tbody tr:hover td{background:var(--bg)}
 .order-image-import-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
 .order-image-import-help{line-height:1.6;color:var(--tx2)}
 @media(max-width:700px){.order-image-import-top{grid-template-columns:minmax(0,1fr)}.modal.order-image-import-modal{max-height:calc(100dvh - 32px)}}
+
+.delivery-production-cell .delivery-prod-shift-display{width:100%;max-width:100%}
+.delivery-production-cell .delivery-production-shift-heading{max-width:100%;flex-wrap:wrap}
+.delivery-invoice-cell{vertical-align:middle!important;text-align:center!important}
+.delivery-invoice-cell .delivery-invoice-view{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 auto;padding:0;flex-shrink:0}

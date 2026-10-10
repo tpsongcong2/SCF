@@ -2356,7 +2356,7 @@ function scfDeliveryLineFill(trip,order,line,product,prodCats){
   const row=['','',line?.productName||product?.name||'',0,'',order?.deliveryTime||'',''];
   row.isGoods=isGoodsProduct(product||line,prodCats||[]);
   const fill=scfTripSummaryRowFill(trip,row,'#ffffff');
-  return fill==='#ffff00'?'#fff6cf':fill==='#f4af86'?'#fbe5d6':'#ffffff';
+  return fill==='#ffff00'?'#ffeca6':fill==='#f4af86'?'#f8cfaf':'#ffffff';
 }
 
 function DeliveryMobileOrderCard({order,rowKey,trip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,canEdit,onEdit,onSaveQuantity,renderTripControls,selection}){
@@ -3858,7 +3858,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           h('col',{style:{width:75}}),
           detailColumnsHidden&&h('col',{style:{width:300}}),
           !detailColumnsHidden&&[
-            h('col',{key:'production',style:{width:160}}),
+            h('col',{key:'production',style:{width:230}}),
             h('col',{key:'invoice',style:{width:80}}),
             h('col',{key:'status',style:{width:110}}),
             h('col',{key:'trip'}),
@@ -3941,16 +3941,16 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             const lineFill=scfDeliveryLineFill(autoTrip||{shiftName:preferredTripShiftName},ctx,{...row.line,productName:row.productName},products.find(product=>String(product.id)===String(row.line?.productId)),prodCats);
             const coloredCell={background:lineFill};
             return h('tr',{key:o._rowKey+'_'+row.key,className:'delivery-order-row'},
-            pi===0&&h('td',{rowSpan:displayRows.length},
+            h('td',{style:coloredCell},
               h('div',{className:'delivery-order-date'},
-                isAdmin&&h('input',{
+                isAdmin&&(pi===0?h('input',{
                   type:'checkbox',
                   checked:bulkSelected.has(o._rowKey),
                   onChange:()=>toggleBulkOrder(o),
                   onClick:e=>e.stopPropagation(),
                   title:'Chọn đơn '+(o.id||''),
                   style:{width:16,height:16,margin:0,flex:'0 0 auto',cursor:'pointer'}
-                }),
+                }):h('span',{'aria-hidden':true,style:{width:16,flex:'0 0 16px'}})),
                 h('span',{title:ctx.deliveryDate||''},(()=>{
                   const parts=String(ctx.deliveryDate||'').split('/');
                   return parts.length>=2?parts.slice(0,2).join('/'):ctx.deliveryDate||'—';
@@ -3977,10 +3977,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
               h('div',{className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:row.empty?null:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote}))
             ),
             !detailColumnsHidden&&pi===0&&[
-              h('td',{key:'production',rowSpan:displayRows.length,className:'delivery-center-cell'},productionShiftDisplay),
-              h('td',{key:'invoice',rowSpan:displayRows.length,className:'delivery-center-cell'},
+              h('td',{key:'production',rowSpan:displayRows.length,className:'delivery-center-cell delivery-production-cell'},productionShiftDisplay),
+              h('td',{key:'invoice',rowSpan:displayRows.length,className:'delivery-center-cell delivery-invoice-cell'},
                 String(o.invoiceImage||'').trim()
-                  ?h('button',{className:'bi',onClick:()=>setInvoiceView(o),title:'Xem ảnh hóa đơn','aria-label':'Xem ảnh hóa đơn'},h('i',{className:'ti ti-photo-check',style:{fontSize:15,color:'var(--pri)'}}))
+                  ?h('button',{className:'bi delivery-invoice-view',onClick:()=>setInvoiceView(o),title:'Xem ảnh hóa đơn','aria-label':'Xem ảnh hóa đơn'},h('i',{className:'ti ti-photo-check',style:{fontSize:15,color:'var(--pri)'}}))
                   :null
               ),
               h('td',{key:'status',rowSpan:displayRows.length,className:'delivery-center-cell'},h(StatusBadge,{s:ctx.status})),
