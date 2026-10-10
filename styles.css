@@ -414,6 +414,11 @@ th{font-family:var(--ui-header-family)!important}
 .tw .trip-invoice-review-table{table-layout:fixed;min-width:1020px}
 .trip-invoice-review-table td{overflow-wrap:anywhere;padding:10px 8px}
 .trip-invoice-review-table th{padding:10px 8px}
+.trip-detail-table .trip-detail-note-cell{min-width:180px}
+.trip-detail-note-cell .trip-order-note-confirm,.trip-detail-note-cell .trip-order-note-confirm input{min-width:0!important;max-width:100%;width:100%}
+.trip-detail-table .trip-detail-basket-cell{min-width:80px;text-align:center}
+.trip-detail-basket-cell .trip-number-confirm{width:62px;max-width:100%}
+.trip-detail-basket-cell .trip-number-confirm input{min-width:0;max-width:100%}
 .trip-invoice-review-table .trip-driver-invoice-cell{font-size:12px}
 .trip-invoice-review-table .trip-driver-invoice-cell button{white-space:normal;font-size:12px;padding:4px}
 .trip-invoice-review-table input[type=number]{max-width:76px!important}
