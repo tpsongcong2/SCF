@@ -3949,7 +3949,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             h('div',{className:'delivery-production-shift-date'},'Tem: '+(firstPlanForDisplay?.labelDate||'—')+', '+(firstPlanForDisplay?.labelTime||'—'))
           );
           return h('tr',{key:o._rowKey,className:'delivery-order-row delivery-order-colored',style:{'--delivery-order-fill':commonFill}},
-            h('td',null,
+            h('td',{className:'delivery-color-cell'},
               h('div',{className:'delivery-order-date'},
                 isAdmin&&h('input',{
                   type:'checkbox',
@@ -3965,9 +3965,9 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                 })())
               )
             ),
-            h('td',null,h('div',{className:'delivery-point-name',title:ctx.pointName||''},ctx.pointName||'—')),
+            h('td',{className:'delivery-color-cell'},h('div',{className:'delivery-point-name',title:ctx.pointName||''},ctx.pointName||'—')),
             // Gộp tên sản phẩm + số lượng để các dòng luôn thẳng hàng.
-            h('td',{colSpan:4,className:'delivery-product-qty-cell'},
+            h('td',{colSpan:4,className:'delivery-product-qty-cell delivery-color-cell'},
               h('div',{className:'delivery-product-qty-content',style:{'--delivery-product-column-width':productColumnWidth+'px'}},
                 planRows.length
                   ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-product-qty-row',style:{background:lineFills[pi],color:'#000'}},
@@ -3980,10 +3980,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                   :h('span',{style:{fontSize:11,color:'var(--tx2)'}},'—')
               )
             ),
-            h('td',{className:'delivery-center-cell'},ctx.deliveryTime||'—'),
+            h('td',{className:'delivery-center-cell delivery-color-cell'},ctx.deliveryTime||'—'),
             detailColumnsHidden&&h('td',{className:'delivery-line-note-cell'},
               h('div',{className:'delivery-line-note-list'},planRows.length
-                ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-line-note-row',style:{background:lineFills[pi],color:'#000'}},h(DeliveryLineNoteCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
+                ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
                 :h('div',{className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:null,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
             ),
             !detailColumnsHidden&&[
