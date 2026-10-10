@@ -78,6 +78,9 @@ button:hover{background:var(--bg2)}
 .delivery-line-note-list{width:100%;max-width:100%}
 .delivery-line-note-row{display:flex;align-items:center;min-height:32px;padding:5px 10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;color:var(--tx)}
 .delivery-line-note-row+.delivery-line-note-row{border-top:1px dashed var(--bd)}
+.delivery-line-note-editor{width:100%;min-width:0}
+.delivery-line-note-editor input{width:100%;min-width:0;padding:3px 5px;font:inherit;line-height:1.35}
+.delivery-line-note-editor input[readonly]{border-color:transparent;background:transparent;cursor:text}
 .delivery-group-header-cell{background:#2d6a4f!important;color:#fff!important;font-weight:700!important;font-size:13px!important;padding:5px 12px!important}
 .delivery-group-header{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:4px 16px;width:100%;text-align:left}
 .delivery-group-driver{display:inline-flex;align-items:center;gap:8px;max-width:100%}

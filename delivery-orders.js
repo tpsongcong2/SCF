@@ -2295,6 +2295,36 @@ function mergeDeliveryLineQuantity(live,base,lineIndex,field,raw){
   if(current!==before)throw new Error('Số lượng đã được sửa ở nơi khác. Hãy mở lại ô số lượng trước khi lưu.');
   return {order:{...live,lines:live.lines.map((item,i)=>i===index?{...item,[field]:value}:item)},changes:[(line.productName||'Sản phẩm')+' · '+label+': '+before+' → '+value]};
 }
+function mergeDeliveryLineNote(live,base,lineIndex,raw){
+  if(!live||String(live.id)!==String(base.id))throw new Error('Đơn không còn tồn tại. Hãy tải lại danh sách.');
+  const note=String(raw??'').trim();
+  let old=base,line=live,index=-1;
+  if(lineIndex!==null){
+    old=base.lines?.[lineIndex];
+    if(!old)throw new Error('Không tìm thấy dòng sản phẩm.');
+    const matches=(live.lines||[]).map((line,index)=>({line,index})).filter(({line,index})=>old.id?String(line.id)===String(old.id):index===lineIndex&&!line.id);
+    if(matches.length!==1)throw new Error('Dòng sản phẩm đã thay đổi. Hãy mở lại ô chú ý.');
+    ({line,index}=matches[0]);
+    if(String(line.productId||'')!==String(old.productId||'')||String(line.productName||'')!==String(old.productName||''))throw new Error('Sản phẩm đã thay đổi. Hãy mở lại ô chú ý.');
+  }
+  const before=String(old.note||''),current=String(line.note||'');
+  if(current===note)return {order:live,changes:[]};
+  if(current!==before)throw new Error('Chú ý đã được sửa ở nơi khác. Hãy mở lại ô trước khi lưu.');
+  const order=lineIndex===null?{...live,note}:{...live,lines:live.lines.map((item,i)=>i===index?{...item,note}:item)};
+  return {order,changes:[(lineIndex===null?'Đơn hàng':line.productName||'Sản phẩm')+' · Chú ý: '+(before||'—')+' → '+(note||'—')]};
+}
+function DeliveryLineNoteCell({order,lineIndex,canEdit,onSave}){
+  const[editing,setEditing]=useState(null),[value,setValue]=useState(''),[error,setError]=useState('');
+  const line=lineIndex===null?order:order.lines?.[lineIndex],current=String(line?.note||'');
+  const begin=()=>{if(!canEdit||!line||editing)return;setEditing({...order,lines:(order.lines||[]).map(item=>({...item}))});setValue(current);setError('');};
+  const close=()=>{setEditing(null);setError('');};
+  const save=()=>{try{onSave(editing,lineIndex,value);close();}catch(e){setError(e.message||'Chưa lưu được chú ý.');}};
+  return h('div',{className:'delivery-line-note-editor'},
+    h('input',{type:'text',value:editing?value:current,readOnly:!editing,placeholder:'—',title:canEdit?'Bấm để sửa chú ý, nhấn Enter để lưu và khóa ô':'Chú ý','aria-label':'Chú ý '+(line?.productName||'đơn hàng'),'aria-invalid':!!error,
+      'data-scf-action':canEdit?'write':'view',onClick:begin,onChange:event=>setValue(event.target.value),onBlur:close,
+      onKeyDown:event=>{if(event.isComposing||event.nativeEvent?.isComposing)return;if(event.key==='Enter'){event.preventDefault();if(editing)save();else begin();}if(event.key==='Escape'){event.preventDefault();close();}}}),
+    error&&h('small',{role:'alert',style:{color:'#A32D2D'}},error));
+}
 function deliveryQuantityIcon(kind){
   const paths={pencil:'M16 4l4 4M4 20l4-1L20 7a2.83 2.83 0 0 0-4-4L4 15z',check:'M5 12l4 4L19 6'};
   return h('svg',{viewBox:'0 0 24 24',width:14,height:14,fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true,focusable:'false'},h('path',{d:paths[kind]}));
@@ -2547,6 +2577,23 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       notifyDriverOrderChange(updated,'Số lượng đơn hàng đã được cập nhật');
       window.showToast('Đã cập nhật số lượng trên máy. Theo dõi trạng thái đồng bộ ở đầu trang.','info');
     }
+  };
+  const saveLineNote=(base,lineIndex,value)=>{
+    if(!canEditMobileOrder||window.__SCF_ACCESS_CONTEXT?.readOnly)throw new Error('Tài khoản chỉ có quyền xem đơn hàng.');
+    let failure=null,updated=null;
+    const stamp=fmtDT(),audit=historyEntry('Sửa nhanh chú ý');
+    ReactDOM.flushSync(()=>setOrders(previous=>{
+      try{
+        const matches=previous.filter(order=>String(order.id)===String(base.id));
+        if(matches.length>1)throw new Error('Mã đơn bị trùng. Cần kiểm tra đơn trước khi sửa nhanh.');
+        const live=matches[0],result=mergeDeliveryLineNote(live,base,lineIndex,value);
+        if(!result.changes.length)return previous;
+        updated={...result.order,updatedAt:stamp,updatedBy:currentUser?.name||'',orderHistory:[...(live.orderHistory||[]),{...audit,changes:result.changes}]};
+        return previous.map(order=>order===live?updated:order);
+      }catch(error){failure=error;return previous;}
+    }));
+    if(failure)throw failure;
+    if(updated)notifyDriverOrderChange(updated,'Chú ý đơn hàng đã được cập nhật');
   };
   const lineText=order=>(order?.lines||[]).map(l=>(l.productName||l.productId||'Sản phẩm')+': '+numFmt(l.qtyInvoice??l.qtyProd??l.qty)+(l.unit?' '+l.unit:'')).join('; ');
   const orderChanges=(before,after)=>{
@@ -3917,8 +3964,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             h('td',{className:'delivery-center-cell'},ctx.deliveryTime||'—'),
             detailColumnsHidden&&h('td',{className:'delivery-line-note-cell'},
               h('div',{className:'delivery-line-note-list'},planRows.length
-                ?planRows.map(row=>h('div',{key:row.key,className:'delivery-line-note-row',title:row.line?.note||''},row.line?.note||'—'))
-                :h('div',{className:'delivery-line-note-row'},ctx.note||'—'))
+                ?planRows.map((row,pi)=>h('div',{key:row.key,className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:row.line?.id?(o.lines||[]).findIndex(line=>String(line.id)===String(row.line.id)):pi,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
+                :h('div',{className:'delivery-line-note-row'},h(DeliveryLineNoteCell,{order:o,lineIndex:null,canEdit:canEditMobileOrder&&!window.__SCF_ACCESS_CONTEXT?.readOnly,onSave:saveLineNote})))
             ),
             !detailColumnsHidden&&[
               h('td',{key:'production',className:'delivery-center-cell'},productionShiftDisplay),
