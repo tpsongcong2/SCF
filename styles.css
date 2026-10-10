@@ -1203,3 +1203,13 @@ tbody tr:hover td{background:var(--bg)}
 .delivery-production-cell .delivery-production-shift-heading{max-width:100%;flex-wrap:wrap}
 .delivery-invoice-cell{vertical-align:middle!important;text-align:center!important}
 .delivery-invoice-cell .delivery-invoice-view{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 auto;padding:0;flex-shrink:0}
+
+.delivery-inline-copy-row>td{background:#fff!important;border-bottom:1px dashed var(--pri);vertical-align:middle}
+.delivery-inline-copy-row input{padding:5px 4px;min-width:0;width:100%;font:inherit}
+.delivery-inline-copy-row .delivery-product-qty-value{padding:0 4px}
+.delivery-inline-point{position:relative;min-width:0}
+.delivery-inline-point-results{position:absolute;top:100%;left:0;min-width:260px;max-width:360px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:50}
+.delivery-inline-point-results button{display:flex;flex-direction:column;align-items:flex-start;width:100%;border:0;border-radius:0;text-align:left;padding:8px}
+.delivery-inline-point-results small{color:var(--tx2)}
+.delivery-inline-copy-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px}
+.delivery-inline-copy-actions b{color:var(--pri)}
