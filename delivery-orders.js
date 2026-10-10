@@ -2365,7 +2365,7 @@ function scfDeliveryLineFill(trip,order,line,product,prodCats,tripFill){
   const row=[order.deliveryDate||trip?.deliveryDate||'',order.pointName||'',line.productName||product?.name||'',0,line.unit||'',order.deliveryTime||trip?.deliveryTime||'',''];
   row.isGoods=isGoodsProduct(product||line,prodCats||[]);
   const fill=scfTripSummaryRowFill(trip||{},row,tripFill);
-  return fill==='#ffff00'?'#fff6cf':fill==='#f4af86'?'#fbe5d6':'#ffffff';
+  return fill==='#ffff00'?'#ffeca6':fill==='#f4af86'?'#f8cfaf':'#ffffff';
 }
 function DeliveryMobileOrderCard({order,rowKey,trip,tripMode,preferredTripDate,preferredTripShiftName,plans,firstPlan,canEdit,onEdit,onSaveQuantity,renderTripControls,selection,lineFill}){
   const[tripOpen,setTripOpen]=useState(false),[productionOpen,setProductionOpen]=useState(false);
