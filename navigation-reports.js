@@ -573,6 +573,36 @@ function PurchaseTab({purchases,setPurchases,nccs,setNCCs,materials,products,pro
 function fuelPurchaseAmount(liters,price){
   return Math.round(Math.round(numFmt(liters||0)*1000)*numFmt(price||0)/1000);
 }
+function FuelSyncConflictNotice(){
+  const read=()=>{const value=window.__SCF_FUEL_SYNC_CONFLICT;return value?.owner===String(window.__SCF_ACCESS_CONTEXT?.employeeId||'')?value:null;};
+  const[conflict,setConflict]=useState(read),[open,setOpen]=useState(false),[choices,setChoices]=useState({}),[busy,setBusy]=useState(false);
+  useEffect(()=>{const update=()=>{setConflict(read());setChoices({});};window.addEventListener('scf-fuel-sync-conflict',update);return()=>window.removeEventListener('scf-fuel-sync-conflict',update);},[]);
+  if(!conflict)return null;
+  const fields=[['date','Ngày mua'],['vehicle','Xe'],['buyerName','Nhân viên đổ xăng'],['liters','Số lít'],['price','Giá/lít'],['amount','Thành tiền'],['note','Ghi chú'],['updatedAt','Sửa lúc'],['updatedBy','Người sửa']];
+  const apply=async()=>{
+    setBusy(true);
+    try{const saved=await window.scfResolveFuelSyncConflict(choices);setOpen(false);if(saved?.every(Boolean))window.showToast('Đã đối chiếu và đồng bộ đơn xăng dầu.','success');else window.showToast('Lựa chọn đã được giữ. Kiểm tra trạng thái đồng bộ để biết kết quả gửi.','warn');}
+    catch(error){window.showToast(error.message||'Chưa đối chiếu được đơn xăng dầu.','error');}
+    finally{setBusy(false);}
+  };
+  return h(React.Fragment,null,
+    h('div',{role:'alert',className:'card',style:{borderColor:'#f0cf7a',background:'#fff8e1',marginBottom:12}},h('b',null,conflict.conflicts.length+' đơn xăng dầu cần đối chiếu. '),h('button',{type:'button',onClick:()=>setOpen(true)},'Kiểm tra đơn xung đột')),
+    open&&h(Modal,{title:'Đối chiếu đơn xăng dầu chờ đồng bộ',lg:'xl',onClose:()=>{if(!busy)setOpen(false);}},
+      h('p',null,'Chọn bản cần giữ cho từng đơn. Các đơn khác được ghép tự động; đóng cửa sổ này vẫn giữ nguyên dữ liệu chờ.'),
+      conflict.conflicts.map(row=>h('div',{key:row.id,className:'card',style:{marginBottom:12}},
+        h('b',null,row.id),
+        h('div',{className:'tw'},h('table',null,
+          h('thead',null,h('tr',null,h('th',null,'Thông tin'),h('th',null,'Trên máy chủ'),h('th',null,'Trên máy này'))),
+          h('tbody',null,fields.map(([key,label])=>h('tr',{key},h('td',null,label),h('td',null,row.remote?String(row.remote[key]??'—'):'Đơn đã bị xóa'),h('td',null,row.local?String(row.local[key]??'—'):'Đơn đã bị xóa'))),
+            ...[['meterImage','Ảnh cây xăng'],['plateImage','Ảnh biển số']].map(([field,label])=>h('tr',{key:field},h('td',null,label),...['remote','local'].map(side=>h('td',{key:side},row[side]?.[field]?h('a',{href:row[side][field],target:'_blank',rel:'noopener noreferrer'},'Xem ảnh'):'—'))))
+          )
+        )),
+        h('div',{style:{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}},...['remote','local'].map(choice=>h('label',{key:choice,style:{display:'flex',alignItems:'center',gap:6}},h('input',{type:'radio',name:'fuel-conflict-'+row.id,checked:choices[row.id]===choice,disabled:busy,onChange:()=>setChoices(previous=>({...previous,[row.id]:choice})),style:{width:18,height:18}}),choice==='remote'?'Giữ bản trên máy chủ':'Giữ bản trên máy này')))
+      )),
+      h(Row,null,h('button',{type:'button',disabled:busy,onClick:()=>setOpen(false)},'Đóng'),h('button',{type:'button',className:'bp',disabled:busy||conflict.conflicts.some(row=>!choices[row.id]),onClick:apply},busy?'Đang đồng bộ…':'Lưu lựa chọn và đồng bộ'))
+    )
+  );
+}
 function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [modal,setModal]=useState(false);
@@ -802,6 +832,7 @@ function FuelPurchaseTab({rows,setRows,employees,assets,currentUser}) {
   };
   return h('div',{className:'fuel-purchase-page'},
     h('div',{className:'ptitle'},h('i',{className:'ti ti-gas-station',style:{fontSize:20}}),'Đơn mua xăng dầu'),
+    h(FuelSyncConflictNotice),
     h('div',{className:'mobile-only fuel-overview'},
       h('div',null,h('span',null,'Tổng tiền theo bộ lọc'),h('strong',null,visible.reduce((sum,row)=>sum+numFmt(row.amount||0),0).toLocaleString('vi-VN')+' đ')),
       h('div',null,h('b',null,visible.length+' đơn'),h('span',null,visible.reduce((sum,row)=>sum+numFmt(row.liters||0),0).toLocaleString('vi-VN')+' lít'))
@@ -2316,10 +2347,10 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
       ['Tổng SL hóa đơn',totals.invoice],['Tổng SL đã giao',totals.delivered],['Chênh lệch',totals.delivered-totals.invoice]
     ];
     const productsData=[['STT','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch'],...productRows.map((row,index)=>[index+1,row.name,row.unit||'',row.invoice,row.delivered,row.delivered-row.invoice])];
-    const ordersData=[['Lái xe','Ngày giao','Địa điểm','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch','Giờ giao','Ảnh hóa đơn']];
+    const ordersData=[['Lái xe','Ngày giao','Địa điểm','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch','Giờ giao','Ảnh hóa đơn','Chú ý']];
     filtered.forEach(order=>visibleLines(order).forEach(line=>ordersData.push([
       driverFor(order),fmtAnyDate(order.deliveryDate||order.date)||'',order.pointName||order.address||'',line.productName||'',line.unit||'',
-      numFmt(line.qtyInvoice)||0,deliveredQty(line,order),deliveredQty(line,order)-(numFmt(line.qtyInvoice)||0),order.deliveryTime||'',order.invoiceImage||''
+      numFmt(line.qtyInvoice)||0,deliveredQty(line,order),deliveredQty(line,order)-(numFmt(line.qtyInvoice)||0),order.deliveryTime||'',order.invoiceImage||'',String(line.note||'')
     ])));
     const wb=XLSX.utils.book_new();
     [['Tong quan',overview],['Tong hop san pham',productsData],['Hoa don da nhap',ordersData]].forEach(([name,data])=>{
@@ -2375,8 +2406,8 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
     h('div',{className:'card'},
       h('div',{style:{fontWeight:700,color:'var(--pri3)',marginBottom:10}},'Các hóa đơn đã nhập'),
       h('div',{className:'tw'},h('table',{className:'debt-invoice-table',style:{'--debt-invoice-image-width':showInlineInvoices?({small:'205px',medium:'280px',large:'420px'}[invoiceSize]):'90px'}},
-        h('colgroup',null,...['driver','date','point','product','qty','qty','time','image'].map((kind,index)=>h('col',{key:index,className:'debt-invoice-col-'+kind}))),
-        h('thead',null,h('tr',null,...['Lái xe','Ngày giao','Địa điểm','Sản phẩm','SL hóa đơn','SL đã giao','Giờ giao','Ảnh HĐ'].map(label=>h('th',{key:label},label)))),
+        h('colgroup',null,...['driver','date','point','product','qty','qty','time','image','note'].map((kind,index)=>h('col',{key:index,className:'debt-invoice-col-'+kind}))),
+        h('thead',null,h('tr',null,...['Lái xe','Ngày giao','Địa điểm','Sản phẩm','SL hóa đơn','SL đã giao','Giờ giao','Ảnh HĐ','Chú ý'].map(label=>h('th',{key:label},label)))),
         h('tbody',null,invoiceRows.length?invoiceRows.map(({order,line,lineIndex})=>{
           const invoice=line?(numFmt(line.qtyInvoice)||0):0;
           const delivered=line?deliveredQty(line,order):0;
@@ -2392,9 +2423,10 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
             lineIndex===0&&h('td',{rowSpan:visibleLines(order).length,style:{textAlign:'center'}},order.invoiceImage
               ?showInlineInvoices?h(TripInvoicePreview,{key:order.invoiceImage,src:order.invoiceImage,orderId:order.id,size:invoiceSize,landscape:true,label:'Hóa đơn '+(order.pointName||order.address||'')+' · '+(fmtAnyDate(order.deliveryDate||order.date)||'')})
                 :h('button',{type:'button',className:'bi',title:'Xem ảnh hóa đơn',onClick:()=>window.open(order.invoiceImage,'_blank')},h('i',{className:'ti ti-photo-check',style:{fontSize:16,color:'var(--pri)'}}))
-              :'—')
+              :'—'),
+            h('td',{className:'debt-invoice-note'},String(line?.note||'').trim()||'—')
           );
-        }):h('tr',null,h('td',{colSpan:8,className:'empty-st'},'Không có hóa đơn đã nhập theo bộ lọc.')))
+        }):h('tr',null,h('td',{colSpan:9,className:'empty-st'},'Không có hóa đơn đã nhập theo bộ lọc.')))
       ))
     )
   );
