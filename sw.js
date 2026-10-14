@@ -1,4 +1,4 @@
-const CACHE = 'scf-v535';
+const CACHE = 'scf-v539';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const ASSETS = [
   './vendor/supabase.min.js?v=358',
   './vendor/react.production.min.js?v=358',
   './vendor/react-dom.production.min.js?v=358',
-  './styles.css?v=533',
+  './styles.css?v=537',
   './runtime.js?v=457',
   './storage.js?v=535',
   './print-agent.js',
@@ -25,24 +25,24 @@ const ASSETS = [
   './organization.js?v=424',
   './notifications.js?v=475',
   './user-guide.js?v=424',
-  './operations.js?v=465',
+  './operations.js?v=538',
   './navigation-reports.js?v=535',
   './order-detail.js?v=424',
   './delivery-shifts.js?v=455',
-  './auth-workforce.js?v=448',
+  './auth-workforce.js?v=539',
   './quotations.js',
   './finance.js?v=347',
   './delivery-orders.js?v=532',
   './qrcode.min.js?v=357',
-  './import-tools.js?v=501',
-  './trips.js?v=532',
+  './import-tools.js?v=538',
+  './trips.js?v=536',
   './delivery-excel.js?v=491',
   './vendor/exceljs-4.4.0.min.js',
   './production.js?v=534',
-  './production-assignments.js?v=534',
-  './permissions.js?v=452',
+  './production-assignments.js?v=537',
+  './permissions.js?v=538',
   './permission-settings.js?v=452',
-  './app.js?v=535',
+  './app.js?v=539',
   './bootstrap.js?v=448',
   './manifest.json',
   './icon-192.png',
@@ -55,7 +55,7 @@ const ASSETS = [
 // thật sự cần tới; tránh tải lặp toàn bộ ứng dụng và ba bản font ngay lần mở đầu.
 const PRECACHE_ASSETS = [
   './index.html',
-  './styles.css?v=533',
+  './styles.css?v=537',
   './vendor/tabler-icons.min.css?v=394'
 ];
 
@@ -88,17 +88,28 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     fetchWithTimeout(e.request, 8000)
       .then(res => {
+        // GitHub Pages có thể trả trang lỗi HTML cho đường dẫn JavaScript.
+        // Chỉ lưu tài nguyên hợp lệ; dùng bản tốt trong cache khi mạng trả lỗi.
+        if (!scfValidStaticResponse(res, url)) throw new Error('Invalid static asset: ' + url.pathname);
         const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+        caches.open(CACHE).then(c => c.put(e.request, clone)).catch(() => {});
         return res;
       })
       .catch(async error => {
         const cached = await caches.match(e.request);
-        if (cached) return cached;
+        if (cached && scfValidStaticResponse(cached, url)) return cached;
         throw error;
       })
   );
 });
+
+function scfValidStaticResponse(response, url) {
+  if (!response || !response.ok) return false;
+  const type = (response.headers.get('content-type') || '').toLowerCase();
+  if (url.pathname.endsWith('.js')) return /(?:javascript|ecmascript)/.test(type);
+  if (url.pathname.endsWith('.css')) return type.includes('text/css');
+  return true;
+}
 
 function fetchWithTimeout(request, timeoutMs) {
   const controller = new AbortController();
