@@ -246,6 +246,11 @@ th{font-family:var(--ui-header-family)!important}
 .weather-current-card{padding:11px 12px;border:1px solid var(--bd);border-radius:12px;background:linear-gradient(135deg,#fbfdfb,#f2f8f4);min-width:0}
 .weather-current-card>div:first-child{min-width:0!important}
 .weather-three-wrap{display:contents!important}
+.trip-summary-day-modal .mh{margin-bottom:4px;padding-bottom:0;border-bottom:0}
+@media(max-width:768px){
+  .weather-card{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .weather-current-card{grid-column:1/-1}
+}
 @media(max-width:600px){
   .weather-card{padding:8px;gap:6px}
   .weather-current-card,.weather-three-wrap>div{padding:8px 6px!important}

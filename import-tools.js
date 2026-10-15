@@ -753,7 +753,7 @@ function MobileNav({page,setPage,role,perms,dept,currentUser,onLogout,onQuickTri
   const groups=[]; let cur=null;
   NAV.forEach(item=>{
     if(item.sec){cur={sec:item.sec,pages:[]};groups.push(cur);return;}
-    if(!canAccess(role,item.key,perms,dept))return;
+    if(!canAccess(role,item.key,perms,dept)||!allowed(item.key))return;
     if(cur)cur.pages.push(item);
     else groups.push({sec:item.label,pages:[item],single:true});
   });
@@ -764,7 +764,7 @@ function MobileNav({page,setPage,role,perms,dept,currentUser,onLogout,onQuickTri
   const quick=preferred.map(key=>NAV.find(item=>item.key===key))
     .filter(item=>item&&canAccess(role,item.key,perms,dept)&&allowed(item.key));
   const currentIsQuick=quick.some(item=>item.key===page);
-  const go=key=>{if(canAccess(role,key,perms,dept)){setPage(key);setOpen(false);}};
+  const go=key=>{if(allowed(key)&&canAccess(role,key,perms,dept)){setPage(key);setOpen(false);}};
   const items=[...quick,...(onQuickTripSummary&&allowed('quick-summary')?[{key:'quick-summary',icon:'ti-photo-search',label:'Đơn tổng'}]:[]),...(allowed('more')?[{key:'more',icon:'ti-grid-dots',label:'Thêm'}]:[])];
 
   return h(React.Fragment,null,
