@@ -1,5 +1,15 @@
 /* --- Phân quyền menu --- */
 const PAGE_ACCESS = {
+  kpi4p:['admin'],
+  kpi4p_manage:['admin'],
+  kpi4p_approve:['admin'],
+  kpi4p_settings:['admin'],
+  payroll4p:['admin'],
+  payroll4p_approve:['admin'],
+  attp_process:['admin','manager','staff'],
+  attp_standards:['admin','manager','staff'],
+  attp_daily:['admin','manager','staff'],
+  attp_legal:['admin','manager','staff'],
   welcome:      ['admin','manager','staff','driver'],
   company:      ['admin','manager','staff','driver'],
   appearance:   ['admin','manager'],
