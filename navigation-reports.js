@@ -2351,9 +2351,11 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
     const quantities=new Map();
     visibleLines(order).forEach(line=>{
       const key=debtProductKey(line);
-      const entry=quantities.get(key)||{order,invoice:0,delivered:0};
+      const entry=quantities.get(key)||{order,invoice:0,delivered:0,notes:[]};
       entry.invoice+=numFmt(line.qtyInvoice)||0;
       entry.delivered+=deliveredQty(line,order);
+      const note=String(line.note||'').trim();
+      if(note&&!entry.notes.includes(note))entry.notes.push(note);
       quantities.set(key,entry);
     });
     quantities.forEach((entry,key)=>{
@@ -2451,9 +2453,9 @@ function SalesDebtReportTab({orders,customers,products,trips=[],currentUser}){
       showQuantitySummary&&differenceProduct&&differenceOrders.length>0&&h('div',{id:'debt-difference-orders',style:{marginTop:16}},
         h('div',{style:{fontWeight:700,color:'var(--pri3)',marginBottom:10}},'Các đơn lệch · '+differenceProduct.name+' ('+differenceOrders.length+' đơn)'),
         h('div',{className:'tw'},h('table',null,
-          h('thead',null,h('tr',null,...['Mã đơn','Lái xe','Ngày giao','Khách hàng','Địa điểm','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch','Giờ giao'].map(label=>h('th',{key:label},label)))),
-          h('tbody',null,differenceOrders.map(({order,invoice,delivered},index)=>h('tr',{key:(order.id||order.orderId||'order')+'-'+index},
-            h('td',null,order.id||order.orderId||'—'),h('td',null,driverFor(order)),h('td',null,fmtAnyDate(order.deliveryDate||order.date)||'—'),h('td',null,order.customer||order.customerName||'—'),h('td',null,order.pointName||order.address||'—'),h('td',null,differenceProduct.name),h('td',null,differenceProduct.unit||'—'),h('td',null,qty(invoice)),h('td',null,qty(delivered)),h('td',null,h('b',{style:{color:'var(--danger,#c0392b)'}},qty(delivered-invoice))),h('td',null,order.deliveryTime||'—')
+          h('thead',null,h('tr',null,...['Lái xe','Ngày giao','Khách hàng','Địa điểm','Sản phẩm','ĐVT','SL hóa đơn','SL đã giao','Chênh lệch','Giờ giao','Chú ý'].map(label=>h('th',{key:label},label)))),
+          h('tbody',null,differenceOrders.map(({order,invoice,delivered,notes},index)=>h('tr',{key:(order.id||order.orderId||'order')+'-'+index},
+            h('td',null,driverFor(order)),h('td',null,fmtAnyDate(order.deliveryDate||order.date)||'—'),h('td',null,order.customer||order.customerName||'—'),h('td',null,order.pointName||order.address||'—'),h('td',null,differenceProduct.name),h('td',null,differenceProduct.unit||'—'),h('td',null,qty(invoice)),h('td',null,qty(delivered)),h('td',null,h('b',{style:{color:'var(--danger,#c0392b)'}},qty(delivered-invoice))),h('td',null,order.deliveryTime||'—'),h('td',{className:'debt-invoice-note',style:{whiteSpace:'pre-wrap'}},notes.join('\n')||'—')
           )))
         ))
       )
