@@ -589,7 +589,8 @@ th{font-family:var(--ui-header-family)!important}
 .trip-quick-lines{display:grid;gap:0;margin-top:2px;border:1px solid #c8c8c8;border-radius:10px;overflow:hidden;background:#fff}
 .trip-quick-line{display:block;padding:12px;background:#fff;color:#000;border-radius:0!important}
 .trip-quick-line+.trip-quick-line{border-top:1px solid #d8d8d8}
-.trip-quick-line-main{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+.trip-quick-line-main{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px}
+@media(max-width:480px){.trip-quick-line-main{grid-template-columns:1fr 1fr}.trip-quick-line-main>.trip-quick-product{grid-column:1 / -1}}
 .trip-quick-product{min-width:0}
 .trip-quick-product b{display:block;white-space:normal}
 .trip-quick-product small{display:block;margin-top:4px;color:var(--tx2)}

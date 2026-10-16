@@ -195,6 +195,7 @@ const SCF_TRIP_PERMISSION_OPTIONS=[
   ['delete','Xóa chuyến'],
   ['dispatch','Giao / thu hồi chuyến của lái xe'],
   ['actualQty','Nhập số lượng thực giao'],
+  ['invoiceQty','Sửa SL hóa đơn trong cập nhật chuyến'],
   ['driverWorkflow','Lái xe nhận chuyến, tải HĐ đơn và báo hoàn thành'],
   ['summaryInvoice','Tải hóa đơn tổng chuyến'],
   ['review','Duyệt hóa đơn và hoàn thành chuyến']
@@ -202,8 +203,8 @@ const SCF_TRIP_PERMISSION_OPTIONS=[
 function defaultTripPermissions(user={}){
   const role=String(user?.role||'').trim().toLowerCase();
   const isAdmin=['admin','administrator'].includes(role),isDriver=role==='driver'||employeeHasDepartment(user,'Lái xe'),isAccounting=employeeDepartmentIncludes(user,'Kế toán');
-  if(isAdmin)return{manage:true,editOrders:true,delete:true,dispatch:true,actualQty:true,driverWorkflow:true,summaryInvoice:true,review:true};
-  if(isDriver)return{manage:false,editOrders:false,delete:false,dispatch:false,actualQty:true,driverWorkflow:true,summaryInvoice:true,review:false};
+  if(isAdmin)return{manage:true,editOrders:true,delete:true,dispatch:true,actualQty:true,invoiceQty:true,driverWorkflow:true,summaryInvoice:true,review:true};
+  if(isDriver)return{manage:false,editOrders:false,delete:false,dispatch:false,actualQty:true,invoiceQty:isAccounting,driverWorkflow:true,summaryInvoice:true,review:false};
   const pageWrite=canWrite(role,'trips',user?.permLevels),pageDelete=canDel(role,'trips',user?.permLevels);
   return{
     manage:pageWrite,
@@ -211,6 +212,7 @@ function defaultTripPermissions(user={}){
     delete:pageDelete,
     dispatch:pageWrite&&(isAccounting||role==='manager'),
     actualQty:false,
+    invoiceQty:isAccounting,
     driverWorkflow:false,
     summaryInvoice:pageWrite&&isAccounting,
     review:pageWrite&&(isAccounting||role==='manager')
