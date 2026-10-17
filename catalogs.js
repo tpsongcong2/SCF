@@ -609,7 +609,7 @@ function ProductsTab({products,setProducts,prodCats,setProdCats}){
 }
 
 /* ─── POINT ROW ─── */
-function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
+function PointRow({pt,allAreas,onAreaChange,onNameChange,onPeriodChange,onDelete}){
   const[showNew,setShowNew]=useState(false);
   const[newAreaTxt,setNewAreaTxt]=useState('');
   const normalizeAreaValue=v=>{
@@ -685,7 +685,11 @@ function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
       h('button',{className:'bi',disabled:!!pt.customerStoppedAt,title:pt.customerStoppedAt?'Đã ngừng bán':'Ngừng bán cho khách hàng này',onClick:()=>onDelete(pt.id,pt),style:{color:'#A32D2D',flexShrink:0}},
         h('i',{className:pt.customerStoppedAt?'ti ti-ban':'ti ti-player-stop',style:{fontSize:14}}))
     ),
-    h('small',{style:{paddingLeft:22,color:'var(--tx2)'}},'Thêm vào khách hàng: '+(pt.customerAddedAt?new Date(pt.customerAddedAt).toLocaleString('vi-VN'):'Chưa biết thời điểm bắt đầu giao')),
+    h('small',{style:{paddingLeft:22,color:'var(--tx2)'}},'Bắt đầu bán: '+(pt.customerAddedAt?new Date(pt.customerAddedAt).toLocaleString('vi-VN'):'Chưa biết thời điểm bắt đầu giao')),
+    onPeriodChange&&h('div',{style:{display:'flex',gap:10,flexWrap:'wrap',paddingLeft:22}},
+      h('label',{style:{fontSize:11}},'Bắt đầu bán ',h('input',{type:'datetime-local',value:scfPointLocalDateTime(pt.customerAddedAt),'aria-label':'Bắt đầu bán '+pt.name,onChange:e=>onPeriodChange(pt.id,'customerAddedAt',e.target.value),style:{fontSize:12,padding:3}})),
+      h('label',{style:{fontSize:11}},'Ngừng bán ',h('input',{type:'datetime-local',value:scfPointLocalDateTime(pt.customerStoppedAt),'aria-label':'Ngừng bán '+pt.name,onChange:e=>onPeriodChange(pt.id,'customerStoppedAt',e.target.value),style:{fontSize:12,padding:3}}))
+    ),
     pt.customerStoppedAt&&h('small',{style:{paddingLeft:22,color:'#A32D2D'}},'Ngừng bán: '+new Date(pt.customerStoppedAt).toLocaleString('vi-VN')),
     pt.address&&h('div',{style:{fontSize:11,color:'var(--tx2)',paddingLeft:22}},
       pt.address+(pt.contact?' • '+pt.contact+' '+pt.phone:''))
@@ -704,6 +708,23 @@ function customerAreaOptions(areas,shifts,customers,points){
   (customers||[]).forEach(customer=>(customer?.points||[]).forEach(point=>add(point?.area)));
   (points||[]).forEach(point=>add(point?.area));
   return [...values.values()].sort((a,b)=>a.localeCompare(b,'vi'));
+}
+function scfPointLocalDateTime(value){
+  if(!value)return '';
+  const d=new Date(value);if(!Number.isFinite(d.getTime()))return '';
+  const pad=v=>String(v).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function scfPointPeriodConflicts(point,ownerId,customers){
+  const start=point.customerAddedAt?Date.parse(point.customerAddedAt):-Infinity,end=point.customerStoppedAt?Date.parse(point.customerStoppedAt):Infinity;
+  const names=[point.name,...(point.nameAliases||[])].map(scfPointMergeKey).filter(Boolean);
+  return (customers||[]).filter(c=>String(c.id)!==String(ownerId)).flatMap(customer=>(customer.points||[]).filter(other=>{
+    const sameId=point.id&&String(point.id)===String(other.id);
+    const sameName=[other.name,...(other.nameAliases||[])].map(scfPointMergeKey).some(name=>names.includes(name));
+    if(!sameId&&!sameName)return false;
+    const otherStart=other.customerAddedAt?Date.parse(other.customerAddedAt):-Infinity,otherEnd=other.customerStoppedAt?Date.parse(other.customerStoppedAt):Infinity;
+    return start<otherEnd&&otherStart<end;
+  }).map(other=>({customer,point:other})));
 }
 function scfPointMergeKey(name){return normalizeLookupText(name).replace(/\s/g,'');}
 function scfMergeCustomerPoints(points,near=false){
@@ -764,13 +785,14 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
   const initPoints=ensureUniquePointIds((cust?.points||[]).map(pt=>({...pt,area:normalizeAreaValue(pt.area)})))
     .sort((a,b)=>{const ac=(a.area||'zzz').localeCompare(b.area||'zzz','vi');return ac!==0?ac:(a.name||'').localeCompare(b.name||'','vi');});
   const[f,sf]=useState(cust?{...cust,points:initPoints}:{id:'',code:'',name:'',group:'',taxCode:'',address:'',note:'',points:[]});
-  const[np,snp]=useState({name:'',address:'',contact:'',phone:'',area:'',newAreaText:''});
+  const[np,snp]=useState({name:'',address:'',contact:'',phone:'',area:'',newAreaText:'',customerAddedAt:scfPointLocalDateTime(new Date())});
   const[saved,setSaved]=useState(false);
   // pendingAreas: lưu thay đổi khu vực mà KHÔNG trigger re-render
   const pendingAreas=React.useRef(Object.fromEntries(initPoints.map(p=>[p.id,normalizeAreaValue(p.area)||''])));
   const set=(k,v)=>sf(p=>({...p,[k]:v}));
   const addPt=()=>{
     if(!np.name){window.showToast('Nhập tên địa điểm!','warn');return;}
+    if(!np.customerAddedAt||!Number.isFinite(Date.parse(np.customerAddedAt))){window.showToast('Chọn thời điểm bắt đầu bán hợp lệ.','warn');return;}
     // Kiểm tra trùng tên
     const norm=s=>(s||'').trim().toLowerCase().replace(/\s+/g,' ');
     const isDupPt=f.points.some(pt=>!pt.customerStoppedAt&&norm(pt.name)===norm(np.name));
@@ -781,8 +803,8 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
     const newId='PT'+uid();
     const areaVal=normalizeAreaValue(np.area==='__new__'?(np.newAreaText||'').trim():(np.area||''));
     pendingAreas.current[newId]=areaVal;
-    sf(p=>({...p,points:[...p.points,{...np,id:newId,area:areaVal,customerAddedAt:new Date().toISOString(),ownerCustomerId:f.id||f.code||null}]}));
-    snp({name:'',address:'',contact:'',phone:'',area:'',newAreaText:''});
+    sf(p=>({...p,points:[...p.points,{...np,id:newId,area:areaVal,createdAt:new Date().toISOString(),customerAddedAt:new Date(np.customerAddedAt).toISOString(),ownerCustomerId:f.id||f.code||null}]}));
+    snp({name:'',address:'',contact:'',phone:'',area:'',newAreaText:'',customerAddedAt:scfPointLocalDateTime(new Date())});
   };
   // onAreaChange: chỉ cập nhật ref, KHÔNG re-render
   const onAreaChange=(id,v)=>{pendingAreas.current[id]=normalizeAreaValue(v);};
@@ -791,6 +813,12 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
     const code=(f.code||'').trim().toUpperCase()||'KH'+String(Date.now()).slice(-6);
     const isDup=customers&&customers.some(c=>c.id===code&&c.id!==(cust?.id||''));
     if(isDup){window.showToast('Mã KH "'+code+'" đã tồn tại! Vui lòng dùng mã khác.','error');return;}
+    for(const point of f.points){
+      const start=point.customerAddedAt?Date.parse(point.customerAddedAt):-Infinity,end=point.customerStoppedAt?Date.parse(point.customerStoppedAt):Infinity;
+      if(Number.isNaN(start)||Number.isNaN(end)||start>=end){window.showToast('Thời điểm ngừng bán phải sau bắt đầu bán: '+point.name,'warn');return;}
+    }
+    const conflicts=f.points.flatMap(point=>scfPointPeriodConflicts(point,cust?.id||code,customers).map(hit=>point.name+' trùng thời gian với '+hit.customer.name+' ('+(hit.point.customerAddedAt?new Date(hit.point.customerAddedAt).toLocaleString('vi-VN'):'chưa biết bắt đầu')+' → '+(hit.point.customerStoppedAt?new Date(hit.point.customerStoppedAt).toLocaleString('vi-VN'):'chưa ngừng bán')+')'));
+    if(conflicts.length&&!confirm('Cảnh báo địa điểm có thời gian bán chồng lấn giữa khách hàng:\n'+[...new Set(conflicts)].join('\n')+'\nVẫn lưu thông tin này?'))return;
     // Merge pendingAreas + dedup + sort theo khu vực → tên
     const seen=new Set();
     const finalPoints=f.points
@@ -819,6 +847,7 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
   const AddPtForm=()=>h('div',{style:{background:'var(--bg2)',borderRadius:'var(--r)',padding:10,marginTop:4}},
     h('div',{style:{fontSize:12,color:'var(--tx2)',fontWeight:500,marginBottom:6}},'Thêm địa điểm mới'),
     h('div',{className:'g2'},
+      h(F,{label:'Bắt đầu bán *'},h('input',{type:'datetime-local',value:np.customerAddedAt||'',onChange:e=>snp(p=>({...p,customerAddedAt:e.target.value}))})),
       h(F,{label:'Tên địa điểm *'},h('input',{value:np.name,onChange:e=>snp(p=>({...p,name:e.target.value})),placeholder:'Kho, Văn phòng, Cửa hàng...'})),
       h(F,{label:'Khu vực'},np.area==='__new__'
         ?h('div',{style:{display:'flex',gap:4}},
@@ -926,6 +955,7 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
               key:pt.id,pt,allAreas,
               onNameChange:(id,v)=>sf(p=>({...p,points:p.points.map(x=>x.id===id?{...x,name:v}:x)})),
               onAreaChange:onAreaChange,
+              onPeriodChange:(id,field,value)=>sf(previous=>({...previous,points:previous.points.map(point=>point.id===id?{...point,[field]:value?new Date(value).toISOString():null}:point)})),
               onDelete:(delId,delPt)=>{
                 if(delPt.customerStoppedAt){window.showToast('Địa điểm đã ngừng bán cho khách hàng này.','info');return;}
                 if(!confirm('Ngừng bán tại "'+delPt.name+'" cho khách hàng này từ thời điểm hiện tại?\nGiữ địa điểm và công nợ trước thời điểm ngừng. Bấm Lưu để áp dụng.'))return;
