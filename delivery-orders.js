@@ -2667,7 +2667,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const contextCache=new WeakMap();
   const orderContext=o=>{
     if(contextCache.has(o))return contextCache.get(o);
-    const resolved=pointMatchById.get(String(o?.pointId||o?.ptId||''))||pointMatchByName.get(normalizeLookupText(o?.pointName||''))||findOrderPointMatch(o,customers||[]);
+    const resolved=findOrderPointMatch(o,customers||[]);
     const pt=resolved?.point||{};
     const cust=resolved?.customer||{};
     const ctx={
@@ -2677,8 +2677,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
       pointName:pt.name||o?.pointName||o?.address||'',
       address:pt.address||o?.address||'',
       area:pt.area||o?.area||'',
-      customerId:cust.id||o?.customerId||'',
-      customer:cust.name||o?.customer||''
+      customerId:o?.customerId||o?.custId||cust.id||'',
+      customer:o?.customer||o?.customerName||cust.name||''
     };
     contextCache.set(o,ctx);contextCache.set(ctx,ctx);return ctx;
   };
@@ -3276,7 +3276,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const sortableOrderMeta=React.useMemo(()=>sortMode==='trip'?orderMeta.map(enrichOrderTripMeta):orderMeta,[orderMeta,sortMode,trips,prodShifts,customers,shifts]);
   const configuredDeliverySequence=o=>{
     const ctx=o?._ctx||orderContext(o);
-    const resolved=pointMatchById.get(String(ctx?.pointId||ctx?.ptId||''))||pointMatchByName.get(normalizeLookupText(ctx?.pointName||''))||findOrderPointMatch(ctx,customers||[]);
+    const resolved=findOrderPointMatch(ctx,customers||[]);
     const trip=o._effectiveTrip||o._autoTrip;
     const shift=matchShiftSchedule({shiftId:trip?.shiftId,shiftName:trip?.shiftName||o._preferredTripShiftName,area:trip?.area||o._area,deliveryTime:trip?.deliveryTime||ctx.deliveryTime});
     return scfPointDeliverySequence(resolved?.point,{shiftId:trip?.shiftId||shift?.id,shiftName:trip?.shiftName||o._preferredTripShiftName||''});

@@ -78,6 +78,8 @@ function getOrderPointIndex(customers){
     const cName=normalizeLookupText(c.name||'');
     (c.points||[]).forEach(pt=>{
       const row={c,pt,cName,pName:normalizeLookupText(pt.name||''),pAddress:normalizeLookupText(pt.address||'')};all.push(row);
+      (pt.mergedPointIds||[]).forEach(id=>add(byPointId,String(id).trim(),row));
+      (pt.nameAliases||[]).forEach(name=>add(byPointName,normalizeLookupText(name),row));
       add(byPointId,String(pt.id||'').trim(),row);add(byPointName,row.pName,row);add(byAddress,row.pAddress,row);add(byCustomerId,String(c.id||'').trim(),row);add(byCustomerName,cName,row);
     });
   });
@@ -96,19 +98,30 @@ function findOrderPointMatch(order,customers){
   include(index.byPointId.get(pointId));include(index.byPointName.get(pointName));include(index.byAddress.get(address));
   if(!candidateSet.size){include(index.byCustomerId.get(customerId));include(index.byCustomerName.get(customerName));}
   const candidates=candidateSet.size?[...candidateSet]:index.all;
-  let best=null,bestScore=-1;
+  let best=null,bestScore=-1,ambiguous=false;
   candidates.forEach(row=>{
     const {c,pt,cName,pName,pAddress}=row;
+    if(customerId&&String(c.id)!==customerId)return;
+    if(!customerId&&customerName&&cName!==customerName)return;
+    if(pt.customerAddedAt){
+      const raw=String(order.deliveryDate||order.date||'');
+      const vn=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const iso=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const day=vn?new Date(+vn[3],+vn[2]-1,+vn[1]):iso?new Date(+iso[1],+iso[2]-1,+iso[3]):null;
+      const added=new Date(pt.customerAddedAt);added.setHours(0,0,0,0);
+      if(day&&Number.isFinite(added.getTime())&&day<added)return;
+    }
     const customerScore=customerId&&String(c.id||'')===customerId?1000:(customerName&&cName===customerName?700:(customerName&&(cName.includes(customerName)||customerName.includes(cName))?350:0));
     let score=customerScore,hit=false;
-    if(pointId&&String(pt.id||'')===pointId){score+=5000;hit=true;}
-    if(pointName&&pName===pointName){score+=800;hit=true;}
+    if(pointId&&(String(pt.id||'')===pointId||(pt.mergedPointIds||[]).some(id=>String(id)===pointId))){score+=5000;hit=true;}
+    if(pointName&&(pName===pointName||(pt.nameAliases||[]).some(name=>normalizeLookupText(name)===pointName))){score+=800;hit=true;}
     else if(pointName&&pName&&(pName.includes(pointName)||pointName.includes(pName))){score+=500;hit=true;}
     if(address&&pAddress===address){score+=300;hit=true;}
     else if(address&&pAddress&&(pAddress.includes(address)||address.includes(pAddress))){score+=180;hit=true;}
-    if(hit&&score>bestScore){bestScore=score;best={customer:c,point:pt,score};}
+    if(hit&&score>bestScore){bestScore=score;best={customer:c,point:pt,score};ambiguous=false;}
+    else if(hit&&score===bestScore&&best&&String(best.customer.id)!==String(c.id))ambiguous=true;
   });
-  return best;
+  return ambiguous?null:best;
 }function getProdShift(deliveryTime, prodShifts, location){
   if(!deliveryTime||!prodShifts)return null;
   const tMin=timeToMin(deliveryTime);
