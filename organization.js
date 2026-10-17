@@ -104,6 +104,7 @@ function CustomersTab({customers,setCustomers,shifts,orders,areas,cu}){
     const retainedIds=new Set((d.points||[]).flatMap(pt=>[String(pt.id),...(pt.mergedPointIds||[]).map(String)]));
     (edit?.points||[]).filter(pt=>!retainedIds.has(String(pt.id))).forEach(pt=>history.push({pointId:pt.id,pointName:pt.name,customerId:edit.id,addedAt:pt.customerAddedAt||null,removedAt:stamp}));
     (d.points||[]).filter(pt=>!(edit?.points||[]).some(old=>String(old.id)===String(pt.id))).forEach(pt=>history.push({pointId:pt.id,pointName:pt.name,customerId:d.id,addedAt:stamp}));
+    (d.points||[]).filter(pt=>pt.customerStoppedAt&&!(edit?.points||[]).find(old=>String(old.id)===String(pt.id))?.customerStoppedAt).forEach(pt=>history.push({pointId:pt.id,pointName:pt.name,customerId:d.id,addedAt:pt.customerAddedAt||null,removedAt:pt.customerStoppedAt}));
     d={...d,pointMembershipHistory:history,points:(d.points||[]).map(pt=>{
       const previous=(edit?.points||[]).find(old=>String(old.id)===String(pt.id));
       return {...pt,ownerCustomerId:d.id,customerAddedAt:previous?(previous.customerAddedAt||pt.customerAddedAt||null):stamp};
@@ -154,6 +155,7 @@ function CustomersTab({customers,setCustomers,shifts,orders,areas,cu}){
                 h('div',{style:{color:'var(--tx2)',marginTop:2}},pt.address),
               pt.area&&h('span',{className:'badge',style:{background:'var(--bg2)',color:'var(--tx)',marginTop:3,fontSize:10}},h('i',{className:'ti ti-map-pin',style:{fontSize:10,marginRight:3}}),pt.area),
                 h('div',{style:{color:'var(--tx2)',fontSize:11,marginTop:4}},'Thêm vào KH: '+(pt.customerAddedAt?new Date(pt.customerAddedAt).toLocaleString('vi-VN'):'Chưa biết thời điểm bắt đầu giao')),
+                pt.customerStoppedAt&&h('div',{style:{color:'#A32D2D',fontSize:11}},'Ngừng bán: '+new Date(pt.customerStoppedAt).toLocaleString('vi-VN')),
                 pt.contact&&h('div',{style:{color:'var(--tx2)',marginTop:1}},pt.contact+' • '+pt.phone)
               ))
             ):h('span',{style:{fontSize:12,color:'var(--tx2)'}},'Chưa có địa điểm giao hàng.')

@@ -682,10 +682,11 @@ function PointRow({pt,allAreas,onAreaChange,onNameChange,onDelete}){
             !isKnown&&curArea&&h('option',{value:curArea},curArea),
             h('option',{value:'__new__',style:{color:'var(--pri)',fontStyle:'italic'}},'+ Thêm khu vực mới...')
           ),
-      h('button',{className:'bi',onClick:()=>onDelete(pt.id,pt),style:{color:'#A32D2D',flexShrink:0}},
-        h('i',{className:'ti ti-trash',style:{fontSize:14}}))
+      h('button',{className:'bi',disabled:!!pt.customerStoppedAt,title:pt.customerStoppedAt?'Đã ngừng bán':'Ngừng bán cho khách hàng này',onClick:()=>onDelete(pt.id,pt),style:{color:'#A32D2D',flexShrink:0}},
+        h('i',{className:pt.customerStoppedAt?'ti ti-ban':'ti ti-player-stop',style:{fontSize:14}}))
     ),
     h('small',{style:{paddingLeft:22,color:'var(--tx2)'}},'Thêm vào khách hàng: '+(pt.customerAddedAt?new Date(pt.customerAddedAt).toLocaleString('vi-VN'):'Chưa biết thời điểm bắt đầu giao')),
+    pt.customerStoppedAt&&h('small',{style:{paddingLeft:22,color:'#A32D2D'}},'Ngừng bán: '+new Date(pt.customerStoppedAt).toLocaleString('vi-VN')),
     pt.address&&h('div',{style:{fontSize:11,color:'var(--tx2)',paddingLeft:22}},
       pt.address+(pt.contact?' • '+pt.contact+' '+pt.phone:''))
   );
@@ -715,7 +716,7 @@ function scfMergeCustomerPoints(points,near=false){
   };
   for(const point of points||[]){
     const key=scfPointMergeKey(point.name);
-    const keep=key&&result.find(p=>close(scfPointMergeKey(p.name),key)&&normalizeLookupText(p.area)===normalizeLookupText(point.area));
+    const keep=key&&!point.customerStoppedAt&&result.find(p=>!p.customerStoppedAt&&close(scfPointMergeKey(p.name),key)&&normalizeLookupText(p.area)===normalizeLookupText(point.area));
     if(!keep){result.push({...point});continue;}
     keep.mergedPointIds=[...new Set([...(keep.mergedPointIds||[]),point.id,...(point.mergedPointIds||[])].filter(id=>id&&id!==keep.id))];
     keep.nameAliases=[...new Set([...(keep.nameAliases||[]),point.name,...(point.nameAliases||[])].filter(name=>name&&name!==keep.name))];
@@ -772,7 +773,7 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
     if(!np.name){window.showToast('Nhập tên địa điểm!','warn');return;}
     // Kiểm tra trùng tên
     const norm=s=>(s||'').trim().toLowerCase().replace(/\s+/g,' ');
-    const isDupPt=f.points.some(pt=>norm(pt.name)===norm(np.name));
+    const isDupPt=f.points.some(pt=>!pt.customerStoppedAt&&norm(pt.name)===norm(np.name));
     if(isDupPt){
       window.showToast('⚠ Địa điểm "'+np.name+'" đã có trong danh sách!\nVui lòng kiểm tra lại hoặc dùng tên khác.','info');
       return;
@@ -926,18 +927,10 @@ function CustomerForm({cust,shifts,customers,orders,areas,onSave,onClose}){
               onNameChange:(id,v)=>sf(p=>({...p,points:p.points.map(x=>x.id===id?{...x,name:v}:x)})),
               onAreaChange:onAreaChange,
               onDelete:(delId,delPt)=>{
-                const delName=(delPt?.name||'').trim().toUpperCase();
-                const hasOrders=(orders||[]).some(o=>
-                  (o.pointId===delId)||(o.pointName||'').trim().toUpperCase()===delName
-                );
-                if(hasOrders){
-                  const cnt=(orders||[]).filter(o=>(o.pointId===delId)||(o.pointName||'').trim().toUpperCase()===delName).length;
-                  if(!confirm('⚠ Địa điểm "'+delPt?.name+'" có '+cnt+' đơn hàng liên quan!\n\nNếu xóa, các đơn hàng này vẫn còn nhưng sẽ mất thông tin địa điểm.\n\nBạn có chắc muốn xóa?'))return;
-                } else {
-                  if(!confirm('Địa điểm "'+delPt?.name+'" không có đơn hàng nào.\nXóa địa điểm này?'))return;
-                }
-                delete pendingAreas.current[delId];
-                sf(p=>({...p,points:p.points.filter(x=>x.id!==delId)}));
+                if(delPt.customerStoppedAt){window.showToast('Địa điểm đã ngừng bán cho khách hàng này.','info');return;}
+                if(!confirm('Ngừng bán tại "'+delPt.name+'" cho khách hàng này từ thời điểm hiện tại?\nGiữ địa điểm và công nợ trước thời điểm ngừng. Bấm Lưu để áp dụng.'))return;
+                const stoppedAt=new Date().toISOString();
+                sf(p=>({...p,points:p.points.map(x=>x.id===delId?{...x,customerStoppedAt:stoppedAt}:x)}));
               }
             }));
           });

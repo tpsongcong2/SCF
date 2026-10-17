@@ -85,6 +85,16 @@ function getOrderPointIndex(customers){
   });
   const index={all,byPointId,byPointName,byAddress,byCustomerId,byCustomerName};ORDER_POINT_INDEX_CACHE.set(customers,index);return index;
 }
+function scfPointCoversOrder(point,order){
+  const text=String(order?.deliveryDate||order?.date||'');
+  const vn=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/),iso=text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!vn&&!iso)return !point.customerAddedAt&&!point.customerStoppedAt;
+  const day=vn?new Date(+vn[3],+vn[2]-1,+vn[1]):new Date(+iso[1],+iso[2]-1,+iso[3]);
+  const time=String(order.deliveryTime||'').match(/^(\d{1,2}):(\d{2})/);
+  if(time)day.setHours(+time[1],+time[2],0,0);
+  const start=point.customerAddedAt?new Date(point.customerAddedAt):null,end=point.customerStoppedAt?new Date(point.customerStoppedAt):null;
+  return (!start||!Number.isFinite(start.getTime())||day>=start)&&(!end||!Number.isFinite(end.getTime())||day<end);
+}
 function findOrderPointMatch(order,customers){
   if(!order||!(customers&&customers.length))return null;
   const pointId=String(order.pointId||order.ptId||'').trim();
@@ -103,14 +113,7 @@ function findOrderPointMatch(order,customers){
     const {c,pt,cName,pName,pAddress}=row;
     if(customerId&&String(c.id)!==customerId)return;
     if(!customerId&&customerName&&cName!==customerName)return;
-    if(pt.customerAddedAt){
-      const raw=String(order.deliveryDate||order.date||'');
-      const vn=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      const iso=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      const day=vn?new Date(+vn[3],+vn[2]-1,+vn[1]):iso?new Date(+iso[1],+iso[2]-1,+iso[3]):null;
-      const added=new Date(pt.customerAddedAt);added.setHours(0,0,0,0);
-      if(day&&Number.isFinite(added.getTime())&&day<added)return;
-    }
+    if(!scfPointCoversOrder(pt,order))return;
     const customerScore=customerId&&String(c.id||'')===customerId?1000:(customerName&&cName===customerName?700:(customerName&&(cName.includes(customerName)||customerName.includes(cName))?350:0));
     let score=customerScore,hit=false;
     if(pointId&&(String(pt.id||'')===pointId||(pt.mergedPointIds||[]).some(id=>String(id)===pointId))){score+=5000;hit=true;}
