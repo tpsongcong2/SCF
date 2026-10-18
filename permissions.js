@@ -194,7 +194,7 @@ const SCF_TRIP_PERMISSION_OPTIONS=[
   ['editOrders','Sửa đơn hàng trong chuyến'],
   ['delete','Xóa chuyến'],
   ['dispatch','Giao / thu hồi chuyến của lái xe'],
-  ['actualQty','Nhập số lượng thực giao'],
+  ['actualQty','Nhập / sửa SL thực giao ở Đơn hàng và Chuyến giao hàng'],
   ['invoiceQty','Sửa SL hóa đơn trong cập nhật chuyến'],
   ['driverWorkflow','Lái xe nhận chuyến, tải HĐ đơn và báo hoàn thành'],
   ['summaryInvoice','Tải hóa đơn tổng chuyến'],
@@ -230,6 +230,7 @@ function canTripAction(user,action){
 }
 // 0 = không giới hạn; tài khoản cũ chưa cấu hình giữ quy tắc khóa từ ngày thứ 2.
 function tripActualQtyLimitDays(user){
+  if(['admin','administrator'].includes(String(user?.role||'').trim().toLowerCase()))return 0;
   const raw=user?.tripActualQtyLimitDays;
   if(raw===undefined||raw===null||raw==='')return 2;
   const days=Number(raw);
