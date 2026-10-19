@@ -46,7 +46,6 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
   const[date,setDate]=useState(fmtDate());
   const[shift,setShift]=useState('all');
   const[workshop,setWorkshop]=useState('all');
-  const[mobileMode,setMobileMode]=useState('plan');
   const canEditActual=canWrite(currentUser?.role,'prodsummary',currentUser?.permLevels);
   const canCheckSource=canEditActual&&['admin','administrator','manager'].includes(String(currentUser?.role||'').toLowerCase());
   const[openOrderRows,setOpenOrderRows]=useState(()=>new Set());
@@ -212,12 +211,13 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
     h('div',{className:'ptitle'},h('i',{className:'ti ti-clipboard-list',style:{fontSize:20}}),'Tổng hợp sản xuất'),
     h('div',{className:'card production-summary-filters',style:{marginBottom:'1.25rem'}},
       h('div',{className:'g3'},
-        h(F,{label:'Ngày sản xuất'},h('input',{type:'date',value:toIsoDate(date),onChange:e=>setDate(vnDateFromISO(e.target.value)||''),placeholder:'DD/MM/YYYY'})),
-        h(F,{label:'Ca sản xuất'},h('select',{value:shift,onChange:e=>setShift(e.target.value)},
+        h(F,{label:'Ngày – ca sản xuất'},h('div',{className:'production-date-shift','aria-label':'Lọc ngày và ca sản xuất'},
+        h('input',{type:'date','aria-label':'Ngày sản xuất',value:toIsoDate(date),onChange:e=>setDate(vnDateFromISO(e.target.value)||''),placeholder:'DD/MM/YYYY'}),
+        h('select',{'aria-label':'Ca sản xuất',value:shift,onChange:e=>setShift(e.target.value)},
           h('option',{value:'all'},'Tất cả ca'),
           rules.map(r=>h('option',{key:r.id,value:r.id},r.name))
-        )),
-        h(F,{label:'Xưởng sản xuất'},h('select',{value:workshop,onChange:event=>setWorkshop(event.target.value)},h('option',{value:'all'},'Tất cả xưởng'),h('option',{value:'bun'},'Xưởng bún'),h('option',{value:'banh'},'Xưởng bánh · Phở, bánh cuốn')))
+        ))),
+        h(F,{label:'Xưởng sản xuất'},h('div',{className:'production-workshop-print'},h('select',{'aria-label':'Xưởng sản xuất',value:workshop,onChange:event=>setWorkshop(event.target.value)},h('option',{value:'all'},'Tất cả xưởng'),h('option',{value:'bun'},'Xưởng bún'),h('option',{value:'banh'},'Xưởng bánh · Phở, bánh cuốn')),h('button',{type:'button',className:'bp production-mobile-print','data-scf-action':'view','aria-label':'In đơn sản xuất tổng',title:'In đơn sản xuất tổng',disabled:!rows.length,onClick:printSummary},h('i',{className:'ti ti-printer'}))))
 
       )
     ),
@@ -229,7 +229,6 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
           h('div',null,h('small',null,'Mã chẵn'),h('strong',null,totalCodes.full)),h('div',null,h('small',null,'Mã lẻ'),h('strong',null,totalCodes.odd))
         )
       ),
-      h('div',{className:'production-mobile-tabs'},...['plan','entry'].map(mode=>h('button',{key:mode,type:'button','data-scf-action':'view','aria-pressed':mobileMode===mode,className:mobileMode===mode?'bp':'',onClick:()=>setMobileMode(mode)},mode==='plan'?'Kế hoạch & mã':'Nhập sản lượng'))),
       shiftGroups.map(({rule,rows:groupRows})=>h('section',{key:rule.id},
         h('div',{className:'production-mobile-shift'},h('b',null,rule.name),h('small',null,(rule.start||'')+' – '+(rule.end||''))),
         groupRows.map(row=>h('article',{key:actualKey(row.prodDate,row.shift,row.productId),className:'production-mobile-product'},
@@ -239,8 +238,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
           h('div',{className:'production-mobile-code-grid'},h('div',null,'Mã chẵn',h('strong',null,row.fullCodes+' mã'),h('small',null,row.pack?row.pack+' kg / mã':'Chưa có quy cách')),h('div',null,'Mã lẻ',h('strong',null,Object.values(row.oddCodes).reduce((a,b)=>a+b,0)+' mã'))),
           row.unknownCodes>0&&h('div',{className:'production-mobile-error'},row.unknownCodes+' dòng chưa có quy cách/khối lượng, chưa tính mã.'),
           h('details',null,h('summary',null,'Chi tiết mã lẻ'),scfProductionOddText(row)),
-          h('details',null,h('summary',null,[...new Set(row.orders)].length+' đơn nguồn'),[...new Set(row.orders)].map(id=>sourceControl(row,id))),
-          mobileMode==='entry'?h(ProductionMobileActualEntry,{key:actualKey(row.prodDate,row.shift,row.productId),qty:readActualQty(row.prodDate,row.shift,row.productId),badQty:readBadQty(row.prodDate,row.shift,row.productId),canEdit:canEditActual,onSave:data=>saveActuals(row.prodDate,row.shift,row.productId,row.productName,data)}):h('button',{type:'button','data-scf-action':'view',className:'production-mobile-enter',onClick:()=>setMobileMode('entry')},'Nhập sản lượng',readActualQty(row.prodDate,row.shift,row.productId)!==''?' · Đã có số liệu':'')
+          h('details',null,h('summary',null,[...new Set(row.orders)].length+' đơn nguồn'),[...new Set(row.orders)].map(id=>sourceControl(row,id)))
         ))
       )),
       h('small',{className:'production-mobile-footnote'},'Mã lẻ tính từng dòng đơn. Tồn kho chỉ tham khảo, chưa trừ vào SL đặt.')
