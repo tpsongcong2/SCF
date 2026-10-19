@@ -89,7 +89,7 @@ function scfProductionSummaryPrintHtml(groups,date,scope,readQty,readBad){
   const body=groups.map(({rule,rows})=>'<h3>'+escape(rule.name)+' · '+escape(rule.start||'')+'–'+escape(rule.end||'')+'</h3><table><thead><tr><th>Sản phẩm</th><th>ĐVT</th><th>SL đặt</th><th>Mã chẵn</th><th>Mã lẻ</th><th>SL đạt</th><th>Hàng lỗi</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+escape(row.productName)+'</td><td>'+escape(row.unit)+'</td><td>'+fmt(row.qtyProd)+'</td><td>'+(row.pack?row.fullCodes+' × '+row.pack+' kg':'Chưa có quy cách')+(row.unknownCodes?' · Có dòng chưa có quy cách':'')+'</td><td>'+escape(scfProductionOddText(row))+'</td><td>'+escape(readQty(row.prodDate,row.shift,row.productId))+'</td><td>'+escape(readBad(row.prodDate,row.shift,row.productId))+'</td></tr>').join('')+'</tbody></table><p>Tổng mã chẵn: '+rows.reduce((sum,row)=>sum+row.fullCodes,0)+' · Tổng mã lẻ: '+rows.reduce((sum,row)=>sum+Object.values(row.oddCodes||{}).reduce((a,b)=>a+b,0),0)+'</p>').join('');
   return '<!doctype html><html><head><meta charset="utf-8"><title>Đơn sản xuất tổng</title><style>body{font:13px Arial;margin:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #555;padding:7px;text-align:left}th{background:#edf4ed}tr{break-inside:avoid}h3{break-after:avoid}@page{size:A4 landscape;margin:10mm}</style></head><body><h2>SCFOOD — ĐƠN SẢN XUẤT TỔNG</h2><p>Ngày SX: '+escape(date)+' · '+escape(scope)+'</p>'+body+'<p>Mã lẻ tính theo từng dòng đơn. Tồn kho chỉ tham khảo, chưa trừ vào SL đặt.</p><p>Người sản xuất: ____________________　 Người kiểm tra: ____________________</p></body></html>';
 }
-function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodActuals,setProdActuals,stock,currentUser}){
+function ProductionSummaryTab({orders,products,prodCats=[],prodShifts,prodShiftRules,prodActuals,setProdActuals,stock,currentUser}){
   const[date,setDate]=useState(fmtDate());
   const[shift,setShift]=useState('all');
   const[workshop,setWorkshop]=useState('all');
@@ -172,6 +172,8 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
     const plans=prodShiftPlansForOrder(o,prodShifts||[]);
     (o.lines||[]).forEach((l,idx)=>{
       if(!l.productId)return;
+      const product=products.find(product=>String(product.id)===String(l.productId))||{};
+      const goods=isGoodsProduct(product.id?product:{...l,code:l.productCode||l.code||''},prodCats);
       const plan=plans[idx]||prodShiftPlan(o,prodShifts||[]);
       const prodTime=l.shiftOverride?(l.prodTime||plan?.prodTime||''):(plan?.prodTime||'');
       const prodDate=l.shiftOverride?(l.prodDate||plan?.prodDate||o.deliveryDate):(plan?.prodDate||o.deliveryDate);
@@ -179,9 +181,9 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
       const rule=getProdWorkShiftRule(prodTime,rules)||{id:'unknown',name:'Chưa xác định',group:'Chưa xác định',color:'#F1EFE8',textColor:'#5F5E5A'};
       const key=l.productId+'_'+rule.id;
       if(!aggMap[key])aggMap[key]={productId:l.productId,productName:l.productName||products.find(product=>String(product.id)===String(l.productId))?.name||'Chưa xác định',unit:l.unit||products.find(product=>String(product.id)===String(l.productId))?.unit||'',shift:rule.id,shiftName:rule.name,shiftGroup:rule.group,rule,qtyProd:0,orders:[],prodDate:date,fullCodes:0,oddCodes:{},pack:0,unknownCodes:0};
-      const product=products.find(product=>String(product.id)===String(l.productId))||{};
       const codes=scfProductionLineCodes(l,product);
-      const weightKg=scfProductionLineWeightKg(l,product);
+      // Hàng hóa vẫn hiện trong danh sách, nhưng không tính vào tổng kg sản xuất.
+      const weightKg=goods?0:scfProductionLineWeightKg(l,product);
       aggMap[key].weightKg=(aggMap[key].weightKg||0)+(weightKg===null?0:weightKg);
       aggMap[key].unknownWeightLines=(aggMap[key].unknownWeightLines||0)+(weightKg===null?1:0);
       aggMap[key].fullCodes+=codes.full;aggMap[key].pack=codes.pack;
@@ -208,7 +210,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
   const isInvalidActualRow=(prodDate,shiftId,productId)=>numFmt(readBadQty(prodDate,shiftId,productId))>numFmt(readActualQty(prodDate,shiftId,productId));
   const calcBadRate=(actualQty,badQty)=>numFmt(actualQty)>0?(numFmt(badQty)/numFmt(actualQty))*100:0;
   const fmtRate=rate=>((Math.round(numFmt(rate)*10)/10).toLocaleString('vi-VN'))+'%';
-  const isBanhCuon=name=>String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().startsWith('BANH CUON');
+  const isBanhCuon=name=>/^(banh cuon|b cuon|banh pho cuon)(\s|$)/.test(normalizeLookupText(name).replace(/[^a-z0-9]+/g,' ').trim());
   const hasInvalidRows=list=>list.some(r=>isInvalidActualRow(r.prodDate,r.shift,r.productId));
   const majorGroupMap={};
   const majorGroupOrder=[];
@@ -280,7 +282,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
     rows.length>0&&h('div',{className:'production-mobile-only production-unified-summary'},
       h('div',{className:'production-mobile-scope'},h('b',null,workshopLabel+' · '+selectedShiftLabel),h('strong',{className:'production-scope-weight','aria-label':unknownWeightLines?'Tổng khối lượng đã quy đổi, còn dòng thiếu quy cách':'Tổng khối lượng quy đổi'},(unknownWeightLines?'Đã quy đổi: ':'Tổng: ')+totalWeightKg.toLocaleString('vi-VN',{maximumFractionDigits:3})+' kg')),
       unknownWeightLines>0&&h('small',{className:'production-weight-warning',role:'status'},unknownWeightLines+' dòng chưa có khối lượng quy đổi. Cần khai báo kg/đơn vị trong danh mục sản phẩm để tính đủ tổng.'),
-      mobileProducts.map(product=>h('details',{key:date+'|'+shift+'|'+workshop+'|'+product.key,className:'production-mobile-product'},
+      mobileProducts.map(product=>h('details',{key:date+'|'+shift+'|'+workshop+'|'+product.key,className:'production-mobile-product','data-production-yellow':isBanhCuon(product.productName)?'true':undefined},
         h('summary',{className:'production-product-toggle'},h('span',null,product.productName),h('b',null,product.qtyProd.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(product.unit||'')),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
         h('div',{className:'production-product-expanded'},product.rows.map(row=>h('details',{key:actualKey(row.prodDate,row.shift,row.productId),className:'production-source-shift'},
           h('summary',{className:'production-shift-toggle'},h('span',null,row.shiftName),h('b',null,row.qtyProd.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(row.unit||'')),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),

@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V586';
+const SCF_BUILD_VERSION='V589';
 const PTITLES = {
   kpi4p:'KPI & Lương 4P',
   attp_process:'Tài liệu ATTP · Quy trình',
@@ -48,8 +48,8 @@ const SCF_PAGE_DATA={
   workreport_lx:['trips','orders','products','customers'],
   salesreport:['orders','customers','products','prod_shifts','quotes'],
   cashflowreport:['finance_entries','finance_debts','finance_openings','customers','nccs','orders','products','quotes','purchases','goods_purchases'],
-  powdersales:['customers','trips'],prodsummary:['orders','products','prod_shifts','prod_shift_rules','prod_actuals'],
-  prodbom:['production_recipes','products','materials'],prodorders:['prodorders','products','orders','prod_shifts','prod_shift_rules'],stock:['stock','products','prodcats'],
+  powdersales:['customers','trips'],prodsummary:['orders','products','prodcats','prod_shifts','prod_shift_rules','prod_actuals'],
+  prodbom:['production_recipes','products','prodcats','materials'],prodorders:['prodorders','products','orders','prod_shifts','prod_shift_rules'],stock:['stock','products','prodcats'],
   syncreport:[],purchase:[],workreport_vp:[],workreport_sx:[]
 };
 function scfPageDataKeys(page,allKeys){
@@ -933,8 +933,8 @@ function App(){
         canAccess(cu.role,'invoicereport',cu.permissions)&&page==='invoicereport'&&h(InvoiceUploadReportTab,{orders,customers,products,trips,setPage}),
 canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(FinanceReportTab,{entries:financeEntries,setEntries:setFinanceEntries,debts:financeDebts,setDebts:setFinanceDebts,openings:financeOpenings,setOpenings:setFinanceOpenings,customers,nccs,currentUser:cu,orders,products,quotes,purchases,goodsPurchases}),
         canAccess(cu.role,'powdersales',cu.permissions)&&page==='powdersales'&&h(PowderSalesTab,{customers,trips,employees,setPage}),
-        canAccess(cu.role,'prodsummary',cu.permissions)&&page==='prodsummary'&&h(ProductionSummaryTab,{orders,products,prodShifts,prodShiftRules,prodActuals,setProdActuals,stock,currentUser:cu}),
-        canAccess(cu.role,'prodbom',cu.permissions)&&page==='prodbom'&&h(ProductionRecipesTab,{recipes:productionRecipes,setRecipes:setProductionRecipes,products,materials,currentUser:cu}),
+        canAccess(cu.role,'prodsummary',cu.permissions)&&page==='prodsummary'&&h(ProductionSummaryTab,{orders,products,prodCats,prodShifts,prodShiftRules,prodActuals,setProdActuals,stock,currentUser:cu}),
+        canAccess(cu.role,'prodbom',cu.permissions)&&page==='prodbom'&&h(ProductionRecipesTab,{recipes:productionRecipes,setRecipes:setProductionRecipes,products,prodCats,materials,currentUser:cu}),
         canAccess(cu.role,'prodorders',cu.permissions)&&page==='prodorders'&&h(ProdOrdersTab,{prodOrders,setProdOrders,orders,products,employees,prodShifts,prodShiftRules,currentUser:cu}),
         canAccess(cu.role,'stock',cu.permissions)&&page==='stock'&&h(StockTab,{stock,setStock,products,prodCats,currentUser:cu}),
         canAccess(cu.role,'syncreport',cu.permissions)&&page==='syncreport'&&h(SyncDataReportTab),
