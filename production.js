@@ -1,4 +1,42 @@
 /* ─── Tổng hợp sản xuất ─── */
+function scfProductionShiftChoices(rules){
+  const choices=[{value:'all',label:'Tất cả ca'}],seen=new Set();
+  for(const rule of rules){
+    const group=normalizeLookupText(rule.group||'');
+    const option=group==='ca dem'?{value:'__group_night',label:'Ca đêm',major:true}:group==='ca chieu'?{value:'__group_afternoon',label:'Ca chiều',major:true}:null;
+    if(option&&!seen.has(option.value)){choices.push(option);seen.add(option.value);}
+    choices.push({value:rule.id,label:rule.name});
+  }
+  return choices;
+}
+function scfProductionShiftMatches(row,value){
+  if(value==='all')return true;
+  if(value==='__group_night'||value==='__group_afternoon')return normalizeLookupText(row.shiftGroup||row.rule?.group||'')===(value==='__group_night'?'ca dem':'ca chieu');
+  return row.shift===value;
+}
+function ProductionShiftFilter({value,rules,onChange}){
+  const[open,setOpen]=useState(false),root=React.useRef(null),trigger=React.useRef(null);
+  const menuId=React.useRef('production-shift-'+Math.random().toString(36).slice(2));
+  const choices=scfProductionShiftChoices(rules),selected=choices.find(choice=>choice.value===value);
+  useEffect(()=>{
+    if(!open)return;
+    const outside=event=>{if(!root.current?.contains(event.target))setOpen(false);};
+    const escape=event=>{if(event.key==='Escape'){setOpen(false);trigger.current?.focus();}};
+    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+  },[open]);
+  const keyboard=event=>{
+    if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
+    event.preventDefault();const options=[...(root.current?.querySelectorAll('[role="option"]')||[])];
+    let index=options.indexOf(document.activeElement);
+    index=event.key==='Home'?0:event.key==='End'?options.length-1:event.key==='ArrowDown'?(index+1)%options.length:(index-1+options.length)%options.length;
+    options[index]?.focus();
+  };
+  return h('div',{className:'production-shift-picker',ref:root},
+    h('button',{ref:trigger,type:'button',className:'production-shift-trigger','data-scf-action':'view','aria-label':'Ca sản xuất','aria-haspopup':'listbox','aria-expanded':open,'aria-controls':menuId.current,onClick:()=>setOpen(previous=>!previous)},h('span',null,selected?.label||'Chưa xác định'),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
+    open&&h('div',{id:menuId.current,role:'listbox','aria-label':'Chọn ca sản xuất',className:'production-shift-options',onKeyDown:keyboard},choices.map(choice=>h('button',{key:choice.value,type:'button',role:'option','data-scf-action':'view','aria-selected':choice.value===value,className:(choice.major?'major ':'')+(choice.value===value?'selected':''),onClick:()=>{onChange(choice.value);setOpen(false);trigger.current?.focus();}},choice.label,choice.value===value&&h('i',{className:'ti ti-check','aria-hidden':true}))))
+  );
+}
 function scfProductionWorkshop(name){
   const value=normalizeLookupText(name);
   if(value.includes('bun'))return 'bun';
@@ -149,7 +187,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
     const bi=prodOrder[b.productId]??9999;
     return ai-bi;
   };
-  const rows=Object.values(aggMap).filter(r=>(shift==='all'||r.shift===shift)&&(workshop==='all'||scfProductionWorkshop(r.productName)===workshop));
+  const rows=Object.values(aggMap).filter(r=>scfProductionShiftMatches(r,shift)&&(workshop==='all'||scfProductionWorkshop(r.productName)===workshop));
   const unknownRule={id:'unknown',name:'Chưa xác định',group:'Chưa xác định',start:'',end:'',color:'#F1EFE8',textColor:'#5F5E5A'};
   const shiftGroups=[...rules,unknownRule].map(rule=>({rule,rows:rows.filter(r=>r.shift===rule.id).sort(sortByProdOrder)})).filter(g=>g.rows.length);
   const sumActualRows=list=>list.reduce((sum,r)=>sum+numFmt(readActualQty(r.prodDate,r.shift,r.productId)),0);
@@ -194,7 +232,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
   const majorGroups=majorGroupOrder.map(name=>majorGroupMap[name]).filter(Boolean);
 
   const workshopLabel=workshop==='bun'?'Xưởng bún':workshop==='banh'?'Xưởng bánh':'Tất cả xưởng';
-  const selectedShiftLabel=shift==='all'?'Tất cả ca':rules.find(rule=>rule.id===shift)?.name||'Chưa xác định';
+  const selectedShiftLabel=scfProductionShiftChoices(rules).find(choice=>choice.value===shift)?.label||'Chưa xác định';
   const mobileProductMap=new Map();
   shiftGroups.forEach(group=>group.rows.forEach(row=>{
     const key=JSON.stringify([String(row.productId),String(row.unit||'').trim().toLowerCase()]);
@@ -218,10 +256,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
       h('div',{className:'g3'},
         h(F,{label:'Ngày – ca sản xuất'},h('div',{className:'production-date-shift','aria-label':'Lọc ngày và ca sản xuất'},
         h('input',{type:'date','aria-label':'Ngày sản xuất',value:toIsoDate(date),onChange:e=>setDate(vnDateFromISO(e.target.value)||''),placeholder:'DD/MM/YYYY'}),
-        h('select',{'aria-label':'Ca sản xuất',value:shift,onChange:e=>setShift(e.target.value)},
-          h('option',{value:'all'},'Tất cả ca'),
-          rules.map(r=>h('option',{key:r.id,value:r.id},r.name))
-        ))),
+        h(ProductionShiftFilter,{value:shift,rules,onChange:setShift}))),
         h(F,{label:'Xưởng sản xuất'},h('div',{className:'production-workshop-print'},h('select',{'aria-label':'Xưởng sản xuất',value:workshop,onChange:event=>setWorkshop(event.target.value)},h('option',{value:'all'},'Tất cả xưởng'),h('option',{value:'bun'},'Xưởng bún'),h('option',{value:'banh'},'Xưởng bánh · Phở, bánh cuốn')),h('button',{type:'button',className:'bp production-mobile-print','data-scf-action':'view','aria-label':'In đơn sản xuất tổng',title:'In đơn sản xuất tổng',disabled:!rows.length,onClick:printSummary},h('i',{className:'ti ti-printer'}))))
 
       )
