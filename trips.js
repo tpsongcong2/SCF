@@ -1003,12 +1003,14 @@ function renderTripImage(trips,orders,products,customers,title,prodCats=[],showD
   const headers=['Ngày giao','Địa điểm','Sản phẩm','SL đặt','ĐVT','Giờ giao','Chú ý'];
   const tripData=scfSortTripImageTrips(trips).map(trip=>({trip,rows:tripImageRows(trip,orders,products,customers,prodCats)})).filter(item=>item.rows.length>0);
   const allRows=tripData.flatMap(item=>item.rows);
+  const textWidths=new Map();
+  const measure=text=>{const key=ctx.font+'|'+text;if(!textWidths.has(key))textWidths.set(key,ctx.measureText(text).width);return textWidths.get(key);};
   const cellText=(value,index)=>typeof value==='number'?value.toLocaleString('vi-VN',{maximumFractionDigits:2}):String(value??'');
   const measureColumn=(index,minWidth,maxWidth)=>{
     ctx.font='bold 22px Arial';
-    let widest=ctx.measureText(headers[index]).width;
+    let widest=measure(headers[index]);
     ctx.font='22px Arial';
-    allRows.forEach(row=>{widest=Math.max(widest,ctx.measureText(cellText(row[index],index)).width);});
+    allRows.forEach(row=>{widest=Math.max(widest,measure(cellText(row[index],index)));});
     return Math.ceil(Math.max(minWidth,Math.min(maxWidth,widest+24)));
   };
   const dateWidth=measureColumn(0,125,180);
@@ -1021,12 +1023,14 @@ function renderTripImage(trips,orders,products,customers,title,prodCats=[],showD
   const visibleColumns=[0,1,2,3,5,6];
   const widths=[dateWidth,pointWidth,productWidth,qtyWidth,timeWidth,noteWidth];
   canvas.width=widths.reduce((sum,width)=>sum+width,0);
+  const wraps=new Map();
   const wrap=(value,width)=>{
+    const key=ctx.font+'|'+width+'|'+String(value??'');if(wraps.has(key))return wraps.get(key);
     const lines=[];let current='';
     for(const char of String(value??'')){
-      if(char==='\n'||ctx.measureText(current+char).width>width-20){lines.push(current);current=char==='\n'?'':char;}else current+=char;
+      if(char==='\n'||measure(current+char)>width-20){lines.push(current);current=char==='\n'?'':char;}else current+=char;
     }
-    lines.push(current);return lines;
+    lines.push(current);wraps.set(key,lines);return lines;
   };
   ctx.font='22px Arial';
   const blocks=[];
@@ -1112,30 +1116,72 @@ function TripImagesModal({trips,orders,products,customers,prodCats=[],onClose}){
   );
 }
 
-function TripDayImageModal({trips,orders,products,customers,prodCats=[],date,onClose}){
-  const [image,setImage]=useState('');const [busy,setBusy]=useState(true);const [error,setError]=useState('');
-  const imageUrl=React.useRef('');
+// Only cache exported blobs in memory. No business data is persisted and the
+// complete visible inputs, including permissions, are part of the cache key.
+const scfSummaryPngCache=new Map();
+const scfSummaryPngPending=new Map();
+const scfSummaryEmptyCategories=[];
+async function scfSummaryPng(key,create){
+  if(scfSummaryPngCache.has(key))return scfSummaryPngCache.get(key);
+  if(scfSummaryPngPending.has(key))return scfSummaryPngPending.get(key);
+  const pending=Promise.resolve().then(create);scfSummaryPngPending.set(key,pending);
+  let blob;try{blob=await pending;}finally{scfSummaryPngPending.delete(key);}
+  if(blob.size<=20*1024*1024){
+    while(scfSummaryPngCache.size>=2)scfSummaryPngCache.delete(scfSummaryPngCache.keys().next().value);
+    scfSummaryPngCache.set(key,blob);
+  }
+  return blob;
+}
+function TripSummaryImage({trips,orders,products,customers,prodCats=scfSummaryEmptyCategories,title,filename,showDriverName=true,accessKey='',leadingAction}){
+  const[image,setImage]=useState(''),[error,setError]=useState(''),[zoom,setZoom]=useState(false);
+  const actor=String(window.__SCF_ACCESS_CONTEXT?.employeeId||'');
+  const imageKey=React.useMemo(()=>JSON.stringify([actor,accessKey,title,showDriverName,trips,orders,products,customers,prodCats]),[actor,accessKey,title,showDriverName,trips,orders,products,customers,prodCats]);
+  const[readyKey,setReadyKey]=useState('');
   useEffect(()=>{
-    let active=true;
+    let active=true,url='';setError('');setImage('');setReadyKey('');
     const create=async()=>{
       try{
-        const title='ĐƠN TỔNG CÁC CHUYẾN — '+(date||fmtDate());
-        const blob=await renderTripImage(trips,orders,products,customers,title,prodCats);
+        await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
         if(!active)return;
-        imageUrl.current=URL.createObjectURL(blob);setImage(imageUrl.current);
-      }catch(e){if(active)setError(e.message||'Không tạo được ảnh đơn tổng.');}
-      finally{if(active)setBusy(false);}
+        const blob=await scfSummaryPng(imageKey,()=>renderTripImage(trips,orders,products,customers,title,prodCats,showDriverName));
+        if(!active||actor!==String(window.__SCF_ACCESS_CONTEXT?.employeeId||''))return;
+        url=URL.createObjectURL(blob);setImage(url);setReadyKey(imageKey);
+      }catch(e){if(active)setError(e.message||'Chưa tạo được ảnh đơn tổng.');}
     };
     create();
-    return()=>{active=false;if(imageUrl.current)URL.revokeObjectURL(imageUrl.current);};
+    return()=>{active=false;if(url)URL.revokeObjectURL(url);};
+  },[imageKey]);
+  const ready=image&&readyKey===imageKey;
+  const print=()=>{
+    if(!ready)return;
+    const popup=window.open('','_blank');
+    if(!popup){setError('Hãy cho phép mở cửa sổ để in đơn tổng.');return;}
+    popup.document.write('<!doctype html><html lang="vi"><meta charset="utf-8"><title>Đơn tổng</title><style>@page{size:A4 landscape;margin:8mm}body{margin:0}img{width:100%;height:auto}</style><img alt="Đơn tổng"></html>');
+    const img=popup.document.querySelector('img');
+    img.onload=()=>{popup.focus();popup.print();};img.src=image;popup.document.close();
+  };
+  return h('div',{className:'scf-summary-auto-image'},
+    h('div',{className:'trip-summary-quick-tools'},
+      leadingAction,
+      ready&&h('a',{className:'btn',href:image,download:filename},h('i',{className:'ti ti-download'}),' Tải ảnh PNG'),
+      h('button',{type:'button',disabled:!ready,onClick:print},h('i',{className:'ti ti-printer'}),' In đơn tổng'),
+      h('button',{type:'button',disabled:!ready,'aria-pressed':zoom,onClick:()=>setZoom(value=>!value)},h('i',{className:zoom?'ti ti-zoom-out':'ti ti-zoom-in'}),zoom?' Thu nhỏ':' Phóng to')
+    ),
+    error?h('p',{role:'alert',className:'trip-summary-quick-error'},error):!ready&&h('p',{role:'status'},h('i',{className:'ti ti-loader-2 spin'}),' Đang tạo ảnh đơn tổng…'),
+    ready&&h('div',{className:'trip-summary-quick-image'+(zoom?' zoomed':'')},h('img',{src:image,alt:title}))
+  );
+}
+function TripDayImageModal({trips,orders,products,customers,prodCats=[],date,onClose}){
+  const closeRef=React.useRef(onClose);closeRef.current=onClose;
+  useEffect(()=>{
+    const close=()=>closeRef.current();
+    window.addEventListener('scf-close-day-summary',close);
+    window.dispatchEvent(new CustomEvent('scf-day-summary-open',{detail:{open:true}}));
+    return()=>{window.removeEventListener('scf-close-day-summary',close);window.dispatchEvent(new CustomEvent('scf-day-summary-open',{detail:{open:false}}));};
   },[]);
-  return h(Modal,{title:'',lg:true,className:'trip-summary-day-modal',overlayClassName:'trip-summary-day-overlay',onClose},
-    busy&&h('p',null,'Đang tạo ảnh đơn tổng…'),
-    error&&h('p',{role:'alert',style:{color:'#b51e20'}},error),
-    image&&h('div',null,
-      h('a',{href:image,download:'Don-tong-cac-chuyen-'+String(date||isoDate()).replaceAll('/','-')+'.png',className:'btn'},'Tải ảnh PNG'),
-      h('img',{src:image,alt:'Ảnh đơn tổng các chuyến ngày '+(date||''),style:{display:'block',width:'100%',marginTop:8,border:'1px solid #555',background:'#fff'}})
-    )
+  const title='ĐƠN TỔNG CÁC CHUYẾN — '+(date||fmtDate());
+  return h(Modal,{title,lg:true,className:'trip-summary-day-modal',overlayClassName:'trip-summary-day-overlay',onClose},
+    h(TripSummaryImage,{trips,orders,products,customers,prodCats,title,filename:'Don-tong-cac-chuyen-'+String(date||isoDate()).replaceAll('/','-')+'.png'})
   );
 }
 
@@ -1204,14 +1250,14 @@ function TripQuickSummaryModal({currentUser,employees=[],loadData=scfLoadQuickTr
   const[date,setDate]=useState(()=>fmtDate().split('/').reverse().join('-'));
   const[group,setGroup]=useState('all');const[busy,setBusy]=useState(false);
   const[showDriverName,setShowDriverName]=useState(true);
-  const[error,setError]=useState('');const[result,setResult]=useState(null);const[zoom,setZoom]=useState(false);
+  const[error,setError]=useState('');const[result,setResult]=useState(null);
   const[imageOpen,setImageOpen]=useState(false);
-  const active=React.useRef(true),urlRef=React.useRef(''),busyRef=React.useRef(false);
+  const active=React.useRef(true),busyRef=React.useRef(false);
   const navigation=React.useRef(null),closeRef=React.useRef(onClose);closeRef.current=onClose;
   const viewerRef=React.useRef(currentUser),accessKey=scfQuickSummaryAccessKey(currentUser);
   viewerRef.current=currentUser;
-  useEffect(()=>()=>{active.current=false;if(urlRef.current)URL.revokeObjectURL(urlRef.current);},[]);
-  const clear=()=>{if(urlRef.current)URL.revokeObjectURL(urlRef.current);urlRef.current='';setResult(null);setImageOpen(false);setZoom(false);setError('');};
+  useEffect(()=>()=>{active.current=false;},[]);
+  const clear=()=>{setResult(null);setImageOpen(false);setError('');};
   useEffect(clear,[accessKey]);
   useEffect(()=>{
     navigation.current=scfQuickSummaryNavigation(setImageOpen,()=>closeRef.current());
@@ -1227,36 +1273,28 @@ function TripQuickSummaryModal({currentUser,employees=[],loadData=scfLoadQuickTr
       if(accessKey!==scfQuickSummaryAccessKey(viewerRef.current)||!canViewTripQuickSummary(viewerRef.current))throw Error('Quyền xem đã thay đổi. Hãy bấm Xem lại.');
       const scoped=scfScopeQuickSummaryData(data,viewerRef.current,employees);
       const chosen=scfSelectQuickSummaryTrips(scoped.trips,scoped.orders,selectedDate,selectedGroup);
+      const selectedIds=new Set(chosen.map(trip=>String(trip.id))),legacyIds=new Set(chosen.flatMap(trip=>(trip.orderIds||[]).map(String)));
+      const selectedOrders=scoped.orders.filter(order=>order.status!=='cancelled'&&(order.tripId?selectedIds.has(String(order.tripId)):legacyIds.has(String(order.id))));
       const dateVN=selectedDate.split('-').reverse().join('/'),label=selectedGroup==='samsung'?'Samsung':selectedGroup==='dt'?'Điềm Thụy':'Samsung và Điềm Thụy';
       if(!chosen.length){setError('Không có chuyến có đơn thuộc '+label+' ngày '+dateVN+'.');return;}
-      const blob=await renderTripImage(chosen,scoped.orders,scoped.products,scoped.customers,'ĐƠN TỔNG '+label.toUpperCase()+' — '+dateVN,scoped.prodCats||[],scfQuickSummaryFullAccess(viewerRef.current)?showDriverName:true);
-      if(!active.current)return;
-      if(accessKey!==scfQuickSummaryAccessKey(viewerRef.current)||!canViewTripQuickSummary(viewerRef.current))throw Error('Quyền xem đã thay đổi. Hãy bấm Xem lại.');
-      urlRef.current=URL.createObjectURL(blob);
-      setResult({url:urlRef.current,date:selectedDate,dateVN,label,group:selectedGroup,count:chosen.length,accessKey});
+      setResult({data:{...scoped,orders:selectedOrders},trips:chosen,title:'ĐƠN TỔNG '+label.toUpperCase()+' — '+dateVN,date:selectedDate,dateVN,label,group:selectedGroup,count:chosen.length,accessKey,showDriverName:scfQuickSummaryFullAccess(viewerRef.current)?showDriverName:true});
       if(navigation.current)navigation.current.showImage();else setImageOpen(true);
     }catch(e){if(active.current)setError(e.message||'Chưa xem được ảnh đơn tổng. Hãy thử lại.');}
     finally{busyRef.current=false;if(active.current)setBusy(false);}
   };
   useEffect(()=>{if(!scfQuickSummaryFullAccess(currentUser))view();},[]);
   const showingImage=imageOpen&&result&&result.accessKey===accessKey;
-  return h(Modal,{title:showingImage?'':'Xem nhanh đơn tổng',lg:true,className:'trip-summary-quick-modal'+(showingImage?' image-screen':''),onClose},
+  return h(Modal,{title:showingImage?'':'Xem nhanh đơn tổng',lg:true,className:'trip-summary-quick-modal'+(showingImage?' image-screen':''),overlayClassName:'trip-summary-quick-overlay',onClose},
     !showingImage&&!scfQuickSummaryFullAccess(currentUser)&&h('p',{className:'trip-summary-quick-scope'},'Chỉ hiện đơn thuộc các chuyến đã giao cho bạn.'),
     !showingImage&&h('div',{className:'trip-summary-quick-filters'},
       h('label',null,h('span',null,'Ngày chuyến'),h('input',{type:'date','aria-label':'Ngày chuyến đơn tổng',value:date,disabled:busy,onChange:e=>{setDate(e.target.value);return !scfQuickSummaryFullAccess(currentUser)?view(e.target.value,group):clear();}})),
       h('label',null,h('span',null,'Nhóm chuyến'),h('select',{'aria-label':'Nhóm chuyến đơn tổng',value:group,disabled:busy,onChange:e=>{setGroup(e.target.value);return !scfQuickSummaryFullAccess(currentUser)?view(date,e.target.value):clear();}},h('option',{value:'all'},'Tất cả nhóm chuyến'),h('option',{value:'samsung'},'Samsung'),h('option',{value:'dt'},'Điềm Thụy')))
     ),
     !showingImage&&scfQuickSummaryFullAccess(currentUser)&&h('label',{style:{display:'flex',alignItems:'center',gap:10,margin:'16px 0',fontSize:18}},h('input',{type:'checkbox',checked:showDriverName,disabled:busy,style:{width:20,height:20},onChange:e=>{clear();setShowDriverName(e.target.checked);}}),'Hiện tên lái xe'),
-    !showingImage&&h('button',{type:'button',className:'bp trip-summary-quick-view','data-scf-action':'view',disabled:busy||!date,onClick:()=>view()},h('i',{className:busy?'ti ti-loader-2 spin':'ti ti-photo-search'}),busy?'Đang tạo ảnh…':scfQuickSummaryFullAccess(currentUser)?'Xem':'Xem lại'),
+    !showingImage&&h('button',{type:'button',className:'bp trip-summary-quick-view','data-scf-action':'view',disabled:busy||!date,onClick:()=>view()},h('i',{className:busy?'ti ti-loader-2 spin':'ti ti-photo-search'}),busy?'Đang tải đơn…':scfQuickSummaryFullAccess(currentUser)?'Xem':'Xem lại'),
     error&&h('p',{role:'alert',className:'trip-summary-quick-error'},error),
     showingImage&&h('div',{className:'trip-summary-quick-result'},
-      h('div',{className:'trip-summary-quick-tools'},
-        h('button',{type:'button','aria-label':'Quay lại chọn ngày và nhóm chuyến',onClick:()=>{setZoom(false);if(navigation.current)navigation.current.backToPicker();else setImageOpen(false);}},h('i',{className:'ti ti-arrow-left'}),' Chọn ngày / nhóm'),
-        h('a',{className:'btn',href:result.url,download:'Don-tong-'+result.group+'-'+result.date+'.png'},h('i',{className:'ti ti-download'}),' Tải ảnh PNG'),
-        h('button',{type:'button','aria-label':'Phóng to ảnh đơn tổng','aria-pressed':zoom,onClick:()=>setZoom(value=>!value)},h('i',{className:zoom?'ti ti-zoom-out':'ti ti-zoom-in'}),zoom?' Thu nhỏ':' Phóng to')
-      ),
-      zoom&&h('small',null,'Vuốt ảnh để xem các cột và dòng.'),
-      h('div',{className:'trip-summary-quick-image'+(zoom?' zoomed':'')},h('img',{src:result.url,alt:'Đơn tổng '+result.label+' ngày '+result.dateVN}))
+      h(TripSummaryImage,{key:result.accessKey+'-'+result.date+'-'+result.group,...result.data,trips:result.trips,title:result.title,accessKey:result.accessKey,showDriverName:result.showDriverName,filename:'Don-tong-'+result.group+'-'+result.date+'.png',leadingAction:h('button',{type:'button','aria-label':'Quay lại chọn ngày và nhóm chuyến',onClick:()=>{if(navigation.current)navigation.current.backToPicker();else setImageOpen(false);}},h('i',{className:'ti ti-arrow-left'}),' Ngày / nhóm')})
     )
   );
 }

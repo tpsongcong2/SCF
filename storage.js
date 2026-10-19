@@ -328,7 +328,7 @@ const scfRemoteVersions=new Map();
 const scfRemoteSnapshots=new Map();
 function syncSnapshot(value){try{return JSON.parse(JSON.stringify(value))}catch{return value}}
 function scfPublishMergedCollection(key,value,requested,writeToken){
-  if(!Array.isArray(value)||readSyncQueue()[key]?.updatedAt!==writeToken)return;
+  if((!Array.isArray(value)&&!(key==='scf_prod_actuals'&&value&&typeof value==='object'))||readSyncQueue()[key]?.updatedAt!==writeToken)return;
   if(JSON.stringify(value)===JSON.stringify(requested))return;
   scfLocalWrites.set(key,{value});
   window.dispatchEvent(new CustomEvent('scf-collection-reconciled',{detail:{key,value,writeToken}}));
@@ -554,6 +554,20 @@ window.scfResolveFuelSyncConflict=async function(choices){
   return window.scfSendCollectionsNow([key]);
 };
 async function scfSavePermittedCollection(key,val,patches,expectedUpdatedAt,baseValue,timeoutMs){
+  // Recover full snapshots already queued by older releases. The baseline is
+  // essential: never infer deletions or new IDs from a partial server view.
+  if(key==='scf_orders'&&!patches&&Array.isArray(baseValue)&&Array.isArray(val)){
+    const mutations=scfOrderMutations(baseValue,val);
+    if(mutations?.length){
+      const actor=String(window.__SCF_ACCESS_CONTEXT?.employeeId||'');
+      let saved;
+      for(let offset=0;offset<mutations.length;offset+=25){
+        if(actor!==String(window.__SCF_ACCESS_CONTEXT?.employeeId||''))throw new Error('Tài khoản đã thay đổi. Dữ liệu vẫn được giữ trong hàng chờ.');
+        saved=await serverSaveOrderMutationBatch(mutations.slice(offset,offset+25),offset+25>=mutations.length,timeoutMs);
+      }
+      return saved;
+    }
+  }
   const payload=patches?{key,patches,expectedUpdatedAt}:{key,value:val,baseValue,expectedUpdatedAt};
   return measuredCollectionSave(key,patches?'patch':'full',payload,async()=>{
     try{return await withRemoteTimeout(patches?serverPatchPermittedCollection(key,patches,expectedUpdatedAt,timeoutMs):serverSavePermittedCollection(key,val,expectedUpdatedAt,baseValue,timeoutMs),timeoutMs);}
@@ -569,6 +583,17 @@ async function scfSavePermittedCollection(key,val,patches,expectedUpdatedAt,base
       throw error;
     }
   });
+}
+function scfOrderMutations(base,value){
+  const stable=rows=>Array.isArray(rows)&&rows.every(row=>row&&String(row.id||'').trim())&&new Set(rows.map(row=>String(row.id))).size===rows.length;
+  if(!stable(base)||!stable(value))return null;
+  const before=new Map(base.map(row=>[String(row.id),row])),after=new Map(value.map(row=>[String(row.id),row]));
+  const changes=[];
+  for(const id of new Set([...before.keys(),...after.keys()])){
+    const old=before.get(id)||null,next=after.get(id)||null;
+    if(JSON.stringify(old)!==JSON.stringify(next))changes.push({id,base:old,value:next});
+  }
+  return changes;
 }
 async function performDbSet(key,val,queuedAt='',mode=''){
   const invoiceActorId=String(window.__SCF_ACCESS_CONTEXT?.employeeId||'');
@@ -618,9 +643,10 @@ async function performDbSet(key,val,queuedAt='',mode=''){
       if(readSyncQueue()[key]?.updatedAt!==queuedAt)return false;
       scfVerifyOrderTripSave(key,saved,val,patches);
       scfVerifyTripDriverSave(key,saved,val);
-      const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(val);
-      if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(val));
-      scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));
+      const hasSavedValue=Array.isArray(saved?.value)||(key==='scf_prod_actuals'&&saved?.value&&typeof saved.value==='object');
+      const merged=hasSavedValue&&JSON.stringify(saved.value)!==JSON.stringify(val);
+      if(hasSavedValue)scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(val));
+      scfRemoteVersions.set(key,(merged&&key!=='scf_prod_actuals')||patches?'':String(saved?.updatedAt||''));
       scfPublishMergedCollection(key,saved?.value,val,queuedAt);
       removeQueuedWrite(key,queuedAt);window.__SCF_COLLECTION_SYNC_RESULTS[key]={status:'confirmed',updatedAt:queuedAt};setSyncState('synced');
       if(merged)setTimeout(()=>window.scfSyncNow?.(),100);return true;
@@ -754,9 +780,10 @@ async function runPendingWrites(){
         if(readSyncQueue()[key]?.updatedAt!==item.updatedAt)return false;
         scfVerifyOrderTripSave(key,saved,item.value,patches);
         scfVerifyTripDriverSave(key,saved,item.value);
-        const merged=Array.isArray(saved?.value)&&JSON.stringify(saved.value)!==JSON.stringify(item.value);
-        if(Array.isArray(saved?.value))scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(item.value));
-        scfRemoteVersions.set(key,merged||patches?'':String(saved?.updatedAt||''));
+        const hasSavedValue=Array.isArray(saved?.value)||(key==='scf_prod_actuals'&&saved?.value&&typeof saved.value==='object');
+        const merged=hasSavedValue&&JSON.stringify(saved.value)!==JSON.stringify(item.value);
+        if(hasSavedValue)scfRemoteSnapshots.set(key,syncSnapshot(saved.value));else if(patches)scfRemoteSnapshots.set(key,syncSnapshot(item.value));
+        scfRemoteVersions.set(key,(merged&&key!=='scf_prod_actuals')||patches?'':String(saved?.updatedAt||''));
         scfPublishMergedCollection(key,saved?.value,item.value,item.updatedAt);
         if(merged)setTimeout(()=>window.scfSyncNow?.(),100);
       }

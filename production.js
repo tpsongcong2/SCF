@@ -48,6 +48,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
   const[workshop,setWorkshop]=useState('all');
   const[mobileMode,setMobileMode]=useState('plan');
   const canEditActual=canWrite(currentUser?.role,'prodsummary',currentUser?.permLevels);
+  const canCheckSource=canEditActual&&['admin','administrator','manager'].includes(String(currentUser?.role||'').toLowerCase());
   const[openOrderRows,setOpenOrderRows]=useState(()=>new Set());
   const toggleOrderRow=key=>setOpenOrderRows(prev=>{const next=new Set(prev);next.has(key)?next.delete(key):next.add(key);return next;});
   const rules=(prodShiftRules&&prodShiftRules.length?prodShiftRules:DEF_PROD_SHIFT_RULES);
@@ -87,13 +88,35 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
       };
       const emptyQty=merged.qty===''||merged.qty===undefined||merged.qty===null;
       const emptyBadQty=merged.badQty===''||merged.badQty===undefined||merged.badQty===null;
-      if(emptyQty&&emptyBadQty){
+      if(emptyQty&&emptyBadQty&&!Object.keys(merged.sourceChecks||{}).length){
         delete next[key];
       }else{
         next[key]={...merged,date:prodDate,shiftId,productId,productName,updatedAt:fmtDT(),updatedBy:currentUser?.name||''};
       }
       return next;
     });
+  };
+  const sourceControl=(row,id)=>{
+    const qty=row.sourceQty?.[String(id)]||0;
+    const key=actualKey(row.prodDate,row.shift,row.productId);
+    const check=prodActuals?.[key]?.sourceChecks?.[String(id)];
+    const done=check?.completed===true&&Number(check.orderedQty)===qty;
+    const toggle=()=>{
+      if(!canCheckSource)return;
+      setProdActuals(previous=>{
+        const record=previous?.[key]||{},old=record.sourceChecks?.[String(id)];
+        const completed=!(old?.completed===true&&Number(old.orderedQty)===qty);
+        const event={completed,orderedQty:qty,checkedBy:currentUser?.name||currentUser?.username||'',checkedById:currentUser?.id||'',checkedAt:new Date().toISOString()};
+        return{...previous,[key]:{...record,date:row.prodDate,shiftId:row.shift,productId:row.productId,productName:row.productName,sourceChecks:{...record.sourceChecks,[String(id)]:{...event,history:[...(old?.history||[]),event]}}}};
+      });
+    };
+    return h('div',{key:id,className:'production-mobile-source'},
+      h('div',{className:'production-source-main'},h('span',null,orderLabel(id)),h('b',null,qty.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(row.unit||'')),
+        h('button',{type:'button',className:'production-source-check '+(done?'done':'pending'),'data-scf-action':canCheckSource?'write':'view',disabled:!canCheckSource,'aria-label':(done?'Đã sản xuất xong: ':'Chưa sản xuất xong: ')+orderLabel(id),'aria-pressed':done,title:canCheckSource?(done?'Bấm để bỏ xác nhận':'Bấm xác nhận đã sản xuất xong'):'Chỉ quản lý có quyền ghi mới được xác nhận',onClick:toggle},done?'✓':'✕')),
+      check?.checkedBy&&h('small',{className:'production-source-actor'},(check.completed?'Xác nhận: ':'Bỏ xác nhận: ')+check.checkedBy+' · '+new Date(check.checkedAt).toLocaleString('vi-VN',{timeZone:'Asia/Bangkok'})),
+      check?.completed&&!done&&h('small',{className:'production-mobile-error'},'Lượng đặt đã đổi · cần xác nhận lại'),
+      check?.history?.length>0&&h('details',{className:'production-source-history'},h('summary',null,'Lịch sử ('+check.history.length+')'),check.history.slice().reverse().map((event,index)=>h('small',{key:index},(event.completed?'✓ Xác nhận':'✕ Bỏ xác nhận')+' · '+event.checkedBy+' · '+new Date(event.checkedAt).toLocaleString('vi-VN',{timeZone:'Asia/Bangkok'}))))
+    );
   };
 
   // Aggregate from delivery orders
@@ -114,6 +137,8 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
       aggMap[key].fullCodes+=codes.full;aggMap[key].pack=codes.pack;
       if(codes.remainder>0)aggMap[key].oddCodes[codes.remainder]=(aggMap[key].oddCodes[codes.remainder]||0)+1;
       if(codes.unknown)aggMap[key].unknownCodes++;
+      aggMap[key].sourceQty=aggMap[key].sourceQty||{};
+      aggMap[key].sourceQty[String(o.id)]=(aggMap[key].sourceQty[String(o.id)]||0)+numFmt(l.qtyProd);
       aggMap[key].qtyProd+=numFmt(l.qtyProd);
       aggMap[key].orders.push(o.id);
     });
@@ -214,7 +239,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
           h('div',{className:'production-mobile-code-grid'},h('div',null,'Mã chẵn',h('strong',null,row.fullCodes+' mã'),h('small',null,row.pack?row.pack+' kg / mã':'Chưa có quy cách')),h('div',null,'Mã lẻ',h('strong',null,Object.values(row.oddCodes).reduce((a,b)=>a+b,0)+' mã'))),
           row.unknownCodes>0&&h('div',{className:'production-mobile-error'},row.unknownCodes+' dòng chưa có quy cách/khối lượng, chưa tính mã.'),
           h('details',null,h('summary',null,'Chi tiết mã lẻ'),scfProductionOddText(row)),
-          h('details',null,h('summary',null,[...new Set(row.orders)].length+' đơn nguồn'),[...new Set(row.orders)].map(id=>h('div',{key:id,className:'production-mobile-source'},orderLabel(id)))),
+          h('details',null,h('summary',null,[...new Set(row.orders)].length+' đơn nguồn'),[...new Set(row.orders)].map(id=>sourceControl(row,id))),
           mobileMode==='entry'?h(ProductionMobileActualEntry,{key:actualKey(row.prodDate,row.shift,row.productId),qty:readActualQty(row.prodDate,row.shift,row.productId),badQty:readBadQty(row.prodDate,row.shift,row.productId),canEdit:canEditActual,onSave:data=>saveActuals(row.prodDate,row.shift,row.productId,row.productName,data)}):h('button',{type:'button','data-scf-action':'view',className:'production-mobile-enter',onClick:()=>setMobileMode('entry')},'Nhập sản lượng',readActualQty(row.prodDate,row.shift,row.productId)!==''?' · Đã có số liệu':'')
         ))
       )),
@@ -354,7 +379,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
                         style:{display:'inline-flex',alignItems:'center',gap:5,padding:'5px 8px',border:'1px solid var(--bd)',borderRadius:'var(--r)',background:ordersOpen?'var(--bg2)':'#fff',color:'var(--pri)',fontSize:11,fontWeight:600,whiteSpace:'nowrap',cursor:'pointer'}
                       },h('i',{className:'ti '+(ordersOpen?'ti-eye-off':'ti-eye'),style:{fontSize:13}}),(ordersOpen?'Ẩn':'Xem')+' ('+orderIds.length+')'),
                       ordersOpen&&h('div',{className:'production-summary-orders'},
-                        orderIds.map(id=>h('div',{key:id},orderLabel(id)))
+                        orderIds.map(id=>sourceControl(r,id))
                       )
                     )
                   )}))

@@ -283,6 +283,17 @@ async function serverPatchPermittedCollection(key,patches,expectedUpdatedAt='',r
   if(error||!data?.ok)throw await scfServerSaveError(error,data,'Không đồng bộ được thay đổi của đơn hàng.');
   return{items:Array.isArray(data.items)?data.items:[],updatedAt:data.updatedAt||'',patched:true};
 }
+async function serverSaveOrderMutationBatch(mutations,returnValue,requestTimeoutMs=SCF_AUTH_REQUEST_TIMEOUT_MS){
+  if(!sb)throw new Error('Chưa kết nối được máy chủ dữ liệu.');
+  for(let attempt=0;attempt<3;attempt++){
+    const{data,error}=await invokeScfAuth({body:{action:'save_permitted_collection',key:'scf_orders',orderMutations:mutations,returnValue:!!returnValue,enforceVersion:true}},requestTimeoutMs);
+    if(data?.conflict&&attempt<2)continue;
+    if(data?.conflict){const failure=new Error('Máy chủ đang có thay đổi. Các đơn vẫn được giữ để đồng bộ lại.');failure.code='SCF_WRITE_CONFLICT';throw failure;}
+    // Keep the queue on every rejection: earlier batches may already be saved.
+    if(error||!data?.ok)throw await scfServerSaveError(error,data,'Chưa lưu được đợt đơn hàng. Dữ liệu vẫn đang chờ đồng bộ.');
+    return{value:data.value,updatedAt:data.updatedAt||''};
+  }
+}
 
 async function serverLoadSupabaseUsage(){
   if(!sb)throw new Error('Chưa kết nối được máy chủ báo cáo dung lượng.');

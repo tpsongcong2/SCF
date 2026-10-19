@@ -262,6 +262,7 @@ function OrderDetailListTab({orders,setOrders,products,customers,shifts,trips,cu
   };
   const canEditDeliveredForOrder=order=>{
     if(['admin','administrator'].includes(String(currentUser?.role||'').trim().toLowerCase()))return true;
+    if(!canTripAction(currentUser,'orderActualQty'))return false;
     const trip=visibleTripForOrder(order);
     if(!trip)return false;
     const limitDays=tripActualQtyLimitDays(currentUser);

@@ -2948,7 +2948,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const canMobileEditDelivered=order=>{
     if(['admin','administrator'].includes(String(currentUser?.role||'').trim().toLowerCase()))return true;
     const trip=orderTrip(order),limitDays=tripActualQtyLimitDays(currentUser);
-    if(!canTripAction(currentUser,'actualQty')||closedTrip(trip)||trip?.status==='cancelled'||['done','cancelled'].includes(order?.status))return false;
+    if(!canTripAction(currentUser,'orderActualQty')||closedTrip(trip)||trip?.status==='cancelled'||['done','cancelled'].includes(order?.status))return false;
     const isDriver=currentUser?.role==='driver'||employeeHasDepartment(currentUser,'Lái xe');
     if(isDriver&&(!trip||!(String(trip.driverId||'')===String(currentUser?.id||'')||normalizeLookupText(trip.driverName)===normalizeLookupText(currentUser?.name))))return false;
     const iso=toIsoDate(trip?.deliveryDate||order?.deliveryDate),now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
