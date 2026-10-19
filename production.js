@@ -262,19 +262,28 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
       )
     ),
     h('button',{type:'button',className:'bp production-summary-print','data-scf-action':'view',disabled:!rows.length,onClick:printSummary},h('i',{className:'ti ti-printer'}),' In đơn sản xuất tổng'),
-    rows.length>0&&h('div',{className:'production-mobile-only'},
+    rows.length>0&&h('div',{className:'production-mobile-only production-unified-summary'},
       h('div',{className:'production-mobile-scope'},h('b',null,workshopLabel+' · '+selectedShiftLabel)),
       mobileProducts.map(product=>h('details',{key:date+'|'+shift+'|'+workshop+'|'+product.key,className:'production-mobile-product'},
         h('summary',{className:'production-product-toggle'},h('span',null,product.productName),h('b',null,product.qtyProd.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(product.unit||'')),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
-        h('div',{className:'production-product-expanded'},product.rows.map(row=>h('section',{key:actualKey(row.prodDate,row.shift,row.productId)},
-          h('div',{className:'production-mobile-shift'},h('b',null,row.shiftName),h('small',null,(row.rule.start||'')+' – '+(row.rule.end||''))),
-          product.rows.length>1&&h('div',null,'SL đặt ca: '+row.qtyProd.toLocaleString('vi-VN')+' '+(row.unit||'')),
-          stockFieldForShift(row.rule)&&h('small',null,'Tồn tham khảo '+(stockFieldForShift(row.rule)==='stockEvening'?'1h':'9h')+': '+numFmt(stockByProductId.get(String(row.productId))?.[stockFieldForShift(row.rule)]||0).toLocaleString('vi-VN')+' '+(row.unit||'')),
-          h('div',{className:'production-mobile-code-grid'},h('div',null,'Mã chẵn',h('strong',null,row.fullCodes+' mã'),h('small',null,row.pack?row.pack+' kg / mã':'Chưa có quy cách')),h('div',null,'Mã lẻ',h('strong',null,Object.values(row.oddCodes).reduce((a,b)=>a+b,0)+' mã'))),
-          h('div',{className:'production-source-odd'},scfProductionOddText(row)),
-          row.unknownCodes>0&&h('div',{className:'production-mobile-error'},row.unknownCodes+' dòng chưa có quy cách/khối lượng, chưa tính mã.'),
-          h('b',{className:'production-source-heading'},[...new Set(row.orders)].length+' đơn nguồn'),
-          [...new Set(row.orders)].map(id=>sourceControl(row,id))
+        h('div',{className:'production-product-expanded'},product.rows.map(row=>h('details',{key:actualKey(row.prodDate,row.shift,row.productId),className:'production-source-shift'},
+          h('summary',{className:'production-shift-toggle'},h('span',null,row.shiftName),h('b',null,row.qtyProd.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(row.unit||'')),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
+          h('div',{className:'production-shift-sections'},
+            h('details',{className:'production-source-section'},
+              h('summary',null,h('span',null,'Xem mã lẻ'),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
+              h('div',{className:'production-code-detail'},
+                h('small',null,(row.rule.start||'')+' – '+(row.rule.end||'')),
+                stockFieldForShift(row.rule)&&h('small',null,'Tồn tham khảo '+(stockFieldForShift(row.rule)==='stockEvening'?'1h':'9h')+': '+numFmt(stockByProductId.get(String(row.productId))?.[stockFieldForShift(row.rule)]||0).toLocaleString('vi-VN')+' '+(row.unit||'')),
+                h('div',{className:'production-mobile-code-grid'},h('div',null,'Mã chẵn',h('strong',null,row.fullCodes+' mã'),h('small',null,row.pack?row.pack+' kg / mã':'Chưa có quy cách')),h('div',null,'Mã lẻ',h('strong',null,Object.values(row.oddCodes).reduce((a,b)=>a+b,0)+' mã'))),
+                h('div',{className:'production-source-odd'},scfProductionOddText(row)),
+                row.unknownCodes>0&&h('div',{className:'production-mobile-error'},row.unknownCodes+' dòng chưa có quy cách/khối lượng, chưa tính mã.')
+              )
+            ),
+            h('details',{className:'production-source-section'},
+              h('summary',null,h('span',null,'Xem nguồn đơn ('+[...new Set(row.orders)].length+')'),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
+              [...new Set(row.orders)].map(id=>sourceControl(row,id))
+            )
+          )
         )))
       )),
       h('small',{className:'production-mobile-footnote'},'Mã lẻ tính từng dòng đơn. Tồn kho chỉ tham khảo, chưa trừ vào SL đặt.')
@@ -282,7 +291,7 @@ function ProductionSummaryTab({orders,products,prodShifts,prodShiftRules,prodAct
     rows.length===0?h('div',{style:{textAlign:'center',padding:'3rem',color:'var(--tx2)',background:'#fff',borderRadius:'var(--rl)',border:'.5px solid var(--bd)'}},
       h('i',{className:'ti ti-clipboard-x',style:{fontSize:56,display:'block',marginBottom:'1rem',color:'var(--pri2)'}}),
       'Không có dữ liệu sản xuất cho ngày '+date
-    ):h('div',{className:'production-desktop-only'},
+    ):h('div',{className:'production-desktop-only production-summary-legacy'},
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'1rem',marginBottom:'1.25rem'}},
         majorGroups.map(g=>h('div',{key:'sum_'+g.name,className:'card',style:{padding:'1rem',border:`1px solid ${g.hasInvalid?'#FCA5A5':g.color}`,boxShadow:'none',background:'linear-gradient(180deg,#fff,rgba(255,255,255,.96))'}},
           h('div',{style:{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start'}},
