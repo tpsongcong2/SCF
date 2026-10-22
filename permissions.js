@@ -15,6 +15,7 @@ const PAGE_ACCESS = {
   appearance:   ['admin','manager'],
   printtemplates:['admin','manager'],
   employees:    ['admin','manager'],
+  personnel:['admin'],
   permission_settings:['admin'],
   attendance:   ['admin','manager','staff','driver'],
   attendance_settings:['admin'],
@@ -97,6 +98,7 @@ function canAccess(role, page, perms, dept='') {
   if(!isFaceMask&&faceMaskPages.includes(page))return false;
   // Trang đầu là điểm quay lại chung, kể cả khi nhân viên dùng bộ quyền riêng.
   if(page==='welcome')return ['admin','manager','staff','driver'].includes(role);
+  if(page==='personnel'&&role==='admin')return true;
   if(page==='permission_settings')return role==='admin';
   const deptText=(Array.isArray(dept)?dept:[dept]).map(value=>String(value||'')).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
   const isAccounting=deptText.includes('ke toan');
@@ -295,4 +297,16 @@ function scfMergePeriodView(previous,next,user){
  const hidden=(previous||[]).filter(item=>!scfOrderInViewPeriod(item,user));
  const hiddenIds=new Set(hidden.map(item=>String(item.id)));
  return [...hidden,...(next||[]).filter(item=>!hiddenIds.has(String(item.id))&&scfOrderInViewPeriod(item,user))];
+}
+
+function scfOnlyMissingInvoiceChanges(before,after){
+  if(!Array.isArray(before)||!Array.isArray(after)||before.length!==after.length)return false;
+  const prior=new Map(before.map(item=>[String(item?.id||''),item]));
+  if(prior.size!==before.length||prior.has(''))return false;
+  const ids=new Set(),allowed=new Set(['invoiceImage','invoiceImageName','invoiceUploadedAt','invoiceUploadedBy']);let changed=false;
+  for(const next of after){const id=String(next?.id||''),old=prior.get(id);if(!old||ids.has(id))return false;ids.add(id);
+    const keys=new Set([...Object.keys(old),...Object.keys(next)]);const diff=[...keys].filter(key=>JSON.stringify(old[key])!==JSON.stringify(next[key]));if(!diff.length)continue;
+    if(String(old.invoiceImage||'').trim()||!/^https:\/\//i.test(String(next.invoiceImage||''))||diff.some(key=>!allowed.has(key)))return false;
+    if([...allowed].some(key=>next[key]!==undefined&&typeof next[key]!=='string'))return false;changed=true;
+  }return changed;
 }
