@@ -1,0 +1,76 @@
+/* Only production-relevant order fields trigger the bell; invoice/delivery confirmations do not. */
+function scfProductionOrderProjection(o){
+ return {id:String(o.id),cancelled:o.status==='cancelled',deliveryDate:o.deliveryDate||'',deliveryTime:o.deliveryTime||'',pointName:o.pointName||'',pointId:String(o.pointId||o.ptId||''),customerId:String(o.customerId||o.custId||''),customer:o.customer||'',address:o.address||'',area:o.area||'',prodShiftAssignMode:o.prodShiftAssignMode==='manual'?'manual':'auto',prodShiftId:o.prodShiftId||'',prodDate:o.prodDate||'',prodTime:o.prodTime||'',note:o.note||'',lines:(o.lines||[]).map(l=>({productId:String(l.productId||''),productName:l.productName||'',unit:l.unit||'',qtyProd:l.qtyProd??l.qty??l.quantity??0,shiftOverride:!!l.shiftOverride,prodDate:l.prodDate||'',prodTime:l.prodTime||'',note:l.note||''}))};
+}
+function scfProductionOrderSnapshot(orders){return new Map((orders||[]).map(o=>[String(o.id),scfProductionOrderProjection(o)]));}
+function scfProductionOrderChanges(before,after,ids){
+ const changes=[];
+ for(const id of ids){const a=before.get(id),b=after.get(id);if(JSON.stringify(a)===JSON.stringify(b))continue;
+  const label=[b?.pointName||a?.pointName||id,b?.deliveryDate||a?.deliveryDate,b?.deliveryTime||a?.deliveryTime].filter(Boolean).join(' · ');
+  const state=!a?'Thêm đơn':!b?'Xóa đơn':!a.cancelled&&b.cancelled?'Hủy đơn':a.cancelled&&!b.cancelled?'Khôi phục đơn':'Sửa đơn';
+  const qty=o=>(o?.lines||[]).map(l=>(l.productName||l.productId)+': '+l.qtyProd+' '+l.unit).join('; ');
+  changes.push({id,text:state+' · '+label,before:qty(a),after:qty(b)});
+ }
+ return changes;
+}
+async function scfProductionPushRequest(operation,data={}){
+ const {data:result,error}=await invokeScfAuth({body:{action:'production_push',operation,...data}},30000);
+ if(error||!result?.ok)throw Error(result?.error||'Chưa kết nối được thông báo điện thoại. Cần cập nhật/cấu hình máy chủ.');
+ return result;
+}
+async function scfProductionPushRegistration(){
+ if(!window.isSecureContext||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))throw Error('Thiết bị chưa hỗ trợ thông báo đẩy. Trên iPhone, thêm SCFOOD vào Màn hình chính và mở từ biểu tượng đó.');
+ const registration=await navigator.serviceWorker.getRegistration();
+ if(!registration?.active)throw Error('App chưa sẵn sàng nhận thông báo. Tải lại app rồi thử bật lại.');
+ return registration;
+}
+function scfProductionPushBind(registration,employeeId){registration?.active?.postMessage({type:'scf-production-push-owner',employeeId:String(employeeId||'')});}
+let scfProductionPushIdentityEpoch=0;
+async function scfDetachProductionPush(){
+ scfProductionPushIdentityEpoch++;
+ if(!('serviceWorker' in navigator))return;
+ try{
+  const reg=await navigator.serviceWorker.getRegistration();if(!reg?.active)return;
+  await new Promise(resolve=>{const channel=new MessageChannel(),timer=setTimeout(resolve,1500);channel.port1.onmessage=()=>{clearTimeout(timer);channel.port1.close();resolve();};reg.active.postMessage({type:'scf-production-push-owner',employeeId:''},[channel.port2]);});
+  const sub=await reg.pushManager?.getSubscription();if(sub)await sub.unsubscribe();
+ }catch{}
+}
+function useProductionPushIdentity(user,onOpen){
+ const openRef=useRef(onOpen);openRef.current=onOpen;
+ const allowed=!!user&&user.active!==false&&user.disabled!==true;
+ useEffect(()=>{
+  if(!('serviceWorker' in navigator))return;
+  let active=true,registration;const epoch=++scfProductionPushIdentityEpoch;
+  const restore=async()=>{try{registration=await navigator.serviceWorker.getRegistration();if(!registration||!active||epoch!==scfProductionPushIdentityEpoch)return;scfProductionPushBind(registration,'');if(!allowed)return;try{if(localStorage.getItem('scf_production_push_disabled_'+user.id)==='1')return;}catch{}const sub=await registration.pushManager?.getSubscription();if(!sub)return;const status=await scfProductionPushRequest('status',{endpoint:sub.endpoint});if(active&&epoch===scfProductionPushIdentityEpoch&&status.enabled)scfProductionPushBind(registration,user.id);}catch{}};
+  restore();
+  const receive=event=>{if(event.data?.type==='scf-production-push-open'&&allowed)openRef.current?.();};
+  navigator.serviceWorker.addEventListener('message',receive);
+  const url=new URL(location.href);if(allowed&&url.searchParams.has('scfProductionAlert')){url.searchParams.delete('scfProductionAlert');history.replaceState(null,'',url);openRef.current?.();}
+  return()=>{active=false;scfProductionPushBind(registration,'');navigator.serviceWorker.removeEventListener('message',receive);};
+ },[user?.id,allowed]);
+}
+function ProductionPushIdentity({currentUser,onOpen}){
+ useProductionPushIdentity(currentUser,onOpen);
+ // Permission is requested only from the notification settings button.
+ return null;
+}
+async function scfEnableProductionPush(user){
+ const epoch=scfProductionPushIdentityEpoch,stillCurrent=()=>{if(epoch!==scfProductionPushIdentityEpoch)throw Error('Tài khoản vừa thay đổi. Hãy bật thông báo lại.');};
+ if(!window.isSecureContext||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))throw Error('Thiết bị chưa hỗ trợ thông báo đẩy. Trên iPhone, thêm SCFOOD vào Màn hình chính và mở từ biểu tượng đó.');
+ // Request directly from the user's click, before the server round trip (required on iOS).
+ const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();if(permission!=='granted')throw Error('Chưa được cấp quyền thông báo. Hãy cho phép thông báo SCFOOD trong cài đặt trình duyệt/điện thoại.');
+ stillCurrent();const registration=await scfProductionPushRegistration();stillCurrent();
+ const config=await scfProductionPushRequest('config');if(!config.configured)throw Error('Máy chủ chưa bật Web Push. Quản trị cần hoàn tất hướng dẫn cấu hình thông báo điện thoại.');
+ stillCurrent();
+ const raw=atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')),key=Uint8Array.from(raw,c=>c.charCodeAt(0));
+ const subscription=await registration.pushManager.getSubscription()||await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+ stillCurrent();await scfProductionPushRequest('subscribe',{subscription:subscription.toJSON()});stillCurrent();scfProductionPushBind(registration,user.id);try{localStorage.removeItem('scf_production_push_disabled_'+user.id);}catch{}
+ return subscription;
+}
+async function scfDisableProductionPush(){
+ try{localStorage.setItem('scf_production_push_disabled_'+window.__SCF_ACCESS_CONTEXT?.employeeId,'1');}catch{}
+ const registration=await scfProductionPushRegistration(),subscription=await registration.pushManager.getSubscription();
+ scfProductionPushBind(registration,'');
+ if(subscription){try{await scfProductionPushRequest('unsubscribe',{endpoint:subscription.endpoint});}finally{await subscription.unsubscribe();}}
+}
+// Tracking and notifications run on the server; no bell controls or audio in the production screen.

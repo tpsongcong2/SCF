@@ -1,7 +1,8 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V630';
+const SCF_BUILD_VERSION='V691';
 const PTITLES = {
   kpi4p:'KPI & Lương 4P',
+  attp_claims:'Nhật ký claim chất lượng',
   attp_process:'Tài liệu ATTP · Quy trình',
   attp_standards:'Tài liệu ATTP · Tiêu chuẩn',
   attp_daily:'Tài liệu ATTP · Nhật ký hàng ngày',
@@ -32,7 +33,7 @@ const SCF_PAGE_DATA={
   materials:['materials','purchases'],assets:['assets'],garages:['garages'],
   products:['products','prodcats'],depts:['depts','workcats'],workcats:['workcats','depts'],
   customers:['customers','shifts','orders','areas'],areas:['areas','customers','orders'],
-  prodshifts:['prod_shifts','prod_shift_rules','orders','customers','shifts'],deliveryrules:['delivery_rules'],deliverysequence:['customers','areas','shifts'],
+  prodshifts:['prod_shifts','prod_shift_rules','orders','customers','products','shifts','trips'],deliveryrules:['delivery_rules'],deliverysequence:['customers','areas','shifts'],
   tasks:['tasks','workcats'],notifications:[],userguide:[],
   nccs:['nccs','purchases'],nccgoods:['ncc_goods','goods_purchases'],
   purchaseorders:['purchases','nccs','materials','products','prodcats'],
@@ -46,10 +47,10 @@ const SCF_PAGE_DATA={
   trips:['trips','orders','shifts','prod_shifts','customers','products','prodcats','quotes','finance_debts'],
   orderdetail:['orders','products','customers','shifts','trips','prod_shifts','quotes','finance_debts'],
   workreport_lx:['trips','orders','products','customers'],
-  salesreport:['orders','customers','products','prod_shifts','quotes'],
+  salesreport:['orders','customers','products','prod_shifts','quotes','shifts','trips'],
   cashflowreport:['finance_entries','finance_debts','finance_openings','customers','nccs','orders','products','quotes','purchases','goods_purchases'],
-  powdersales:['customers','trips'],prodsummary:['orders','products','customers','prodcats','prod_shifts','prod_shift_rules','prod_actuals','stock'],prodreport:[],
-  prodbom:['production_recipes','products','prodcats','materials'],prodorders:['prodorders','products','orders','prod_shifts','prod_shift_rules'],stock:['stock','products','prodcats'],
+  powdersales:['customers','trips'],prodsummary:['orders','products','customers','prodcats','prod_shifts','prod_shift_rules','prod_actuals','stock','shifts','trips'],prodreport:[],
+  prodbom:['production_recipes','products','prodcats','materials'],prodorders:['prodorders','products','orders','prod_shifts','prod_shift_rules','shifts','trips'],stock:['stock','products','prodcats'],
   syncreport:[],purchase:[],workreport_vp:[],workreport_sx:[]
 };
 function scfPageDataKeys(page,allKeys){
@@ -143,7 +144,7 @@ function scfCreateAutomaticTripLookup(trips){
   (trips||[]).forEach(add);
   return {add,find:(date,shiftId,shiftName)=>shiftId?byShiftId.get(key(date,shiftId)):(shiftName?byShiftName.get(key(date,normalizeLookupText(shiftName))):undefined)};
 }
-function scfPlanAutomaticOrders(orders,trips,prodShifts,customers,actorName,limit=25){
+function scfPlanAutomaticOrders(orders,trips,prodShifts,customers,actorName,limit=25,{pendingOnly=false}={}){
   const workingTrips=[...(trips||[])],tripById=new Map(workingTrips.map(trip=>[String(trip.id||''),trip]));
   const lookup=scfCreateAutomaticTripLookup(workingTrips);
   const occupiedKey=(date,shift)=>JSON.stringify([String(date||'').trim(),String(shift||'').trim()]);
@@ -151,13 +152,13 @@ function scfPlanAutomaticOrders(orders,trips,prodShifts,customers,actorName,limi
   const occupiedNames=new Set(workingTrips.map(trip=>occupiedKey(trip.deliveryDate,normalizeLookupText(trip.shiftName))));
   let changed=0,tripsChanged=false;
   const nextOrders=(orders||[]).map(order=>{
+    if(pendingOnly&&order?.automaticPlanningPending!==true)return order;
     if(changed>=limit||!order||!['','pending','assigned'].includes(String(order.status||'')))return order;
     const linked=tripById.get(String(order.tripId||''));
     if(linked&&(linked.driverDispatchedAt||['active','completion_pending','completed','cancelled'].includes(String(linked.status||''))))return order;
-    const plannedShift=order.prodShiftAssignMode==='manual'
-      ?(prodShifts||[]).find(shift=>String(shift.id||'')===String(order.prodShiftId||''))
-      :getProdShiftForOrder(order,prodShifts||[],customers||[]);
-    let next=scfApplyAutomaticProduction(order,plannedShift);
+    const plannedShift=getProdShiftForOrder(order,prodShifts||[],customers||[]);
+    if(plannedShift?.routingConflict||plannedShift?.productRoutingRuleId&&!resolveCurrentDeliveryShift(order,plannedShift))return order;
+    let next=order;
     if(order.tripAssignMode!=='manual'){
       let trip=null;
       const tripDate=plannedShift?addDaysVN(order.deliveryDate,Number(plannedShift.tripDateOffset??0)):'';
@@ -186,11 +187,34 @@ function scfPlanAutomaticOrders(orders,trips,prodShifts,customers,actorName,limi
       const tripId=trip?.id||null,status=trip?'assigned':'pending';
       if(String(next.tripId||'')!==String(tripId||'')||next.status!==status||next.tripAssignMode!=='auto')next={...next,tripId,tripAssignMode:'auto',status};
     }
+    next=scfApplyAutomaticProduction(next,plannedShift,workingTrips);
+    if(pendingOnly&&next.automaticPlanningPending===true)next={...next,automaticPlanningPending:false};
     if(next===order)return order;
     changed++;
     return {...next,updatedAt:fmtDT(),updatedBy:actorName||'Hệ thống'};
   });
   return {orders:nextOrders,trips:workingTrips,changed,tripsChanged};
+}
+// A background refresh often returns freshly parsed copies of unchanged rows.
+// Reuse only byte-equivalent JSON records so page caches survive without hiding server edits.
+function scfReuseUnchangedRecords(previous,incoming){
+  if(previous===incoming||!Array.isArray(previous)||!Array.isArray(incoming))return incoming;
+  const byId=new Map();
+  previous.forEach((row,index)=>{
+    const key=row?.id==null?'index:'+index:'id:'+String(row.id);
+    if(!byId.has(key))byId.set(key,[]);byId.get(key).push(row);
+  });
+  const offsets=new Map();
+  let same=previous.length===incoming.length;
+  const next=incoming.map((row,index)=>{
+    const key=row?.id==null?'index:'+index:'id:'+String(row.id),offset=offsets.get(key)||0;
+    offsets.set(key,offset+1);
+    const old=byId.get(key)?.[offset];
+    const value=old===row?row:old!==undefined&&JSON.stringify(old)===JSON.stringify(row)?old:row;
+    if(value!==previous[index])same=false;
+    return value;
+  });
+  return same?previous:next;
 }
 function createScfDataLoader(read,apply){
   const loaded=new Set(),pending=new Map();let disposed=false;
@@ -232,7 +256,7 @@ function scfLoadOptionalScript(name,url){
 // Kiểm tra thành phần trước khi render: một tệp tải lỗi không được làm trắng trang.
 const SCF_PAGE_COMPONENTS={
   kpi4p:'KPI4PTab',
-  attp_process:'ATTPDocumentsTab',attp_standards:'ATTPDocumentsTab',attp_daily:'ATTPDocumentsTab',attp_legal:'ATTPDocumentsTab',
+  attp_claims:'ATTPDocumentsTab',attp_process:'ATTPDocumentsTab',attp_standards:'ATTPDocumentsTab',attp_daily:'ATTPDocumentsTab',attp_legal:'ATTPDocumentsTab',
   welcome:'WelcomePage',company:'CompanySettings',appearance:'AppearanceSettingsTab',printtemplates:'PrintTemplateSettingsTab',
   personnel:'PersonnelInformationTab PersonnelProfileForm',employees:'EmployeeTab EmpForm CpwModal',permission_settings:'PermissionSettingsTab',
   attendance:'AttendanceTab',attendance_settings:'AttendanceTab',attendance_report:'AttendanceTab',workreport_total:'AttendanceTab',
@@ -259,7 +283,7 @@ async function scfEnsurePageTools(page){
   }
   // Chuyến giao hàng không dùng thư viện Excel/ZIP. Không chặn giao diện bằng
   // hai gói CDN lớn chỉ để mở trang này.
-  if(['personnel','welcome','company','appearance','userguide','notifications','syncreport','permission_settings','trips','deliverysequence'].includes(page)||PROCESS_POST_KEYS[page])return Promise.resolve();
+  if(['personnel','welcome','company','appearance','userguide','notifications','syncreport','permission_settings','trips','deliverysequence','delivery'].includes(page)||PROCESS_POST_KEYS[page])return Promise.resolve();
   return Promise.all([
     scfLoadOptionalScript('JSZip','https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'),
     scfLoadOptionalScript('XLSX','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js')
@@ -268,7 +292,7 @@ async function scfEnsurePageTools(page){
 
 const PICONS = {
   kpi4p:'ti-chart-bar',
-  attp_process:'ti-list-check',
+  attp_claims:'ti-message-report',attp_process:'ti-list-check',
   attp_standards:'ti-certificate',
   attp_daily:'ti-notebook',
   attp_legal:'ti-file-certificate',
@@ -349,6 +373,7 @@ function App(){
   const[productionPreviewOpen,setProductionPreviewOpen]=useState(false);
   const[productionClosingScope,setProductionClosingScope]=useState(null);
   const[productionClosingWorkshop,setProductionClosingWorkshop]=useState('bun');
+  const[preparedProductionPage,setPreparedProductionPage]=useState(null);
   useEffect(()=>{
     const changed=event=>setDaySummaryOpen(!!event.detail?.open);
     window.addEventListener('scf-day-summary-open',changed);
@@ -402,7 +427,9 @@ function App(){
   const[processPosts,_spp]=useState({});
   window.__SCF_CUSTOMERS=customers||[];
   window.__SCF_PROD_SHIFTS=prodShifts||[];
+  window.__SCF_PROD_SHIFT_RULES=prodShiftRules||[];
   window.__SCF_SHIFTS=shifts||[];
+  window.__SCF_TRIPS=allTrips||[];
   const setEmployees=mkSet(employeeStorageKey,_se);
   const setCompany=mkSet('scf_company',_sc);
   const setMaterials=mkSet('scf_materials',_sm);
@@ -427,7 +454,30 @@ function App(){
   const setShifts=mkSet('scf_shifts',_ssh);
   const setQuotes=mkSet('scf_quotes',_sq);
   const saveAllOrders=mkSet('scf_orders',_so);
-  const setOrders=value=>saveAllOrders(previous=>scfMergePeriodView(previous,typeof value==='function'?value(previous.filter(item=>scfOrderInViewPeriod(item,cu))):value,cu));
+  const setOrders=(value,planningTrips)=>saveAllOrders(previous=>{
+    const visible=previous.filter(item=>scfOrderInViewPeriod(item,cu));
+    const updated=typeof value==='function'?value(visible):value;
+    const before=new Map(previous.map(o=>[String(o.id),o]));
+    const planned=updated.map(incomingOrder=>{
+      const previousOrder=before.get(String(incomingOrder.id));
+      let order;
+      if(previousOrder)order=scfPreserveExistingProductionOrder(previousOrder,incomingOrder);
+      else{
+        const {kpiAudit,...fresh}=incomingOrder;
+        order={...scfMarkNewProductionOrder(fresh),automaticPlanningPending:true,createdAtIso:new Date().toISOString(),createdById:String(cu?.id||''),createdBy:cu?.name||incomingOrder.createdBy||''};
+      }
+      const old=before.get(String(order.id));
+      if(old===order)return order;
+      const changed=old&&String(old.tripId||'')!==String(order.tripId||'');
+      const requested=old&&order.productionScheduleResetAt&&order.productionScheduleResetAt!==old.productionScheduleResetAt;
+      // Existing orders keep their stored schedule on unrelated edits.
+      if(old&&!changed&&!requested)return order;
+      if(!changed&&!['pending','assigned',''].includes(String(order.status||'')))return order;
+      const rule=getProdShiftForOrder(order,prodShifts||[],customers||[]);
+      return scfApplyAutomaticProduction(order,rule,planningTrips);
+    });
+    return scfMergePeriodView(previous,planned,cu);
+  });
   const saveAllTrips=mkSet('scf_trips',_st);
   const setTrips=value=>saveAllTrips(previous=>scfMergePeriodView(previous,typeof value==='function'?value(previous.filter(item=>scfOrderInViewPeriod(item,cu))):value,cu));
   const setAutoTrips=valOrFn=>_st(prev=>{
@@ -495,6 +545,10 @@ function App(){
       if(key==='scf_trips')_st(value);
       if(key==='scf_orders')_so(normalizeOrdersForStorage(value));
       if(key==='scf_production_recipes')_srecipes(value);
+      if(key==='scf_shifts')_ssh(value);
+      if(key==='scf_prod_shifts')_sps(value);
+      if(key==='scf_prod_shift_rules')_spr(value);
+      if(key==='scf_customers')_scu(value);
     };
     window.addEventListener('scf-collection-reconciled',receive);
     return()=>window.removeEventListener('scf-collection-reconciled',receive);
@@ -525,8 +579,14 @@ function App(){
     const allowed=user=>!!user&&canAccess(user.role,'prodsummary',user.permissions,employeeDepartments(user));
     if(!loader||!allowed(owner))throw Error('Tài khoản chưa được cấp quyền xem tổng hợp sản xuất.');
     const ownerKey=scfQuickSummaryAccessKey(owner);
-    await Promise.all([...SCF_PAGE_DATA.prodsummary.map(key=>loader.load(key,key==='prod_actuals')),scfEnsurePageTools('prodsummary')]);
+    const finishLive=async(refresh=false)=>{
+    await Promise.all([...SCF_PAGE_DATA.prodsummary.map(key=>loader.load(key,refresh||key==='prod_actuals')),scfEnsurePageTools('prodsummary')]);
     if(loader!==dataLoaderRef.current||!allowed(quickSummaryUserRef.current)||scfQuickSummaryAccessKey(quickSummaryUserRef.current)!==ownerKey)throw Error('Phiên đăng nhập hoặc quyền xem đã thay đổi. Hãy mở lại cửa sổ.');
+    };
+    const prepared=typeof scfReadPreparedSummary==='function'?await scfReadPreparedSummary('production',isoDate()):null;
+    if(loader!==dataLoaderRef.current||!allowed(quickSummaryUserRef.current)||scfQuickSummaryAccessKey(quickSummaryUserRef.current)!==ownerKey)throw Error('Quyền xem đã thay đổi.');
+    if(prepared?.ready&&prepared.payload?.rows){const liveReady=finishLive(true);liveReady.catch(()=>{});return {prepared,liveReady};}
+    await finishLive();
   };
   useEffect(()=>setProductionPreviewOpen(false),[cu?.id,page]);
   useEffect(()=>{if(!cu||!canAccess(cu.role,'prodsummary',cu.permissions,employeeDepartments(cu)))setProductionPreviewOpen(false);},[cu?.role,cu?.permissions,employeeDepartmentLabel(cu)]);
@@ -583,7 +643,11 @@ function App(){
     dataLoaderRef.current?.dispose();
     const loader=createScfDataLoader(
       key=>dbGetRequired('scf_'+key,resources[key][0]),
-      (key,value)=>{const[,setter,normalize]=resources[key];setter(normalize?normalize(value):value);}
+      (key,value)=>{
+        const[,setter,normalize]=resources[key],next=normalize?normalize(value):value;
+        if(key==='orders'||key==='trips')setter(previous=>scfReuseUnchangedRecords(previous,next));
+        else setter(next);
+      }
     );
     dataLoaderRef.current=loader;
     (async()=>{
@@ -656,6 +720,13 @@ function App(){
     let cancelled=false;
     setReadyPage(null);setPageError('');
     const loader=dataLoaderRef.current;
+    setPreparedProductionPage(null);
+    if(page==='prodsummary'&&typeof scfReadPreparedSummary==='function'){
+      const ownerKey=scfQuickSummaryAccessKey(cu);
+      scfReadPreparedSummary('production',isoDate()).then(prepared=>{
+        if(!cancelled&&prepared?.ready&&prepared.payload?.rows&&ownerKey===scfQuickSummaryAccessKey(quickSummaryUserRef.current))setPreparedProductionPage({...prepared,ownerKey});
+      }).catch(()=>{});
+    }
     Promise.all([...requiredKeys.map(key=>loader.load(key)),scfEnsurePageTools(page)])
       .then(()=>{if(!cancelled){setAutoSyncReady(true);setReadyPage(page);}})
       .catch(error=>{if(!cancelled)setPageError(error.message||'Không tải được dữ liệu màn hình.');});
@@ -685,11 +756,15 @@ function App(){
       busy=true;
       try{
         const watchedKeys=[...keys];
+        if((productionPreviewOpen||page==='prodsummary')&&canAccess(cu.role,'prodsummary',cu.permissions,cuAccessDepartments))for(const key of SCF_PAGE_DATA.prodsummary)if(dataLoaderRef.current?.loaded.has(key)&&!watchedKeys.includes(key))watchedKeys.push(key);
         if(!isFaceMask&&canAccess(cu.role,'assets',cu.permissions,cuAccessDepartments)&&dataLoaderRef.current?.loaded.has('assets')&&!watchedKeys.includes('assets'))watchedKeys.push('assets');
         const changed=await dbGetChangedKeys(watchedKeys.map(key=>'scf_'+key));
         const changedKeys=changed.map(key=>key.replace(/^scf_/,''));
         if(!changedKeys.length)return;
         const tripRefresh=changedKeys.some(key=>key==='orders'||key==='trips');
+        // Read both sides of the link before running any automatic repair.
+        // One version poll may observe the order write before its trip write.
+        if(tripRefresh)for(const key of ['orders','trips'])if(keys.includes(key)&&!changedKeys.includes(key))changedKeys.push(key);
         if(tripRefresh)setAutoSyncReady(false);
         const results=await Promise.allSettled(changedKeys.map(key=>dataLoaderRef.current.load(key,true)));
         if(tripRefresh&&!stopped&&results.every(result=>result.status==='fulfilled'))setAutoSyncReady(true);
@@ -702,13 +777,13 @@ function App(){
     document.addEventListener('visibilitychange',refresh);
     window.scfSyncNow=refresh;
     return()=>{stopped=true;clearInterval(tm);document.removeEventListener('visibilitychange',refresh);if(window.scfSyncNow===refresh)delete window.scfSyncNow;};
-  },[loading,bootError,cu?.id,page,pageReady]);
+  },[loading,bootError,cu?.id,page,pageReady,productionPreviewOpen]);
 
   /* ── TẠO CHUYẾN TRƯỚC 3 NGÀY VÀ TỰ XẾP ĐƠN PHÙ HỢP ── */
   useEffect(()=>{
     const automationUser=cu;
     const tripInputsReady=['orders','trips','shifts','prod_shifts','customers'].every(key=>dataLoaderRef.current?.loaded.has(key));
-    if(loading||!pageReady||!autoSyncReady||!tripInputsReady||!['delivery','trips','orderdetail'].includes(page)||isFaceMask||!automationUser||!canAccess(automationUser.role,'delivery',automationUser.permissions,automationUser.dept)||!canWrite(automationUser.role,'delivery',automationUser.permLevels)||!shifts?.length||!prodShifts?.length)return;
+    if(loading||!pageReady||!autoSyncReady||!tripInputsReady||!['delivery','trips','orderdetail','prodshifts'].includes(page)||isFaceMask||!automationUser||!canAccess(automationUser.role,'delivery',automationUser.permissions,automationUser.dept)||!canWrite(automationUser.role,'delivery',automationUser.permLevels)||!shifts?.length)return;
     // Chờ lần lưu đơn/chuyến trước được xác nhận rồi mới sửa tối đa 25 đơn.
     // Như vậy các đợt không bị gộp thành một lần ghi toàn bộ danh sách lớn.
     if(!navigator.onLine||window.scfOrderAutomationPending?.())return;
@@ -717,7 +792,7 @@ function App(){
     // Chuyến được lập trước theo lịch phải được giữ lại dù chưa có đơn.
     const keptTrips=(trips||[]).filter(t=>!(t?.autoCreated&&!t?.autoPlanned&&usableTrip(t)&&!(t.orderIds||[]).length&&!linkedTripIds.has(String(t.id||''))));
     const advance=scfCreateAdvanceTripWindow(keptTrips,shifts||[],fmtDate(),3,automationUser.name||'Hệ thống');
-    const planned=scfPlanAutomaticOrders(orders,advance.trips,prodShifts,customers,automationUser.name,25);
+    const planned=scfPlanAutomaticOrders(orders,advance.trips,prodShifts,customers,automationUser.name,25,{pendingOnly:true});
     const workingTrips=planned.trips,nextOrders=planned.orders;
     let tripsChanged=keptTrips.length!==(trips||[]).length||advance.changed||planned.tripsChanged;
     // Repair only fields accepted by the automatic endpoint, so applying its
@@ -725,7 +800,7 @@ function App(){
     const reconciled=scfReconcileTripOrderLinks(workingTrips,nextOrders,products||[],{automaticWrite:true});
     if(reconciled.changed)tripsChanged=true;
     if(tripsChanged)setAutoTrips(reconciled.trips);
-    if(planned.changed)setOrders(nextOrders);
+    if(planned.changed)setOrders(nextOrders,workingTrips);
   },[loading,pageReady,autoSyncReady,page,isFaceMask,session,employees,orders,trips,shifts,prodShifts,customers,products,automaticPlanRevision]);
 
   const addNotification=React.useCallback(data=>{
@@ -777,7 +852,7 @@ function App(){
       const key='scf_notification_shown_'+n.id;
       if(sessionStorage.getItem(key))return;
       sessionStorage.setItem(key,'1');
-      try{new Notification(n.title||'SCF - Thông báo',{body:n.message||'',icon:'./icon-192.png',tag:n.id});}catch{}
+      try{new Notification(n.title||'SCF - Thông báo',{body:n.message||'',icon:'./icon-192.png',tag:n.id,silent:true});}catch{}
     });
   },[notifications,cu?.id,loading]);
   const unreadNotificationCount=cu?(notifications||[]).filter(n=>String(n.recipientId||'')===String(cu.id)&&!n.readAt).length:0;
@@ -851,6 +926,7 @@ function App(){
     return latest?.attendanceZones;
   };
   return h('div',{className:'layout'},
+    h(ProductionPushIdentity,{currentUser:cu,onOpen:()=>{setProductionPreviewOpen(false);setPage('notifications');window.scfSyncNow?.();}}),
     h('div',{className:'main'},
       !menuHidden&&h('div',{className:'topbar'+(page!=='welcome'?' mobile-subpage-topbar':'')},
         h('div',{className:'topbar-main'},
@@ -888,11 +964,11 @@ function App(){
         className:'content'+(menuHidden?' compact-top':'')+(page!=='welcome'?' mobile-subpage-content':'')+(readOnly?' scf-readonly':'')+(activeLevel!=='rwd'?' scf-no-delete':''),
         onClickCapture:e=>guardPermissionAction(e,cu.role,page,cu.permLevels)
       },
-        !pageReady?h('div',{className:'card',role:pageError?'alert':'status',style:{padding:24}},
+        !pageReady&&page==='prodsummary'&&canOpenCurrentPage(cu)&&preparedProductionPage?.ownerKey===scfQuickSummaryAccessKey(cu)?h('div',null,h('p',{className:'summary-cache-updated',role:'status'},'Bản đã lưu · Cập nhật lúc '+scfSummaryUpdatedLabel(preparedProductionPage.updatedAt)+' · Đang đối chiếu dữ liệu mới…'),pageError&&h('p',{role:'alert'},pageError),h(ProductionSummaryTab,{...preparedProductionPage.payload.data,currentUser:cu,preparedRows:preparedProductionPage.payload.rows,preparedDate:preparedProductionPage.payload.date,snapshotReadOnly:true})):!pageReady?h('div',{className:'card',role:pageError?'alert':'status',style:{padding:24}},
           h('p',null,pageError||'Đang tải dữ liệu '+(PTITLES[page]||'màn hình')+'…'),
           pageError&&h('button',{className:'bp',onClick:()=>{if(scfMissingPageComponents(page).length)location.reload();else setPageAttempt(v=>v+1);}},'Thử tải lại')
         ):h(React.Fragment,null,
-        canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,employees,company,uiSettings,news:companyNews,setNews:setCompanyNews,messages:internalMessages,setMessages:setInternalMessages,onRefresh:refreshCommunityData}),
+        canAccess(cu.role,page)&&page==='welcome'&&h(WelcomePage,{emp:cu,employees,company,uiSettings,news:companyNews,setNews:setCompanyNews,messages:internalMessages,setMessages:setInternalMessages,notifications,onRefresh:refreshCommunityData}),
         canAccess(cu.role,'company',cu.permissions,cuAccessDepartments)&&page==='company'&&h(CompanySettings,{company,setCompany,canEdit:canWrite(cu.role,'company',cu.permLevels)}),
         canAccess(cu.role,'appearance',cu.permissions)&&page==='appearance'&&h(AppearanceSettingsTab,{uiSettings,setUiSettings}),
         canAccess(cu.role,'printtemplates',cu.permissions)&&page==='printtemplates'&&h(PrintTemplateSettingsTab,{templateSettings:printTemplateSettings,setTemplateSettings:setPrintTemplateSettings,products,customers}),
@@ -916,7 +992,7 @@ function App(){
         canAccess(cu.role,'products',cu.permissions)&&page==='products'&&h(ProductsTab,{products,setProducts,prodCats,setProdCats}),
         canAccess(cu.role,'customers',cu.permissions)&&page==='customers'&&h(CustomersTab,{customers,setCustomers,shifts,orders,areas,cu}),
         canAccess(cu.role,'areas',cu.permissions)&&page==='areas'&&h(AreasTab,{areas,setAreas,customers,setCustomers,orders}),
-        canAccess(cu.role,'prodshifts',cu.permissions)&&page==='prodshifts'&&h(ProdShiftsTab,{prodShifts,setProdShifts,prodShiftRules,setProdShiftRules,orders,customers,shifts,currentUser:cu}),
+        canAccess(cu.role,'prodshifts',cu.permissions)&&page==='prodshifts'&&h(ProdShiftsTab,{prodShifts,setProdShifts,prodShiftRules,setProdShiftRules,orders,customers,products,shifts,setShifts,currentUser:cu}),
         canAccess(cu.role,'deliveryrules',cu.permissions)&&page==='deliveryrules'&&h(DeliveryRulesTab,{items:deliveryRules,setItems:setDeliveryRules,currentUser:cu}),
         canAccess(cu.role,'deliverysequence',cu.permissions,cuAccessDepartments)&&page==='deliverysequence'&&h(DeliverySequenceSettingsTab,{customers,setCustomers,currentUser:cu,shifts}),
         canAccess(cu.role,'workcats',cu.permissions)&&page==='workcats'&&h(WorkCatsTab,{workcats,setWorkcats,depts}),

@@ -253,8 +253,11 @@ window.scfClearSensitiveLocalData=function(){
   setSyncState(navigator.onLine?'idle':'offline');
 };
 window.scfGetSyncState=function(){return window.__SCF_SYNC_STATE||{status:navigator.onLine?'idle':'offline',pending:0};};
+window.scfProductionConfigurationPending=function(){
+  const queue=readSyncQueue();return ['scf_shifts','scf_prod_shifts','scf_prod_shift_rules','scf_customers'].some(key=>!!queue[key]);
+};
 window.scfOrderAutomationPending=function(){
-  const queue=readSyncQueue();return !!(queue.scf_orders||queue.scf_trips);
+  const queue=readSyncQueue();return !!(queue.scf_orders||queue.scf_trips)||window.scfProductionConfigurationPending();
 };
 window.scfGetSyncReport=function(){
   const queue=readSyncQueue();
@@ -274,6 +277,16 @@ window.scfGetSyncReport=function(){
     items:Object.entries(queue).map(([key,item])=>({key,label:labels[key]||key.replace(/^scf_/,'').replaceAll('_',' '),updatedAt:item?.updatedAt||'',bytes:Number(item?.bytes)||syncPayloadBytes(item?.patches||item?.value),recordCount:Array.isArray(item?.patches)?item.patches.length:(Array.isArray(item?.value)?item.value.length:(item?.value&&typeof item.value==='object'?Object.keys(item.value).length:1)),attempts:Number(item?.attempts)||0,mode:item?.patches?'patch':(item?.mode||'full'),errorMessage:item?.lastError?.message||'',errorCode:item?.lastError?.code||''}))
   };
 };
+function scfSyncPatchSummary(patches){
+  return (Array.isArray(patches)?patches:[]).map(patch=>{
+    const before=patch.base||patch.expected||{},after=patch.value||{};
+    const changed=(a,b)=>[...new Set([...Object.keys(a),...Object.keys(b)])].filter(key=>JSON.stringify(a[key])!==JSON.stringify(b[key]));
+    return {id:String(patch.id||''),fields:changed(before,after),lines:(after.lines||[]).flatMap((line,index)=>{
+      const old=(before.lines||[]).find(item=>line.id&&item.id===line.id)||(!line.id?(before.lines||[])[index]:null)||{};
+      const fields=changed(old,line);return fields.length?[{id:String(line.id||''),index,fields}]:[];
+    })};
+  });
+}
 function scfBuildSyncDiagnostics(){
   const report=window.scfGetSyncReport?.()||{},actorId=String(window.__SCF_ACCESS_CONTEXT?.employeeId||'');
   const entries=(window.__SCF_AUTH_DIAGNOSTICS||[]).filter(entry=>!entry.actorId||String(entry.actorId)===actorId).map(entry=>({
@@ -282,7 +295,7 @@ function scfBuildSyncDiagnostics(){
   }));
   return {version:typeof SCF_BUILD_VERSION==='undefined'?'':SCF_BUILD_VERSION,createdAt:new Date().toISOString(),accountId:actorId,
     connection:{online:!!navigator.onLine,status:report.status,pending:report.pending},
-    queue:(report.items||[]).map(item=>({key:item.key,mode:item.mode,updatedAt:item.updatedAt,bytes:item.bytes,recordCount:item.recordCount,attempts:item.attempts})),
+    queue:(report.items||[]).map(item=>({key:item.key,mode:item.mode,updatedAt:item.updatedAt,bytes:item.bytes,recordCount:item.recordCount,attempts:item.attempts,changes:scfSyncPatchSummary(readSyncQueue()[item.key]?.patches)})),
     metrics:(report.metrics||[]).map(item=>({key:item.key,mode:item.mode,bytes:item.bytes,durationMs:item.durationMs,ok:item.ok,at:item.at,code:item.code,conflictIds:item.conflictIds})),requests:entries};
 }
 window.scfDownloadSyncDiagnostics=function(){
@@ -561,10 +574,20 @@ async function scfSavePermittedCollection(key,val,patches,expectedUpdatedAt,base
     const mutations=scfOrderMutations(baseValue,val);
     if(mutations?.length){
       const actor=String(window.__SCF_ACCESS_CONTEXT?.employeeId||'');
-      let saved;
-      for(let offset=0;offset<mutations.length;offset+=25){
+      // Use the server's maximum batch to avoid repeated full-collection writes
+      // when notification triggers are paused or fast. On timeout, retry the
+      // same idempotent mutations in smaller groups; it may have committed.
+      let saved,batchSize=25;
+      for(let offset=0;offset<mutations.length;){
         if(actor!==String(window.__SCF_ACCESS_CONTEXT?.employeeId||''))throw new Error('Tài khoản đã thay đổi. Dữ liệu vẫn được giữ trong hàng chờ.');
-        saved=await serverSaveOrderMutationBatch(mutations.slice(offset,offset+25),offset+25>=mutations.length,timeoutMs);
+        const batch=mutations.slice(offset,offset+batchSize);
+        try{
+          saved=await serverSaveOrderMutationBatch(batch,offset+batch.length>=mutations.length,timeoutMs);
+          offset+=batch.length;
+        }catch(error){
+          if(!['SCF_DATABASE_TIMEOUT','SCF_REMOTE_TIMEOUT'].includes(error?.code)||batch.length<=1)throw error;
+          batchSize=Math.max(1,Math.floor(batch.length/2));
+        }
       }
       return saved;
     }
