@@ -636,7 +636,7 @@ function buildTemplateValueBag({company,order,line,lineIndex,plan,products,custo
     'order.totalWeight':calcOrderWeightForTemplate(order,products),
     'plan.shiftName':plan?.shift?.name||'',
     'plan.prodDate':plan?.prodDate||'',
-    'plan.prodTime':plan?.prodTime||'',
+    'plan.prodTime':plan?.prodWorkShiftId?'':plan?.prodTime||'',
     'plan.tripDate':tripDate||'',
     'plan.tripShiftName':tripShiftName||'',
     'plan.labelDate':plan?.labelDate||'',
@@ -734,6 +734,7 @@ function normalizeUiSettings(raw){
   const next={
     fontFamily:src.fontFamily||DEF_UI_SETTINGS.fontFamily,
     birthdayEffect:birthdayEffects.includes(src.birthdayEffect)?src.birthdayEffect:(DEF_UI_SETTINGS.birthdayEffect||'fireworks'),
+    deliveryOrderHover:src.deliveryOrderHover!==false,
     scopes:{}
   };
   if(!UI_FONT_FAMILY_OPTIONS.some(x=>x.value===next.fontFamily)) next.fontFamily=DEF_UI_SETTINGS.fontFamily;
