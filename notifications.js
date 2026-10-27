@@ -11,13 +11,10 @@ function NotificationsTab({notifications,setNotifications,currentUser,setPage}){
   const markAll=()=>setNotifications(prev=>(prev||[]).map(n=>String(n.recipientId||'')===userId&&!n.readAt?{...n,readAt:fmtDT()}:n));
   const openItem=n=>{
     markRead(n.id);
-    if(['trips','assets'].includes(n.targetPage)&&n.sourceId)try{sessionStorage.setItem('scf_notification_target',JSON.stringify({sourceType:n.sourceType||'',sourceId:n.sourceId,targetPage:n.targetPage||'',notificationId:n.id}));}catch{}
+    if(n.targetPage==='trips'&&n.sourceId)try{sessionStorage.setItem('scf_notification_target',JSON.stringify({sourceType:n.sourceType||'',sourceId:n.sourceId,targetPage:n.targetPage||'',notificationId:n.id}));}catch{}
     if(n.targetPage)setPage(n.targetPage);
   };
   const enableDevice=async()=>{
-    if(currentUser){
-      try{await scfEnableProductionPush(currentUser);window.showToast('Đã bật thông báo thay đổi đơn hàng trên thiết bị này.','success');}catch(e){window.showToast(e.message,'warn');}return;
-    }
     if(!('Notification' in window)){window.showToast('Trình duyệt này không hỗ trợ thông báo trên thiết bị.','warn');return;}
     const result=await Notification.requestPermission();
     window.showToast(result==='granted'?'Đã bật thông báo trên thiết bị.':'Chưa được cấp quyền thông báo.',result==='granted'?'success':'warn');
@@ -27,7 +24,6 @@ function NotificationsTab({notifications,setNotifications,currentUser,setPage}){
       h('div',null,h('div',{className:'ptitle'},h('i',{className:'ti ti-bell'}),'Thông báo'),h('div',{className:'notifications-sub'},unread.length+' thông báo chưa đọc')),
       h('div',{className:'notifications-actions'},
         h('button',{onClick:enableDevice},h('i',{className:'ti ti-bell-ringing'}),' Bật thông báo trên thiết bị'),
-        currentUser&&h('button',{onClick:async()=>{try{await scfDisableProductionPush();window.showToast('Đã tắt thông báo sản xuất trên thiết bị này.','success');}catch(e){window.showToast(e.message,'warn');}}},'Tắt thông báo đơn hàng'),
         h('button',{onClick:markAll,disabled:!unread.length},h('i',{className:'ti ti-checks'}),' Đánh dấu đã đọc')
       )
     ),
