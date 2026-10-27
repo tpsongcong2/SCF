@@ -176,6 +176,7 @@ function TripInvoicePreview({src,label,size='medium',landscape=false,orderId='',
       sharedSave.status==='saving'?'Đang lưu chiều bạn chọn lên máy chủ…':sharedSave.status==='saved'?'Đã lưu chiều bạn chọn trên máy chủ.':'Chưa lưu được chiều bạn chọn: '+sharedSave.error:
     orientation?.src===src&&orientation.sharedState==='saved'?'Đã dùng chiều lưu trên máy chủ.':
     orientation?.src===src&&orientation.stage==='loading'?'Đang đọc chiều ảnh đã lưu…':
+    orientation?.src===src&&(orientation.stage==='background'||orientation.status==='queued')?'Ảnh đã lưu; chờ nhận diện nền trên máy tính của admin/kế toán.':
     !landscape?'Tự xoay đang tắt. Bật “Tự xoay đúng chiều” ở thanh phía trên.':
     manualRotation?.src===src&&manualRotation?.landscape===landscape?'Đang dùng chiều bạn chọn':
     orientation?.src!==src?'Tự xoay đang bật. Chờ ảnh hiển thị để nhận diện.':
