@@ -18,7 +18,7 @@ function scfDeliveryExcelGroups({orders=[],trips=[],products=[],customers=[],pro
       return lines.map(line=>{
         const product=productById.get(String(line?.productId||''));
         const note=[order.status==='cancelled'?'Đã hủy':'',order.isAdditionalTripOrder?'Đơn PS':'',order.note,line?.note].filter(Boolean).join(' · ');
-        const row=[order.deliveryDate||trip.deliveryDate||'',order.pointName||order.address||'—',line?.productName||product?.name||'',line?mobileDeliveryQty(line,'qtyProd'):null,line?.unit||product?.unit||'',normalizeTimeInput(order.deliveryTime||trip.deliveryTime||''),note];
+        const row=[line?.warehouseSourceDeliveryDate||order.deliveryDate||trip.deliveryDate||'',line?.warehouseSourcePointName||order.pointName||order.address||'—',line?.productName||product?.name||'',line?mobileDeliveryQty(line,'qtyProd'):null,line?.unit||product?.unit||'',normalizeTimeInput(line?.warehouseSourceDeliveryTime||order.deliveryTime||trip.deliveryTime||''),note];
         row.isGoods=!!line&&isGoodsProduct(product||line,prodCats);
         row.qtyInvoice=line?mobileDeliveryQty(line,'qtyInvoice'):null;
         row.orderId=order.id;

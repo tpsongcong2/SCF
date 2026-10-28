@@ -56,7 +56,7 @@ function scfWarehouseOrderTools(){
     const customers=[...new Set(sourceOrders.map(o=>String(o.customerId||o.custId||o.customer||'')))];
     const base=existing||selected[0].order;
     const merged={...base,id,pointId:'',ptId:'',pointName:'KHO VẬN',address:'Giao tại kho vận',tripId:trip.id,tripAssignMode:assignmentMode(base.tripAssignMode),
-      deliveryDate:trip.deliveryDate||base.deliveryDate,deliveryTime:trip.deliveryTime||base.deliveryTime||'',status:base.status||'assigned',
+      deliveryDate:sourceOrders[0]?.deliveryDate||base.deliveryDate,deliveryTime:sourceOrders[0]?.deliveryTime||base.deliveryTime||'',status:base.status||'assigned',
       customerId:customers.length===1?(base.customerId||base.custId||''):'',customer:customers.length===1?(base.customer||base.customerName||''):'Kho vận',
       lines,warehouseMerged:true,warehouseMergePending:false,automaticPlanningPending:false,warehouseSourceOrders:sourceOrders,
       warehouseSourceOrderIds:sourceOrders.map(o=>String(o.id)),invoiceImage:existing?.invoiceImage||'',driverInvoiceImage:existing?.driverInvoiceImage||'',

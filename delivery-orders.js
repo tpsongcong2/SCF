@@ -4603,9 +4603,10 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
                   title:'Chọn đơn '+(o.id||''),
                   style:{width:16,height:16,margin:0,flex:'0 0 auto',cursor:'pointer'}
                 }):h('span',{'aria-hidden':true,style:{width:16,flex:'0 0 16px'}})),
-                h('span',{title:ctx.deliveryDate||''},(()=>{
-                  const parts=String(ctx.deliveryDate||'').split('/');
-                  return parts.length>=2?parts.slice(0,2).join('/'):ctx.deliveryDate||'—';
+                h('span',{title:row.line?.warehouseSourceDeliveryDate||ctx.deliveryDate||''},(()=>{
+                  const date=row.line?.warehouseSourceDeliveryDate||ctx.deliveryDate||'';
+                  const parts=String(date).split('/');
+                  return parts.length>=2?parts.slice(0,2).join('/'):date||'—';
                 })())
               )
             ),
