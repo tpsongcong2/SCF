@@ -532,7 +532,7 @@ function OrderForm({order,copyMode=false,customers,products,quotes,employees,cur
       labelTime:normalizeTimeInput(f.labelTime||selectedDefaultTiming.labelTime),
       labelDate:f.labelDate||selectedDefaultTiming.labelDate
     }:selectedDefaultTiming;
-    const lines=(f.lines||[]).map(line=>line.shiftOverride?line:{
+    const lines=(f.lines||[]).map(line=>f.warehouseMerged||line.shiftOverride?line:{
       ...line,
       prodTime:selectedTiming.prodTime,
       prodDate:selectedTiming.prodDate,
@@ -549,7 +549,7 @@ function OrderForm({order,copyMode=false,customers,products,quotes,employees,cur
   return h(Modal,{title:copyMode?'Tạo đơn từ bản sao'+(order?.copySourceId?' · '+order.copySourceId:''):(order?'Sửa đơn '+order.id:'Tạo đơn giao hàng mới'),onClose,lg:true},
     lockedTripLabel&&h('div',{className:'order-copy-notice'},h('i',{className:'ti ti-truck-delivery'}),' Đơn thuộc chuyến '+lockedTripLabel+'. Khi lưu, app giữ nguyên chuyến và trạng thái giao.'),
     copyMode&&h('div',{className:'order-copy-notice'},h('i',{className:'ti ti-copy'}),' Nội dung đã được sao chép từ đơn cũ. Kiểm tra ngày giao, số lượng rồi lưu để tạo mã đơn mới.'),
-    h(F,{label:'Địa điểm giao * ('+customers.reduce((n,c)=>n+(c.points||[]).length,0)+' điểm)'},h('div',null,
+    h(F,{label:(f.warehouseMerged?'Địa điểm chung của đơn KHO VẬN * (':'Địa điểm giao * (')+customers.reduce((n,c)=>n+(c.points||[]).length,0)+' điểm)'},h('div',null,
       h('div',{className:'order-point-picker'},
         h('select',{className:'order-point-area',value:pointAreaFilter,onChange:e=>{setPointAreaFilter(e.target.value);setPointQuery('');setPointSearchOpen(true);},title:'Lọc địa điểm theo khu vực'},
           h('option',{value:''},'Tất cả khu vực'),
@@ -632,11 +632,23 @@ function OrderForm({order,copyMode=false,customers,products,quotes,employees,cur
         [totalWeight>0?'Tổng KL hóa đơn: '+totalWeight.toFixed(2)+' kg':'',totalPurchase>0?'Giá mua: '+moneyFmt(totalPurchase):''].filter(Boolean).join(' · ')
       )
     ),
-      f.lines.map(l=>h(OrderDetailLine,{key:l.id,line:l,products,prodCats:prodCats||[],prodShifts:prodShifts||[],deliveryDate:f.deliveryDate,deliveryTime:f.deliveryTime,pointName:resolvedPointName,area:matchedPointArea,
+      f.lines.map(l=>h('div',{key:l.id},
+        f.warehouseMerged&&h('div',{className:'warehouse-line-point',style:{display:'flex',flexWrap:'wrap',alignItems:'center',gap:8,padding:'8px 10px',background:'#fff'}},
+          h('label',{htmlFor:'warehouse-point-'+l.id,style:{fontWeight:400}},'Địa điểm dòng PAC'),
+          h('select',{id:'warehouse-point-'+l.id,'aria-label':'Địa điểm dòng PAC '+l.id,value:allPoints.find(pt=>l.warehouseSourcePointId?String(pt.id)===String(l.warehouseSourcePointId)&&(!l.warehouseSourceCustomerId||String(pt.customerId)===String(l.warehouseSourceCustomerId)):normPoint(pt.name)===normPoint(l.warehouseSourcePointName)&&(!l.warehouseSourceCustomerId||String(pt.customerId)===String(l.warehouseSourceCustomerId)))?.pointKey||'',onChange:e=>{
+            const pt=allPoints.find(pt=>pt.pointKey===e.target.value);if(!pt)return;
+            updLine(l.id,{...l,warehouseSourcePointId:pt.id||'',warehouseSourcePointName:pt.name,warehouseSourceCustomerId:pt.customerId,warehouseSourceCustomer:pt.customerName,warehouseSourceAddress:pt.address||'',warehouseSourceArea:pt.area||''});
+          },style:{flex:'1 1 220px',maxWidth:440}},
+            h('option',{value:'',disabled:true},l.warehouseSourcePointName||'Chọn địa điểm dòng PAC'),
+            allPoints.map(pt=>h('option',{key:pt.pointKey,value:pt.pointKey},pt.searchLabel))
+          ),
+          h('span',{style:{fontSize:12}},(l.warehouseSourceDeliveryDate||f.deliveryDate||'')+' · '+(l.warehouseSourceDeliveryTime||f.deliveryTime||''))
+        ),
+        h(OrderDetailLine,{line:l,products,prodCats:prodCats||[],prodShifts:prodShifts||[],deliveryDate:l.warehouseSourceDeliveryDate||f.deliveryDate,deliveryTime:l.warehouseSourceDeliveryTime||f.deliveryTime,pointName:l.warehouseSourcePointName||resolvedPointName,area:l.warehouseSourceArea||matchedPointArea,
         inheritedShift:hasLineOverrides?autoShift:effectiveShift,
-        inheritedTiming:hasLineOverrides?timingForShift(autoShift):effectiveTiming,
+        inheritedTiming:f.warehouseMerged?{prodTime:l.prodTime||'',prodDate:l.prodDate||'',labelTime:l.labelTime||'',labelDate:l.labelDate||'',prodWorkShiftId:l.prodWorkShiftId||''}:hasLineOverrides?timingForShift(autoShift):effectiveTiming,
         inheritedMode:hasLineOverrides?'auto':prodShiftMode,
-        onChange:data=>updLine(l.id,data),onRemove:()=>delLine(l.id)})),
+        onChange:data=>updLine(l.id,data),onRemove:()=>delLine(l.id)}))),
     h('button',{onClick:addLine,style:{fontSize:12,padding:'5px 12px',marginBottom:8}},h('i',{className:'ti ti-plus',style:{fontSize:13,marginRight:4}}),'Thêm hàng hóa'),
     h('div',{className:'form-actions order-form-actions'},h('button',{onClick:onClose,disabled:saving},'Hủy'),h('button',{className:'bp',onClick:submit,disabled:saving,style:{padding:'8px 20px'}},h('i',{className:'ti ti-device-floppy',style:{fontSize:14}}),saving?'Đang lưu…':'Lưu đơn hàng'))
   );
