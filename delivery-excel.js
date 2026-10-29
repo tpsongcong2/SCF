@@ -1,4 +1,10 @@
 /* Excel summary uses the same trip, stop, product ordering and colors as PNGs. */
+function scfDeliveryExcelDriverName(name){
+  const raw=String(name||'').trim();
+  if(!raw||/^(chưa có|chưa chọn|chưa xếp)/i.test(raw))return tripImageDriverName(name);
+  const last=raw.split(/\s+/).pop().replace(/^a\./i,'');
+  return last?'A.'+last.charAt(0).toLocaleUpperCase('vi-VN')+last.slice(1).toLocaleLowerCase('vi-VN'):tripImageDriverName(name);
+}
 function scfDeliveryExcelGroups({orders=[],trips=[],products=[],customers=[],prodCats=[],group='all',tripForOrder}){
   const resolve=tripForOrder||scfCreateOrderTripIndex(orders,trips).tripForOrder;
   const groups=new Map(),productById=new Map(products.map(p=>[String(p.id),p]));
@@ -21,6 +27,10 @@ function scfDeliveryExcelGroups({orders=[],trips=[],products=[],customers=[],pro
         const row=[line?.warehouseSourceDeliveryDate||order.deliveryDate||trip.deliveryDate||'',line?.warehouseSourcePointName||order.pointName||order.address||'—',line?.productName||product?.name||'',line?mobileDeliveryQty(line,'qtyProd'):null,line?.unit||product?.unit||'',normalizeTimeInput(line?.warehouseSourceDeliveryTime||order.deliveryTime||trip.deliveryTime||''),note];
         row.isGoods=!!line&&isGoodsProduct(product||line,prodCats);
         row.qtyInvoice=line?mobileDeliveryQty(line,'qtyInvoice'):null;
+        const unit=String(line?.unit||product?.unit||'').trim().toLowerCase();
+        const pack=String(line?.productName||product?.name||'').match(/(\d+(?:[.,]\d+)?)\s*kg\s*\/\s*pac\b/i);
+        const weight=Number(product?.weightPerUnit)||Number(line?.weightPerUnit)|| (pack?Number(pack[1].replace(',','.')):0);
+        row.kgPerUnit=!line||row.isGoods||order.status==='cancelled'?0:/^(kg|kgs|kilogram|kilograms)$/.test(unit)?1:weight>0?weight:!unit&&!pack?1:0;
         row.orderId=order.id;
         row.fill=scfTripSummaryRowFill(trip,row,fill);
         return row;
@@ -41,7 +51,7 @@ function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
   const wb=new Excel.Workbook();wb.creator='SCFOOD';
   wb.calcProperties.fullCalcOnLoad=true;
   const sheet=wb.addWorksheet('Don giao hang',{views:[{showGridLines:false,state:'frozen',ySplit:2}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.25,right:.25,top:.35,bottom:.35,header:.15,footer:.15}}});
-  const widths=[24,16,28,32,13,13,12,42];sheet.columns=widths.map(width=>({width}));
+  const widths=[24,16,28,32,13,13,12,42];sheet.columns=[...widths.map(width=>({width})),{width:16,hidden:true}];
   const border={style:'thin',color:{argb:'FF777777'}};
   const paint=(row,fill,bold=false)=>{
     for(let col=1;col<=8;col++){
@@ -59,12 +69,6 @@ function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
   sheet.getCell('A2').font={name:'Arial',size:11};sheet.getRow(2).height=24;
   groups.forEach(({trip,orders,rows,fill})=>{
     const totalFill=scfTripImageGroup(trip)==='dt'?'#9dc3e6':fill;
-    const heading=sheet.addRow([null,String(trip.deliveryDate||'')+'\n'+String(trip.shiftName||trip.shiftCode||trip.shiftId||'Chưa có ca giao')]);
-    paint(heading,totalFill,true);heading.height=36;
-    sheet.mergeCells(heading.number,2,heading.number,4);
-    sheet.mergeCells(heading.number,5,heading.number,8);
-    heading.getCell(5).value=orders.length+' đơn';
-    heading.getCell(5).alignment={vertical:'middle',horizontal:'left',wrapText:true};
     const header=sheet.addRow(['','Ngày giao','Bếp','Hàng hóa','SL đặt','SL HĐ','Giờ giao','Chú ý']);
     paint(header,totalFill,true);header.height=25;
     const firstDetailRow=header.number+1;
@@ -73,9 +77,10 @@ function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
       const timeValue=time&&time[0]<24&&time[1]<60?(time[0]*60+time[1])/1440:data[5];
       const values=[null,scfDeliveryExcelDate(data[0]),data[1],data[2],data[3],data.qtyInvoice,timeValue,data[6]||null];
       const row=sheet.addRow(values);paint(row,fill);
+      row.getCell(9).value=data.kgPerUnit??0;
       const setFill=(col,color)=>{row.getCell(col).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+color.replace('#','').toUpperCase()}};};
       setFill(1,'#ffffff');setFill(8,'#ffffff');
-      if(['#ffff00','#f4af86'].includes(String(data.fill).toLowerCase()))[3,4,5,6].forEach(col=>setFill(col,data.fill));
+      if(['#ffff00','#f4af86'].includes(String(data.fill).toLowerCase()))[2,3,4,5,6,7].forEach(col=>setFill(col,data.fill));
       if(data[6])row.getCell(8).font={name:'Arial',size:11,bold:true,color:{argb:'FFC00000'}};
       row.getCell(2).numFmt='dd/mm/yyyy';row.getCell(7).numFmt='hh:mm';
       [5,6].forEach(col=>row.getCell(col).numFmt=Number.isInteger(values[col-1])?'#,##0':'#,##0.########');
@@ -83,22 +88,43 @@ function scfCreateDeliveryExcelWorkbook(Excel,groups,{group='all'}={}){
       row.height=Math.min(409,Math.max(23,wrapped*15+8));
     });
     const lastDetailRow=sheet.rowCount;
-    const driver=tripImageDriverName(trip.driverName);
-    const total=sheet.addRow([driver,scfDeliveryExcelDate(trip.deliveryDate),'Tổng chuyến']);
+    const driver=scfDeliveryExcelDriverName(trip.driverName);
+    const total=sheet.addRow([driver,scfDeliveryExcelDate(trip.deliveryDate),trip.shiftName||trip.shiftCode||trip.shiftId||'Chưa có ca giao']);
     paint(total,totalFill,true);total.height=Math.max(28,Math.ceil(driver.length/(widths[0]-2))*15+8);
     total.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFF00'}};
     total.getCell(2).numFmt='dd/mm/yyyy';
-    sheet.mergeCells(total.number,3,total.number,4);
     [5,6].forEach(col=>{
       const letter=String.fromCharCode(64+col);
       const result=rows.reduce((sum,data)=>{
         const value=col===5?data[3]:data.qtyInvoice;
-        return sum+(typeof value==='number'&&Number.isFinite(value)?value:0);
+        return sum+(typeof value==='number'&&Number.isFinite(value)?value:0)*(data.kgPerUnit??0);
       },0);
-      total.getCell(col).value={formula:rows.length?'SUM('+letter+firstDetailRow+':'+letter+lastDetailRow+')':'SUM(0)',result};
-      total.getCell(col).numFmt='#,##0.########';
+      total.getCell(col).value={formula:rows.length?'SUMPRODUCT('+letter+firstDetailRow+':'+letter+lastDetailRow+',I'+firstDetailRow+':I'+lastDetailRow+')':'SUM(0)',result};
+      total.getCell(col).numFmt='#,##0.########" kg"';
     });
   });
+  const displayText=cell=>{
+    const value=cell.value;
+    if(value==null)return '';
+    if(value instanceof Date)return '00/00/0000';
+    if(typeof value==='object'&&value.formula)return Number(value.result||0).toLocaleString('vi-VN',{maximumFractionDigits:8})+' kg';
+    if(cell.numFmt==='hh:mm'&&typeof value==='number')return '00:00';
+    return typeof value==='number'?value.toLocaleString('vi-VN',{maximumFractionDigits:8}):String(value);
+  };
+  const minimums=[12,12,12,16,10,10,10,10],maximums=[30,16,42,48,20,20,14,60];
+  for(let col=1;col<=8;col++){
+    let longest=0;
+    for(let number=3;number<=sheet.rowCount;number++){
+      const cell=sheet.getRow(number).getCell(col);
+      longest=Math.max(longest,...displayText(cell).split('\n').map(text=>[...text].reduce((n,ch)=>n+(/[A-ZÀ-Ỹ]/.test(ch)?1.12:1),0)));
+    }
+    sheet.getColumn(col).width=Math.min(maximums[col-1],Math.max(minimums[col-1],longest+2));
+  }
+  for(let number=3;number<=sheet.rowCount;number++){
+    const row=sheet.getRow(number);let lines=1;
+    for(let col=1;col<=8;col++)lines=Math.max(lines,displayText(row.getCell(col)).split('\n').reduce((n,text)=>n+Math.max(1,Math.ceil(text.length/(sheet.getColumn(col).width-2))),0));
+    row.height=Math.min(409,Math.max(25,lines*15+8));
+  }
   sheet.pageSetup.printArea='A1:H'+sheet.rowCount;
   return wb;
 }

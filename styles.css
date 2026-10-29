@@ -109,6 +109,25 @@ button:hover{background:var(--bg2)}
 .delivery-trip-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .delivery-trip-content.compact .delivery-trip-mode-switch,.manual-trip-picker.compact input,.manual-trip-picker.compact select,.delivery-trip-auto-fields.compact input,.delivery-trip-auto-fields.compact select,.manual-trip-picker.compact .delivery-trip-confirm{height:44px;min-height:44px}
 .delivery-orders-table{width:100%;table-layout:fixed}
+.delivery-orders-configurable{border-collapse:collapse}
+.delivery-orders-configurable th,.delivery-orders-configurable td{border-right:1px solid #d2dcd6;border-bottom:1px solid #d2dcd6}
+.delivery-orders-configurable .delivery-order-row>td{padding-top:4px;padding-bottom:4px;vertical-align:middle;line-height:1.3}
+.delivery-orders-configurable .delivery-point-name,.delivery-orders-configurable .delivery-product-info{white-space:normal;overflow-wrap:anywhere}
+.delivery-grid-input{width:100%;min-width:0;background:transparent!important;border:1px solid transparent!important;border-radius:2px!important;font:inherit!important;font-weight:400!important;padding:3px 4px!important;box-shadow:none!important}
+.delivery-quantity-cell>.delivery-grid-input{text-align:right}
+.delivery-grid-input:not([readonly]):hover{border-color:#96b7a6!important}
+.delivery-grid-input:focus{border-color:#297254!important;outline:1px solid #297254;background:#fff!important}
+.delivery-grid-input[aria-invalid=true]{border-color:#b43232!important}
+.delivery-line-note-editor .delivery-grid-input{white-space:normal}
+.delivery-fast-entry-modal{width:min(1280px,96vw)!important;max-width:1280px!important}
+.delivery-fast-entry-modal textarea{width:100%;font:inherit;line-height:1.6;margin:10px 0;white-space:pre;overflow:auto}
+.delivery-fast-preview,.delivery-fast-manual{max-height:42vh;overflow:auto;margin:12px 0}
+.delivery-fast-preview td,.delivery-fast-preview th,.delivery-fast-manual td,.delivery-fast-manual th{border:1px solid #d2dcd6;padding:5px 7px}
+.delivery-fast-manual input{width:100%;min-width:70px;font:inherit;padding:5px}
+.delivery-fast-manual td:nth-child(2) input,.delivery-fast-manual td:nth-child(3) input{min-width:160px}
+.delivery-fast-preview small{display:block;color:#a32d2d;white-space:normal}
+.delivery-compact-assignment{display:block;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px!important;border-color:transparent!important;background:transparent!important;font:inherit!important;font-weight:400!important;text-align:left}
+.delivery-compact-assignment span{font-size:10px;background:#e8f4ee;color:#206c4f;border:1px solid #afd8c5;border-radius:3px;padding:2px}
 .delivery-column-total{font-weight:400;line-height:1.3;margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .delivery-date-header{display:flex;align-items:center;gap:4px;white-space:nowrap}
 .delivery-date-header>input{width:16px;height:16px;flex:0 0 16px;margin:0 3px 0 0}
@@ -634,6 +653,8 @@ th{font-family:var(--ui-header-family)!important}
 .trip-product-ps-badge{display:inline-block;margin-left:5px;padding:1px 5px;border-radius:5px;background:#fff3cd;color:#805500;font-size:10px;font-weight:800;vertical-align:middle}
 .trip-quick-add-product{padding:10px 12px;border-top:1px solid var(--bd)}
 .trip-quick-add-product>button{width:100%;min-height:38px;color:var(--pri);font-weight:700}
+.trip-quick-ps-buttons{display:flex;gap:8px;margin-bottom:8px}
+.trip-quick-ps-buttons>button{flex:1 1 0;min-width:0;min-height:42px;color:var(--pri);font-weight:400;white-space:normal;justify-content:center}
 .trip-quick-add-product-form{display:grid;gap:9px;padding:11px;border:1px solid var(--bd);border-radius:10px;background:var(--bg2)}
 .trip-quick-add-product-form select,.trip-quick-add-product-form input{width:100%;min-height:40px;padding:7px 10px;border:1px solid var(--bd);border-radius:8px;background:#fff;font-size:14px}
 .trip-quick-add-product-form small{color:var(--tx2);line-height:1.4}
@@ -1754,6 +1775,41 @@ tbody tr:not(.delivery-order-row):hover td{background:var(--bg)}
 
 @media(max-width:540px){.delivery-order-trip-panel{grid-template-columns:minmax(0,1fr)}.delivery-order-trip-panel>.form-actions{flex-wrap:wrap}}
 
-/* Compact transfer editor: white surface and inline labels on desktop. */
-.delivery-transfer-row>td{background:#fff!important}.delivery-order-trip-panel{background:#fff;max-width:1280px;gap:8px 12px}.delivery-order-trip-panel input,.delivery-order-trip-panel select{background:#fff!important}.delivery-order-trip-panel input:disabled,.delivery-order-trip-panel select:disabled{background:#fff!important}.delivery-transfer-context{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ui-form-family);font-size:var(--ui-form-size);font-weight:var(--ui-form-weight);font-style:var(--ui-form-style)}.delivery-transfer-production>.delivery-trip-mode-switch{background:#fff!important;color:var(--pri)!important;align-self:center;min-width:38px}.delivery-transfer-production{background:#fff;gap:10px;padding-top:8px}
+/* Compact transfer editor: soft green panel, white inputs and inline desktop labels. */
+.delivery-transfer-row>td{background:#fff!important}.delivery-order-trip-panel{background:#f0f8f3;border-color:#8dbba6;max-width:1280px;gap:8px 12px}.delivery-order-trip-panel input,.delivery-order-trip-panel select{background:#fff!important}.delivery-order-trip-panel input:disabled,.delivery-order-trip-panel select:disabled{background:#fff!important}.delivery-transfer-context{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ui-form-family);font-size:var(--ui-form-size);font-weight:var(--ui-form-weight);font-style:var(--ui-form-style)}.delivery-transfer-production>.delivery-trip-mode-switch{background:#fff!important;color:var(--pri)!important;align-self:center;min-width:38px}.delivery-transfer-production{background:transparent;border-top-color:#d3e6dc;gap:10px;padding-top:8px}
 @media(min-width:901px){.delivery-order-trip-panel{grid-template-columns:minmax(180px,1fr) minmax(220px,1fr) minmax(300px,1.6fr) auto;align-items:center}.delivery-order-trip-panel .fl{display:flex;align-items:center;gap:7px;margin:0;min-width:0}.delivery-order-trip-panel .fl>label{white-space:nowrap;margin:0;flex:0 0 auto}.delivery-order-trip-panel .fl>input,.delivery-order-trip-panel .fl>select{width:0;flex:1 1 0;min-width:0;min-height:34px}.delivery-transfer-production{grid-template-columns:38px minmax(200px,1fr) minmax(230px,1.4fr) minmax(200px,1fr) minmax(140px,.8fr);align-items:center}.delivery-order-trip-panel>.form-actions button{min-height:34px}.delivery-order-trip-panel>.delivery-transfer-save{grid-column:4;grid-row:1}}
+/* Durable invoice inbox: compact capture on phones, drop targets on desktops. */
+.invoice-inbox-modal{font-weight:400}
+.invoice-inbox-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.invoice-inbox-toolbar>div{display:flex;gap:8px}
+.invoice-inbox-layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px}
+.invoice-inbox-layout aside,.invoice-inbox-layout section{min-width:0}
+.invoice-inbox-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin:8px 0 12px;font-weight:500}
+.invoice-inbox-heading small{font-weight:400;color:var(--tx2)}
+.invoice-inbox-photo,.invoice-inbox-order{padding:12px;border:1px solid var(--bd);border-radius:9px;background:var(--bg);margin-bottom:12px}
+.invoice-inbox-photo{display:flex;gap:12px;cursor:grab}
+.invoice-inbox-photo.selected{border-color:var(--pri);box-shadow:0 0 0 1px var(--pri)}
+.invoice-inbox-thumb{padding:0;border:0;width:80px;height:106px;flex-shrink:0;overflow:hidden;background:var(--bg2)}
+.invoice-inbox-thumb img{width:100%;height:100%;object-fit:contain}
+.invoice-inbox-photo-text{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0;overflow-wrap:anywhere}
+.invoice-inbox-photo-text small,.invoice-inbox-local small{color:var(--tx2)}
+.invoice-inbox-order-title,.invoice-inbox-linked{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.invoice-inbox-order:hover{border-color:var(--pri)}
+.invoice-inbox-lines{font-size:12px;color:var(--tx2);margin:9px 0;overflow-wrap:anywhere}
+.invoice-inbox-linked{border-top:1px solid var(--bd);padding-top:9px;margin:10px 0 0}
+.invoice-inbox-local{padding:12px;background:var(--bg2);border-radius:8px;margin-bottom:12px;overflow-wrap:anywhere}
+.invoice-inbox-local small{display:block;margin-top:6px}
+.invoice-inbox-footer{border-top:1px solid var(--bd);padding-top:12px;font-size:12px;color:var(--tx2)}
+.invoice-inbox-error{background:#fff0ee;color:#9c2e25;padding:12px;border-radius:8px;margin-bottom:12px}
+.invoice-inbox-open{font-weight:400!important;font-size:12px!important;white-space:nowrap}
+@media(max-width:768px){.invoice-inbox-layout{grid-template-columns:1fr}.invoice-inbox-toolbar button,.invoice-inbox-order button{min-height:42px}.invoice-inbox-modal{width:100%}.trip-mobile-tools-left{min-width:0;flex-wrap:wrap}.trip-mobile-tools-left .invoice-inbox-open{flex-basis:100%;white-space:normal}}
+.invoice-orientation-loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--tx2);font-size:12px;padding:12px;text-align:center}
+.driver-report-multishift{position:relative;min-width:190px}
+.driver-report-multishift summary{cursor:pointer;padding:10px 12px;border:1px solid var(--bd);border-radius:var(--r);background:var(--card)}
+.driver-report-multishift-options{position:absolute;right:0;top:100%;z-index:20;min-width:240px;max-height:320px;overflow:auto;padding:10px;background:var(--card);border:1px solid var(--bd2);border-radius:var(--r);box-shadow:0 6px 18px #0001}
+.driver-report-multishift-options label{display:flex;align-items:center;gap:10px;padding:9px 4px;cursor:pointer}
+.driver-report-multishift-options input{width:18px;height:18px;flex-shrink:0;accent-color:var(--pri)}
+.driver-report-multishift-options button{width:100%;margin-bottom:5px}
+@media(max-width:500px){.driver-report-multishift{width:100%}.driver-report-multishift-options{width:100%;min-width:0}.driver-report-multishift-options label{min-height:44px}}
+.delivery-group-toggle{cursor:pointer}
+.delivery-group-toggle:focus-visible{outline:2px solid #fff;outline-offset:-3px}
