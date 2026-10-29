@@ -87,16 +87,17 @@ button:hover{background:var(--bg2)}
 .delivery-line-note-editor{width:100%;min-width:0}
 .delivery-line-note-editor input{width:100%;min-width:0;padding:3px 5px;font:inherit;line-height:1.35}
 .delivery-line-note-editor input[readonly]{border-color:transparent;background:transparent;cursor:text}
-.delivery-group-header-cell{background:#b4d3c1!important;color:#163f2b!important;font-weight:700!important;font-size:13px!important;padding:5px 12px!important}
+.delivery-group-header-cell{background:#9dc3e6!important;color:#143c3c!important;font-weight:700!important;font-size:13px!important;padding:5px 12px!important}
 .delivery-group-header{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:4px 16px;width:100%;text-align:left}
 .delivery-group-driver{display:inline-flex;align-items:center;gap:8px;max-width:100%}
-.delivery-group-driver-edit{flex:0 0 auto;background:transparent;color:#20583e;border:1px solid #8db8a0;padding:4px 8px;min-width:32px;min-height:30px;border-radius:6px;cursor:pointer}
-.delivery-group-driver-edit:hover{background:#cce5d6}
+.delivery-group-driver-edit{flex:0 0 auto;background:transparent;color:#143c3c;border:1px solid #40657c;padding:4px 8px;min-width:32px;min-height:30px;border-radius:6px;cursor:pointer}
+.delivery-group-driver-edit:hover{background:rgba(255,255,255,.2)}
+.delivery-group-dispatch{background:transparent!important;color:#143c3c!important;border:1px solid #40657c!important;font-weight:400!important;box-shadow:none!important}
 .delivery-group-title,.delivery-group-driver{overflow-wrap:anywhere}
 .delivery-group-summary{white-space:nowrap;font-size:12px;font-weight:700}
-.delivery-group-header-mobile{background:#b4d3c1;color:#163f2b;font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex-wrap:wrap}
-.delivery-group-header-cell .delivery-summary-invoice-view,.delivery-group-header-mobile .delivery-summary-invoice-view{color:#20583e!important}
-.delivery-orders-configurable thead th{text-align:center!important}
+.delivery-group-header-mobile{background:#9dc3e6;color:#143c3c;font-weight:700;font-size:13px;padding:8px 12px;border-radius:10px;flex-wrap:wrap}
+.delivery-group-header-cell .delivery-summary-invoice-view,.delivery-group-header-mobile .delivery-summary-invoice-view{color:#143c3c!important}
+.delivery-orders-configurable thead th{text-align:center!important;background:#9dc3e6!important;color:#143c3c!important}
 .delivery-orders-configurable thead .delivery-date-header{justify-content:center}
 .delivery-detail-columns-toggle{box-shadow:0 0 0 2px rgba(37,112,82,.08)}
 .delivery-prod-shift-display{display:grid;gap:2px;justify-items:center;min-width:0}
@@ -146,6 +147,8 @@ button:hover{background:var(--bg2)}
 .delivery-catalog-editor{position:relative;z-index:20;min-width:0}
 .delivery-catalog-editor input{width:100%;min-width:0;font:inherit;padding:5px 3px}
 .delivery-catalog-editor select{width:100%;min-width:0;font:inherit;padding:4px 3px;margin-bottom:3px}
+.delivery-inline-cancel{display:inline-flex}
+@media(min-width:769px){.delivery-inline-cancel{display:none!important}}
 .delivery-fast-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:10px 0}
 .delivery-fast-filters label{display:grid;gap:4px;flex:1 1 180px;font-weight:400}
 .delivery-fast-filters select{width:100%;min-width:0;font:inherit;padding:7px}
