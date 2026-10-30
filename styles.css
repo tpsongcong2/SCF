@@ -184,7 +184,9 @@ button:hover{background:var(--bg2)}
 .delivery-visibility-caption{display:block;color:var(--tx2);margin:7px 0;font-size:12px}
 .delivery-page .delivery-table-wrap:has(.delivery-orders-configurable){overflow-x:auto}
 .delivery-table-wrap:has(.delivery-orders-configurable)::-webkit-scrollbar{height:12px}
-.delivery-orders-configurable .delivery-order-actions>div{flex-wrap:wrap}
+.delivery-orders-configurable .delivery-order-actions{padding-left:6px;padding-right:6px}
+.delivery-orders-configurable .delivery-order-actions>div{flex-wrap:nowrap}
+.delivery-orders-configurable .delivery-order-actions .bi{width:24px;min-width:24px;max-width:24px;padding:4px!important;flex:0 0 24px}
 .order-detail-line-grid{position:relative;min-width:0}
 .order-line-remove{position:absolute;right:8px;bottom:10px;width:30px;height:30px;padding:0!important;display:flex;align-items:center;justify-content:center;color:#A32D2D!important;background:#fff!important;border:1px solid #F2B8B5!important;border-radius:8px!important}
 .order-line-remove:hover{background:#FCEBEB!important}

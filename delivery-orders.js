@@ -4005,7 +4005,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const longestVisibleProduct=React.useMemo(()=>visibleProductLabels.reduce((longest,item)=>deliveryProductTextWidth(item.label)>deliveryProductTextWidth(longest.label)?item:longest,{label:'',name:''}),[visibleProductLabels]);
   const productColumnWidth=Math.max(145,Math.min(420,Math.ceil(deliveryProductTextWidth(longestVisibleProduct.label)+28)));
   const fittedColumnWidths=React.useMemo(()=>{
-    const result={date:155,point:150,product:productColumnWidth,qtyInvoice:85,qtyProd:85,qtyDelivered:85,time:75,invoice:65,note:180,trip:compactEntry?130:310,production:compactEntry?125:205,status:105,actions:205};
+    const result={date:155,point:150,product:productColumnWidth,qtyInvoice:85,qtyProd:85,qtyDelivered:85,time:75,invoice:65,note:180,trip:compactEntry?130:310,production:compactEntry?125:205,status:105,actions:150};
     for(const order of pagedList){const ctx=order._ctx||order;
       for(const line of ctx.lines||[]){
         result.point=Math.min(300,Math.max(result.point,deliveryProductTextWidth(line.warehouseSourcePointName||ctx.pointName||'')+22));
@@ -4698,7 +4698,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     h('div',{className:'delivery-body'},
       !isMobile&&h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
         h('table',{className:'delivery-orders-table delivery-orders-configurable',style:{minWidth:visibleColumns.reduce((sum,[key,,width])=>sum+(fittedColumnWidths[key]||width),0)}},
-        h('colgroup',null,visibleColumns.map(([key,,width])=>h('col',{key,style:{width:fittedColumnWidths[key]||width}}))),
+        h('colgroup',null,visibleColumns.map(([key,,width])=>{
+          const hasActions=visibleColumns.some(([name])=>name==='actions');
+          const total=visibleColumns.reduce((sum,[name,,size])=>sum+(name==='actions'?0:fittedColumnWidths[name]||size),0);
+          const ratio=(fittedColumnWidths[key]||width)/(total||1);
+          return h('col',{key,style:{width:key==='actions'?150:hasActions?'calc('+ratio*100+'% - '+ratio*150+'px)':fittedColumnWidths[key]||width}});
+        })),
         h('thead',null,h('tr',null,visibleColumns.map(([key,label])=>h('th',{key,'data-column':key,className:['qtyInvoice','qtyProd','qtyDelivered','time','production','invoice','status'].includes(key)?'delivery-center-head':undefined},
           key==='date'?h('div',{className:'delivery-date-header'},isAdmin&&h('input',{type:'checkbox',checked:allPageSelected,onChange:e=>setPageSelection(e.target.checked),title:'Chọn hoặc bỏ chọn toàn bộ đơn của trang này'}),renderColumnFilter('date','Ngày'),[-1,1].map(offset=>h('button',{key:offset,type:'button','data-scf-action':'view',title:offset<0?'Lùi lọc 1 ngày':'Tiến lọc 1 ngày',onClick:()=>moveFilterDay(offset)},offset<0?'<':'>')))
           :key==='point'?renderColumnFilter('point','Địa điểm')
@@ -4755,7 +4760,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             const tone=toneForGroup(groupInfoForOrder(o)),baseFill=tone==='gray'?'#f2f2f2':tone==='unassigned'?'#fff4cb':'#a9d08e';
             const product=products.find(product=>String(product.id)===String(row.line?.productId));
             const goods=isGoodsProduct(product||{...row.line,code:row.line?.productCode||''},prodCats||[]);
-            const lineFill=goods?(tone==='gray'?'#9bc2e6':'#f4b084'):baseFill;
+            const lineFill=scfTripProductTone(product?.name||row.productName)==='yellow'?'#ffff00':goods?(tone==='gray'?'#9bc2e6':'#f4b084'):baseFill;
             const coloredCell={background:lineFill};
             return h('tr',{key:o._rowKey+'_'+row.key,className:'delivery-order-row'+(pi===0?' delivery-order-start':'')+(pi===displayRows.length-1?' delivery-order-end':''),'data-delivery-order-key':String(o._rowKey||o.id),onMouseEnter:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,true):undefined,onMouseLeave:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,false):undefined,onFocus:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,true):undefined,onBlur:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,false):undefined},
             ...(()=>{const cells={
