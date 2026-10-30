@@ -2454,6 +2454,23 @@ function scfDeliveryLineFill(trip,order,line,product,prodCats){
 }
 
 const scfDeliveryHoverRows=new WeakMap();
+function scfDeliveryOrderLineFill({trip,date,time,productName,tone,goods,baseFill}){
+  if(scfTripProductTone(productName)==='yellow')return '#ffff00';
+  const name=normalizeLookupText(productName).replace(/[^a-z0-9]+/g,' ').trim();
+  let emphasized=/(?:^|\s)(?:banh\s+)?pho\s+cuon(?:\s|$)/.test(name);
+  const clock=mobileDeliveryTime(time),shift=scfTripImageShiftName(trip||{});
+  if(clock&&trip){
+    const [hour,minute]=clock.split(':').map(Number),minutes=hour*60+minute;
+    const day=value=>{const key=scfTripDateKey(value);return key?Date.UTC(+key.slice(0,4),+key.slice(4,6)-1,+key.slice(6,8))/86400000:null;};
+    const orderDay=day(date),tripDay=day(trip.deliveryDate);
+    const relative=orderDay!==null&&tripDay!==null?(orderDay-tripDay)*1440+minutes:minutes>=720&&['SST1','VPDEM'].includes(shift)?minutes-1440:minutes;
+    if(shift==='SST1')emphasized=emphasized||relative< -120||relative>270;
+    if(shift==='VPDEM')emphasized=emphasized||relative< -90;
+    if(['SSS1','SSS2','VPNGAY'].includes(shift))emphasized=emphasized||relative<540;
+  }
+  if(emphasized)return tone==='gray'?'#78acd8':'#ea946a';
+  return goods?(tone==='gray'?'#9bc2e6':'#f4b084'):baseFill;
+}
 function scfMarkDeliveryOrder(event,active){
   const row=event.currentTarget,key=row.dataset.deliveryOrderKey;
   if(!active&&event.relatedTarget?.closest?.('[data-delivery-order-key]')?.dataset.deliveryOrderKey===key)return;
@@ -4760,7 +4777,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
             const tone=toneForGroup(groupInfoForOrder(o)),baseFill=tone==='gray'?'#f2f2f2':tone==='unassigned'?'#fff4cb':'#a9d08e';
             const product=products.find(product=>String(product.id)===String(row.line?.productId));
             const goods=isGoodsProduct(product||{...row.line,code:row.line?.productCode||''},prodCats||[]);
-            const lineFill=scfTripProductTone(product?.name||row.productName)==='yellow'?'#ffff00':goods?(tone==='gray'?'#9bc2e6':'#f4b084'):baseFill;
+            const lineFill=scfDeliveryOrderLineFill({trip:deliveryTripForOrder(o),date:row.line?.warehouseSourceDeliveryDate||ctx.deliveryDate,time:row.line?.warehouseSourceDeliveryTime||ctx.deliveryTime,productName:product?.name||row.productName,tone,goods,baseFill});
             const coloredCell={background:lineFill};
             return h('tr',{key:o._rowKey+'_'+row.key,className:'delivery-order-row'+(pi===0?' delivery-order-start':'')+(pi===displayRows.length-1?' delivery-order-end':''),'data-delivery-order-key':String(o._rowKey||o.id),onMouseEnter:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,true):undefined,onMouseLeave:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,false):undefined,onFocus:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,true):undefined,onBlur:highlightOrderOnHover?e=>scfMarkDeliveryOrder(e,false):undefined},
             ...(()=>{const cells={
