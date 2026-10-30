@@ -22,6 +22,34 @@ function deliveryOrderFilterDate(order,basis,trip,plannedDate){
   return basis==='trip'?(trip?.deliveryDate||plannedDate||order?.deliveryDate||''):(order?.deliveryDate||'');
 }
 const DELIVERY_ORDER_COLUMNS=[['date','Ngày',160],['point','Địa điểm',175],['product','Sản phẩm',190],['qtyInvoice','SL HĐ',85],['qtyProd','SL Đặt',85],['qtyDelivered','SL giao',85],['time','Giờ',75],['invoice','HĐ',80],['note','Chú ý',220],['production','Ca SX',210],['status','Trạng thái',105],['actions','Tạo-sửa',205]];
+function scfDeliveryColumnWidth(key,value){
+  const minimum={date:150,point:90,product:120,qtyInvoice:65,qtyProd:65,qtyDelivered:65,time:65,invoice:50,note:90,production:100,status:85,actions:144};
+  return Math.round(Math.max(minimum[key]||60,Math.min(1200,Number(value)||minimum[key]||60)));
+}
+function scfDeliveryReadColumnWidths(key){
+  try{const saved=JSON.parse(localStorage.getItem(key)||'{}');return Object.fromEntries(DELIVERY_ORDER_COLUMNS.filter(([name])=>Number.isFinite(saved?.[name])&&saved[name]>0).map(([name])=>[name,scfDeliveryColumnWidth(name,saved[name])]));}catch(_){return {};}
+}
+function scfDeliveryLayoutWidths(columns,fitted,custom,available){
+  const widths=Object.fromEntries(columns.map(([key,,fallback])=>[key,scfDeliveryColumnWidth(key,custom[key]??fitted[key]??fallback)]));
+  const total=Object.values(widths).reduce((sum,width)=>sum+width,0),flex=['note','product','point'].find(key=>widths[key]&&!Object.prototype.hasOwnProperty.call(custom,key));
+  if(flex&&available>total)widths[flex]+=Math.floor(available-total);
+  return widths;
+}
+function DeliveryColumnResizeHandle({column,label,width,onResize}){
+  const cleanup=useRef(null);
+  useEffect(()=>()=>cleanup.current?.(),[]);
+  const start=event=>{
+    if(event.button!==0)return;event.preventDefault();event.stopPropagation();cleanup.current?.();
+    const table=event.currentTarget.closest('table'),col=table?.querySelector('col[data-column="'+column+'"]');if(!table||!col)return;
+    const x=event.clientX,oldWidth=col.style.width,tableStyle=table.style.width,tableMinimum=table.style.minWidth,initialWidth=event.currentTarget.closest('th').getBoundingClientRect().width,initialTable=table.getBoundingClientRect().width;
+    const oldSelect=document.body.style.userSelect;document.body.style.userSelect='none';let nextWidth=initialWidth;
+    const move=e=>{nextWidth=scfDeliveryColumnWidth(column,initialWidth+e.clientX-x);col.style.width=nextWidth+'px';table.style.width=table.style.minWidth=(initialTable+nextWidth-initialWidth)+'px';};
+    const done=commit=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);window.removeEventListener('blur',cancel);document.body.style.userSelect=oldSelect;cleanup.current=null;col.style.width=oldWidth;table.style.width=tableStyle;table.style.minWidth=tableMinimum;if(commit)onResize(nextWidth);};
+    const up=()=>done(true),cancel=()=>done(false);cleanup.current=cancel;
+    document.addEventListener('pointermove',move);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);window.addEventListener('blur',cancel);
+  };
+  return h('span',{className:'delivery-column-resize',role:'separator',tabIndex:0,'aria-orientation':'vertical','aria-label':'Độ rộng cột '+label,'aria-valuenow':width,title:'Kéo để chỉnh độ rộng · Nhấp đúp để vừa nội dung',onPointerDown:start,onClick:event=>event.stopPropagation(),onDoubleClick:event=>{event.preventDefault();event.stopPropagation();onResize(null);},onKeyDown:event=>{if(['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();event.stopPropagation();onResize(event.key==='Home'?null:width+(event.key==='ArrowLeft'?-10:10));}}});
+}
 function scfDeliveryShiftLabel(value){const name=String(value||'').trim().replace(/^ca\s+/i,'');return name?name[0].toLocaleUpperCase('vi-VN')+name.slice(1):'';}
 function deliveryOrderQuantityTotals(orders){
   const totals={qtyInvoice:0,qtyProd:0,qtyDelivered:0};
@@ -3010,6 +3038,23 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
   const isAccounting=currentDeptKey.includes('ke toan');
   const canWithdrawStartedOrder=isAdmin||isAccounting;
   const deliveryTableScroll=useRef(null);
+  const columnWidthKey='scf_delivery_column_widths_v739_'+String(currentUser?.id||currentUser?.username||'guest');
+  const [columnPreferences,setColumnPreferences]=useState(()=>({key:columnWidthKey,widths:scfDeliveryReadColumnWidths(columnWidthKey)}));
+  const [tableViewportWidth,setTableViewportWidth]=useState(0);
+  useEffect(()=>{setColumnPreferences(previous=>previous.key===columnWidthKey?previous:{key:columnWidthKey,widths:scfDeliveryReadColumnWidths(columnWidthKey)});},[columnWidthKey]);
+  const customColumnWidths=columnPreferences.key===columnWidthKey?columnPreferences.widths:{};
+  const resizeColumn=(key,width)=>setColumnPreferences(previous=>{
+    const widths={...(previous.key===columnWidthKey?previous.widths:scfDeliveryReadColumnWidths(columnWidthKey))};
+    if(width===null)delete widths[key];else widths[key]=scfDeliveryColumnWidth(key,width);
+    try{localStorage.setItem(columnWidthKey,JSON.stringify(widths));}catch(_){}
+    return {key:columnWidthKey,widths};
+  });
+  useEffect(()=>{
+    const element=deliveryTableScroll.current;if(isMobile||!element)return;
+    const measure=()=>{const width=element.clientWidth;if(width>0)setTableViewportWidth(previous=>previous===width?previous:width);};
+    measure();if(typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(measure);observer.observe(element);return()=>observer.disconnect();
+  },[isMobile]);
   useEffect(()=>{
     if(highlightOrderOnHover)return;
     const body=deliveryTableScroll.current?.querySelector('tbody');if(!body)return;
@@ -4029,8 +4074,12 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
         result.note=Math.min(340,Math.max(result.note,deliveryProductTextWidth(line.note||ctx.note||'')+24));
         for(const field of ['qtyInvoice','qtyProd','qtyDelivered'])result[field]=Math.max(result[field],Math.min(145,deliveryProductTextWidth(String(line[field]??''))+32));
       }
-    }return result;
-  },[pagedList,productColumnWidth,compactEntry]);
+    }
+    if(quantityTotals)for(const field of ['qtyInvoice','qtyProd','qtyDelivered'])result[field]=Math.max(result[field],Math.ceil(deliveryProductTextWidth('('+quantityTotals[field].toLocaleString('vi-VN',{maximumFractionDigits:2})+')')+20));
+    return result;
+  },[pagedList,productColumnWidth,compactEntry,quantityTotals]);
+  const renderedColumnWidths=scfDeliveryLayoutWidths(visibleColumns,fittedColumnWidths,customColumnWidths,tableViewportWidth);
+  const renderedTableWidth=Object.values(renderedColumnWidths).reduce((sum,width)=>sum+width,0);
   const productColumnTitle=longestVisibleProduct.name
     ?'Tên dài nhất đang hiển thị: '+longestVisibleProduct.name+' ('+Array.from(longestVisibleProduct.name).length+' ký tự)'
     :'Chưa có tên sản phẩm';
@@ -4714,13 +4763,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     modal==='excel'&&h(DeliveryExcelExportModal,{orders:list.map(orderContext),trips,products,customers,prodCats,tripForOrder:deliveryTripForOrder,initialGroup:fTripGroup,onExportDetail:exportDetailedExcel,onClose:()=>sm(null)}),
     h('div',{className:'delivery-body'},
       !isMobile&&h('div',{className:'desktop-only tw delivery-table-wrap',ref:deliveryTableScroll},
-        h('table',{className:'delivery-orders-table delivery-orders-configurable',style:{minWidth:visibleColumns.reduce((sum,[key,,width])=>sum+(fittedColumnWidths[key]||width),0)}},
-        h('colgroup',null,visibleColumns.map(([key,,width])=>{
-          const hasActions=visibleColumns.some(([name])=>name==='actions');
-          const total=visibleColumns.reduce((sum,[name,,size])=>sum+(name==='actions'?0:fittedColumnWidths[name]||size),0);
-          const ratio=(fittedColumnWidths[key]||width)/(total||1);
-          return h('col',{key,style:{width:key==='actions'?150:hasActions?'calc('+ratio*100+'% - '+ratio*150+'px)':fittedColumnWidths[key]||width}});
-        })),
+        h('table',{className:'delivery-orders-table delivery-orders-configurable',style:{width:renderedTableWidth,minWidth:renderedTableWidth}},
+        h('colgroup',null,visibleColumns.map(([key])=>h('col',{key,'data-column':key,style:{width:renderedColumnWidths[key]}}))),
         h('thead',null,h('tr',null,visibleColumns.map(([key,label])=>h('th',{key,'data-column':key,className:['qtyInvoice','qtyProd','qtyDelivered','time','production','invoice','status'].includes(key)?'delivery-center-head':undefined},
           key==='date'?h('div',{className:'delivery-date-header'},isAdmin&&h('input',{type:'checkbox',checked:allPageSelected,onChange:e=>setPageSelection(e.target.checked),title:'Chọn hoặc bỏ chọn toàn bộ đơn của trang này'}),renderColumnFilter('date','Ngày'),[-1,1].map(offset=>h('button',{key:offset,type:'button','data-scf-action':'view',title:offset<0?'Lùi lọc 1 ngày':'Tiến lọc 1 ngày',onClick:()=>moveFilterDay(offset)},offset<0?'<':'>')))
           :key==='point'?renderColumnFilter('point','Địa điểm')
@@ -4731,7 +4775,8 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
           :key==='invoice'?renderColumnFilter('invoice','HĐ')
           :key==='status'?renderColumnFilter('status','Trạng thái')
           :key==='actions'?renderColumnFilter('audit','Tạo-sửa'):label,
-          quantityTotals&&Object.prototype.hasOwnProperty.call(quantityTotals,key)&&h('div',{className:'delivery-column-total',title:'Tổng số lượng trong toàn bộ vùng lọc'},'('+quantityTotals[key].toLocaleString('vi-VN',{maximumFractionDigits:2})+')')
+          quantityTotals&&Object.prototype.hasOwnProperty.call(quantityTotals,key)&&h('div',{className:'delivery-column-total',title:'Tổng số lượng trong toàn bộ vùng lọc'},'('+quantityTotals[key].toLocaleString('vi-VN',{maximumFractionDigits:2})+')'),
+          h(DeliveryColumnResizeHandle,{column:key,label,width:renderedColumnWidths[key],onResize:width=>resizeColumn(key,width===null?fittedColumnWidths[key]:width)})
         )))),
         h('tbody',null,list.length?orderTableRows.map((o,_i)=>{
           if(o._hdr){
