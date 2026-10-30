@@ -2697,6 +2697,19 @@ function DeliveryInlineCopyRows({draft:initial,customers,products=[],prodCats=[]
   const matches=points.filter(point=>normalizeLookupText(point.name+' '+point.customerName).includes(normalizeLookupText(query))).slice(0,40);
   const disabled=saving||!canEdit;
   const cancelKey=event=>{if(event.key==='Escape'&&!event.defaultPrevented&&!event.isComposing&&!event.nativeEvent?.isComposing&&!saving){event.preventDefault();event.stopPropagation();onClose();}};
+  useEffect(()=>{
+    const key=event=>{
+      if(event.key!=='Escape'||event.defaultPrevented||event.isComposing||event.keyCode===229||saving)return;
+      // The first + button keeps focus outside the new row. Esc must still cancel it.
+      // Let a dialog or a different cell editor consume its own Escape first.
+      if(document.querySelector('.overlay,.scf-dialog-overlay,.delivery-column-filter-backdrop'))return;
+      const target=event.target;
+      if(!target?.closest?.('.delivery-inline-copy-row')&&target?.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+      cancelKey(event);
+    };
+    document.addEventListener('keydown',key,true);
+    return()=>document.removeEventListener('keydown',key,true);
+  },[saving,onClose]);
   const detach=previous=>{const next={...previous};delete next._appendToId;return next;};
   const set=(field,value)=>setDraft(previous=>({...detach(previous),[field]:value}));
   const submit=async()=>{
