@@ -1647,8 +1647,7 @@ function scfTripPackSummaryHtml(tripOrders,products=[]){
       const pack=category==='PHỞ'?5:10;
       const kg=Number(lineWeight(line)||0);
       if(!(kg>0))return;
-      const full=Math.floor((kg+1e-9)/pack);
-      const remainder=Number((kg-full*pack).toFixed(2));
+      const {full,remainder}=scfLabelPackParts(kg,pack,true);
       const key=String(line.productId||normalizePlainText(productName))+'|'+pack;
       const current=groups.get(key)||{name:productName||category,category,mode:'weight',pack,totalKg:0,full:0,remainders:new Map()};
       current.totalKg+=kg;current.full+=full;
@@ -1675,7 +1674,7 @@ function scfTripPackSummaryHtml(tripOrders,products=[]){
     const directCodes=ordered.filter(item=>item.mode==='direct').reduce((sum,item)=>sum+[...item.codes.values()].reduce((part,count)=>part+count,0),0);
     const oddCodes=ordered.filter(item=>item.mode==='weight').reduce((sum,item)=>sum+[...item.remainders.values()].reduce((part,count)=>part+count,0),0);
     const regularText=[fullCodes?fullCodes+' mã đủ':'',directCodes?directCodes+' mã theo đơn':''].filter(Boolean).join('; ')||'0 mã';
-    return '<section class="pack-summary"><h3>Báo cáo chia mã theo số lượng đặt</h3><table><thead><tr><th>Sản phẩm</th><th>Tổng SL đặt</th><th>Quy cách</th><th>Mã đủ / theo đơn</th><th>Mã lẻ của sản phẩm</th><th>Tổng mã</th></tr></thead><tbody>'+rows+'<tr class="summary-row"><td><b>TỔNG</b></td><td class="num"><b>'+totalText+'</b></td><td>—</td><td><b>'+regularText+'</b></td><td><b>'+oddCodes+' mã lẻ</b></td><td class="num"><b>'+(fullCodes+directCodes+oddCodes)+' mã</b></td></tr></tbody></table><div class="pack-note">Bún và Bánh cuốn: mã chuẩn 10 kg; Phở: mã chuẩn 5 kg. Bánh chưng và Quẩy: mỗi dòng đơn là một mã theo đúng số lượng đặt. Mỗi loại sản phẩm được tính riêng; phần lẻ vẫn tính theo từng dòng đơn hàng như khi in tem.</div></section>';
+    return '<section class="pack-summary"><h3>Báo cáo chia mã theo số lượng đặt</h3><table><thead><tr><th>Sản phẩm</th><th>Tổng SL đặt</th><th>Quy cách</th><th>Mã đủ / theo đơn</th><th>Mã lẻ của sản phẩm</th><th>Tổng mã</th></tr></thead><tbody>'+rows+'<tr class="summary-row"><td><b>TỔNG</b></td><td class="num"><b>'+totalText+'</b></td><td>—</td><td><b>'+regularText+'</b></td><td><b>'+oddCodes+' mã lẻ</b></td><td class="num"><b>'+(fullCodes+directCodes+oddCodes)+' mã</b></td></tr></tbody></table><div class="pack-note">Bún và Bánh cuốn: mã chuẩn 10 kg; Phở: mã chuẩn 5 kg. Bánh chưng và Quẩy: mỗi dòng đơn là một mã theo đúng số lượng đặt. Mỗi loại sản phẩm được tính riêng; phần lẻ tính riêng theo từng dòng đơn; phần dư từ 2 kg trở xuống gộp vào mã cuối khi có mã đủ trước đó.</div></section>';
   
 }
 function scfTripSummaryPrintHtml(trip,orders,products=[],customers=[],shifts=[],includeReport=true){
@@ -2525,7 +2524,7 @@ function TripsTab({trips:storedTrips,setTrips,orders,setOrders,employees,shifts,
   const printTrip=trip=>setSummaryPrintTrip(trip);
   if(isDriver&&!isAdmin&&!isAccounting&&driverPhone)return h(React.Fragment,null,
     reportReturnUserId&&typeof onBackToDriverReport==='function'&&h('button',{type:'button',className:'bs',onClick:onBackToDriverReport},'Quay về báo công lái xe'),
-    h(DriverOrdersMobile,{trips:visibleTrips.map(trip=>({...trip,orderIds:[...new Set([...(storedTrips.find(row=>String(row.id)===String(trip.id))?.orderIds||[]),...(trip.orderIds||[])])]})),orders,products,customers,shifts,company,user:currentUser,setTrips,setOrders,date:fDate,onDateChange:sfDate,tripId:fTrip,onTripChange:sfTrip,onStart:acknowledgeTrip,onComplete:driverCompleteTrip,onSummary:printTrip,onViewSummary:trip=>setDriverImageTripId(String(trip.id))}),
+    h(DriverOrdersMobile,{trips:visibleTrips.map(trip=>({...trip,orderIds:[...new Set([...(storedTrips.find(row=>String(row.id)===String(trip.id))?.orderIds||[]),...(trip.orderIds||[])])]})),orders,products,prodCats,customers,shifts,company,user:currentUser,setTrips,setOrders,date:fDate,onDateChange:sfDate,tripId:fTrip,onTripChange:sfTrip,onStart:acknowledgeTrip,onComplete:driverCompleteTrip,onSummary:printTrip,onViewSummary:trip=>setDriverImageTripId(String(trip.id))}),
     summaryPrintTrip&&h(TripSummaryPrintOptions,{trip:summaryPrintTrip,onClose:()=>setSummaryPrintTrip(null),onPrint:include=>{scfPrintTripSummary(summaryPrintTrip,orders,products,customers,shifts,include);setSummaryPrintTrip(null);}}),
     driverImageTripId&&canMobileFeature(currentUser,'tripSummary')&&(()=>{const trip=visibleTrips.find(row=>String(row.id)===driverImageTripId);return trip&&h(TripDayImageModal,{trips:[trip],orders,products,customers,prodCats,date:trip.deliveryDate,onClose:()=>setDriverImageTripId('')});})()
   );

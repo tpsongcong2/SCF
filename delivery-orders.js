@@ -2050,14 +2050,7 @@ function IntemTab({products,company}){
     const total=Number(numFmt(kg)||0);
     if(!(total>0))return [];
     const pack=Number(labelRule.pack||10);
-    const full=Math.floor(total/pack);
-    const remain=Number((total-full*pack).toFixed(2));
-    const parts=Array.from({length:full},()=>pack);
-    if(remain>0){
-      if(labelRule.mergeSmallRemainder&&remain<2&&parts.length)parts[parts.length-1]=Number((parts[parts.length-1]+remain).toFixed(2));
-      else parts.push(remain);
-    }
-    return parts;
+    return scfLabelPackWeights(total,pack,labelRule.mergeSmallRemainder);
   };
   const buildPackWeights=()=>{
     if(!productNeedsLabel)return [];
@@ -4434,14 +4427,7 @@ function DeliveryOrdersTab({orders,setOrders,customers,setCustomers,products,pro
     const kg=Number(numFmt(totalKg)||0);
     if(!(kg>0))return [];
     const pack=Number(rule.pack||10);
-    const full=Math.floor(kg/pack);
-    const rem=Number((kg-full*pack).toFixed(2));
-    const parts=Array.from({length:full},()=>pack);
-    if(rem>0){
-      if(rule.mergeSmallRemainder&&rem<2&&parts.length)parts[parts.length-1]=Number((parts[parts.length-1]+rem).toFixed(2));
-      else parts.push(rem);
-    }
-    return parts;
+    return scfLabelPackWeights(kg,pack,rule.mergeSmallRemainder);
   };
   const labelLinesForOrder=o=>{
     const plan=prodShiftPlan(o,prodShifts||[],prodShiftRules);

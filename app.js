@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V774';
+const SCF_BUILD_VERSION='V775';
 const PTITLES = {
   kpi4p:'KPI & Lương 4P',
   attp_claims:'Nhật ký claim chất lượng',
@@ -266,7 +266,7 @@ const SCF_PAGE_COMPONENTS={
   notifications:'NotificationsTab',userguide:'UserGuideTab',nccs:'NCCTab',nccgoods:'NCCTab',purchaseorders:'PurchaseTab',purchasegoods:'PurchaseTab',
   fuelpurchases:'FuelPurchaseTab',utilityexpenses:'UtilityExpenseTab',fuelreport:'FuelPurchaseReportTab',purchasereport:'PurchaseReportTab',
   maintreport:'MaintenanceReportTab',materialusage:'MaterialUsageReportTab',powderdebtreport:'PowderDebtReportTab',maint_vehicle:'MaintenanceTab',maint_machine:'MaintenanceTab',
-  shifts:'ShiftsTab',quotes:'QuotesTab',delivery:'DeliveryOrdersTab ProductionSummaryPreviewModal',intem:'IntemTab',trips:'TripsTab DriverOrdersMobile',workreport_lx:'DriverTripWorkReportTab',
+  shifts:'ShiftsTab',quotes:'QuotesTab',delivery:'DeliveryOrdersTab ProductionSummaryPreviewModal',intem:'IntemTab',trips:'TripsTab DriverOrdersMobile DriverLabelPrintModal',workreport_lx:'DriverTripWorkReportTab',
   orderdetail:'OrderDetailListTab',salesreport:'SalesReportTab',marketsales:'SalesDebtReportTab',invoicereport:'InvoiceUploadReportTab TripInvoicePreview',cashflowreport:'FinanceReportTab',
   prodreport:'ProductionReportTab',prodbom:'ProductionRecipesTab',powdersales:'PowderSalesTab',prodsummary:'ProductionSummaryTab ProductionClosingDialog scfClosingAutoScope scfClosingCalculate',prodorders:'ProdOrdersTab WorkshopAssignmentsTab',stock:'StockTab',syncreport:'SyncDataReportTab',dbusage:'SupabaseUsageReportTab'
 };
