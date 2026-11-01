@@ -1,5 +1,5 @@
 /* ─── APP ROOT ─── */
-const SCF_BUILD_VERSION='V772';
+const SCF_BUILD_VERSION='V774';
 const PTITLES = {
   kpi4p:'KPI & Lương 4P',
   attp_claims:'Nhật ký claim chất lượng',
@@ -1109,7 +1109,7 @@ canAccess(cu.role,'cashflowreport',cu.permissions)&&page==='cashflowreport'&&h(F
         )
       ),
       productionPreviewOpen&&page==='delivery'&&!isFaceMask&&canAccess(cu.role,'prodsummary',cu.permissions,cuAccessDepartments)&&h(ProductionSummaryPreviewModal,{key:cu.id,currentUser:cu,loadData:loadProductionPreviewData,onClose:()=>setProductionPreviewOpen(false),orders,products,prodCats,prodShifts,prodShiftRules,prodActuals,setProdActuals,stock}),
-      quickTripSummaryOpen&&!isFaceMask&&canViewTripQuickSummary(cu)&&canMobileFeature(cu,'quick-summary')&&h(TripQuickSummaryModal,{key:cu.id,mobileFullscreen:page==='delivery',currentUser:cu,employees,loadData:loadQuickSummaryData,onClose:()=>setQuickTripSummaryOpen(false)}),
+      quickTripSummaryOpen&&!isFaceMask&&canViewTripQuickSummary(cu)&&canMobileFeature(cu,'quick-summary')&&h(TripQuickSummaryModal,{key:cu.id,mobileFullscreen:page==='delivery',currentUser:cu,employees,loadData:loadQuickSummaryData,onClose:()=>setQuickTripSummaryOpen(false),onExit:()=>{setQuickTripSummaryOpen(false);if((cu.role==='driver'||employeeHasDepartment(cu,'Lái xe'))&&scfCanOpenUserPage(cu,'trips',{mobile:isPhone,faceMask:isFaceMask}))setPage('trips');}}),
       (page==='welcome'||page==='mobile-home'||(page==='trips'&&isPhone&&(cu.role==='driver'||String(cu.dept||'').includes('Lái xe')))||isFaceMask||(quickTripSummaryOpen&&page!=='delivery')||daySummaryOpen)&&h(MobileNav,{page,setPage:next=>{window.dispatchEvent(new CustomEvent('scf-close-day-summary'));setQuickTripSummaryOpen(false);setPage(next);},role:cu.role,perms:cu.permissions,dept:cuAccessDepartments,currentUser:cu,onLogout:logout,onQuickTripSummary:!isFaceMask&&canViewTripQuickSummary(cu)&&canMobileFeature(cu,'quick-summary')?()=>{window.dispatchEvent(new CustomEvent('scf-close-day-summary'));setQuickTripSummaryOpen(true);}:undefined})
     ),
     cu.mustChangePw&&h(CpwModal,{

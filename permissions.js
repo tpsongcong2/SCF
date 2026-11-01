@@ -212,7 +212,7 @@ function MobilePermissionFields({employee,onChange,onStartPageChange,disabled=fa
   const blocked=SCF_MOBILE_PERMISSION_GROUPS[0].options.filter(([key])=>!['more','quick-summary'].includes(key)&&canMobileFeature(employee,key)&&!canAccess(employee?.role,key,employee?.permissions,employeeDepartments(employee))).map(([,label])=>label);
   return h('div',{className:'mobile-permission-settings',style:{border:'1px solid var(--bd)',borderRadius:'var(--r)',padding:10,margin:'10px 0',background:'var(--bg2)'}},
     h('b',null,'Phân quyền giao diện điện thoại'),
-    h('div',{style:{fontSize:12,color:'var(--tx2)',margin:'6px 0'}},'Tích để hiện nút và cho phép mở tính năng. Vẫn cần quyền truy cập trang và quyền nghiệp vụ tương ứng ở phía trên.'),
+    h('div',{style:{fontSize:12,color:'var(--tx2)',margin:'6px 0'}},'Tích để hiện nút và cho phép mở tính năng. Các trang vẫn cần quyền truy cập và quyền nghiệp vụ tương ứng. Riêng Đơn tổng cho phép xem độc lập, không cấp quyền sửa đơn hay quản lý chuyến; lái xe chỉ xem chuyến của mình.'),
     blocked.length>0&&h('p',{role:'status',style:{fontSize:12,color:'#945600'}},'Đang bật nút nhưng chưa có quyền truy cập trang: '+blocked.join(', ')+'. Hãy kiểm tra quyền tương ứng ở phía trên.'),
     onStartPageChange&&h('label',{style:{display:'grid',gap:6,fontSize:12,fontWeight:600,margin:'12px 0'}},'Màn hình đầu tiên khi truy cập trên điện thoại',
       h('select',{'aria-label':'Màn hình đầu tiên trên điện thoại',disabled,value:scfMobileStartOptions(employee).some(([key])=>key===scfMobileStartTarget(employee))?scfMobileStartTarget(employee):'',onChange:event=>onStartPageChange(event.target.value)},

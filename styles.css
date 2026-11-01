@@ -1902,8 +1902,11 @@ button.delivery-group-toggle{display:inline-flex;align-items:center;justify-cont
 
 .delivery-group-header>.delivery-group-print{margin-left:auto}.delivery-group-print{min-width:32px;min-height:32px;color:#143c3c!important}
 /* Driver mobile order workflow */
+.scf-summary-auto-image .trip-summary-quick-tools{position:sticky;top:0;z-index:16;background:var(--bg,#fff)}
+.scf-summary-auto-image .trip-summary-quick-tools .trip-summary-exit{font-weight:700;color:var(--pri);border-color:var(--pri)}
 @media(max-width:768px){
   .trip-summary-mobile-backbar{position:sticky;top:0;z-index:15;padding-top:calc(8px + env(safe-area-inset-top));min-height:56px}
+  .trip-summary-day-modal .scf-summary-auto-image .trip-summary-quick-tools{top:calc(56px + env(safe-area-inset-top))}
   .trip-summary-day-modal>.trip-summary-mobile-backbar{margin:0 -15px 8px}
   .trip-summary-quick-modal:not(.image-screen):not(.from-orders-fullscreen)>.trip-summary-mobile-backbar{margin:-20px -20px 16px}
   .trip-summary-quick-modal.image-screen>.trip-summary-mobile-backbar{margin:0}
