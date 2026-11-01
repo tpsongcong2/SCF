@@ -192,17 +192,30 @@ function scfMobileStartOptions(user={}){
   if(canMobileFeature(user,'quick-summary')&&typeof canViewTripQuickSummary==='function'&&canViewTripQuickSummary(user))options.push(['quick-summary','Đơn tổng · Xem nhanh']);
   return options;
 }
+function scfCanOpenUserPage(user,page,{mobile=false,faceMask=false}={}){
+  if(!user)return false;
+  if(page==='mobile-home')return mobile&&!faceMask;
+  return canAccess(user.role,page,user.permissions,employeeDepartments(user))&&(!mobile||faceMask||canMobileFeature(user,page));
+}
+function scfMobileFallbackPage(user={}){
+  const options=scfMobileStartOptions(user),pages=new Set(options.map(([key])=>key));
+  return ['welcome','delivery','trips','attendance','prodsummary'].find(key=>pages.has(key))||'mobile-home';
+}
+function scfMobileSummaryHost(user){return scfCanOpenUserPage(user,'welcome',{mobile:true})?'welcome':'mobile-home';}
+function MobileRestrictedHome(){return h('div',{className:'card'},h('h3',null,'Chức năng trên điện thoại'),h('p',null,'Chọn chức năng được cấp quyền từ thanh bên dưới. Nếu chưa có chức năng, hãy liên hệ quản trị viên.'));}
 function scfMobileStartTarget(user={}){
   const requested=String(user?.mobileStartPage||'').trim();
   if(!requested)return '';
-  return scfMobileStartOptions(user).some(([key])=>key===requested)?requested:'welcome';
+  return scfMobileStartOptions(user).some(([key])=>key===requested)?requested:scfMobileFallbackPage(user);
 }
 function MobilePermissionFields({employee,onChange,onStartPageChange,disabled=false}){
+  const blocked=SCF_MOBILE_PERMISSION_GROUPS[0].options.filter(([key])=>!['more','quick-summary'].includes(key)&&canMobileFeature(employee,key)&&!canAccess(employee?.role,key,employee?.permissions,employeeDepartments(employee))).map(([,label])=>label);
   return h('div',{className:'mobile-permission-settings',style:{border:'1px solid var(--bd)',borderRadius:'var(--r)',padding:10,margin:'10px 0',background:'var(--bg2)'}},
     h('b',null,'Phân quyền giao diện điện thoại'),
     h('div',{style:{fontSize:12,color:'var(--tx2)',margin:'6px 0'}},'Tích để hiện nút và cho phép mở tính năng. Vẫn cần quyền truy cập trang và quyền nghiệp vụ tương ứng ở phía trên.'),
+    blocked.length>0&&h('p',{role:'status',style:{fontSize:12,color:'#945600'}},'Đang bật nút nhưng chưa có quyền truy cập trang: '+blocked.join(', ')+'. Hãy kiểm tra quyền tương ứng ở phía trên.'),
     onStartPageChange&&h('label',{style:{display:'grid',gap:6,fontSize:12,fontWeight:600,margin:'12px 0'}},'Màn hình đầu tiên khi truy cập trên điện thoại',
-      h('select',{'aria-label':'Màn hình đầu tiên trên điện thoại',disabled,value:scfMobileStartTarget(employee),onChange:event=>onStartPageChange(event.target.value)},
+      h('select',{'aria-label':'Màn hình đầu tiên trên điện thoại',disabled,value:scfMobileStartOptions(employee).some(([key])=>key===scfMobileStartTarget(employee))?scfMobileStartTarget(employee):'',onChange:event=>onStartPageChange(event.target.value)},
         h('option',{value:''},'Theo lần truy cập trước (mặc định)'),scfMobileStartOptions(employee).map(([key,label])=>h('option',{key,value:key},label))
       )
     ),
@@ -334,3 +347,24 @@ function scfOnlyMissingInvoiceChanges(before,after){
     if([...allowed].some(key=>next[key]!==undefined&&typeof next[key]!=='string'))return false;changed=true;
   }return changed;
 }
+
+function deliveryDeleteLimitDays(user={}){
+  const fallback=['admin','administrator'].includes(String(user.role||'').toLowerCase())?0:1;
+  const raw=user.deliveryDeleteLimitDays;if(raw===undefined||raw===null||raw==='')return fallback;
+  const days=Number(raw);return Number.isInteger(days)&&days>=0&&days<=3650?days:fallback;
+}
+function scfDeliveryDeleteIssue(user,order,trip,today){
+  if(!order)return 'Đơn không còn tồn tại.';
+  if(!['','pending','assigned','scheduled','planning'].includes(String(order.status||''))||trip&&(trip.driverDispatchedAt||!['','planning','planned','assigned','scheduled'].includes(String(trip.status||''))))return 'Chỉ được xóa đơn chưa giao lái xe.';
+  if(order.tripId&&!trip)return 'Chưa xác định được trạng thái chuyến. Hãy tải lại dữ liệu.';
+  const raw=String(order.deliveryDate||''),vn=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/),iso=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!vn&&!iso)return 'Ngày giao không hợp lệ.';
+  const y=Number(vn?vn[3]:iso[1]),m=Number(vn?vn[2]:iso[2]),d=Number(vn?vn[1]:iso[3]),stamp=Date.UTC(y,m-1,d),date=new Date(stamp);
+  if(date.getUTCFullYear()!==y||date.getUTCMonth()!==m-1||date.getUTCDate()!==d)return 'Ngày giao không hợp lệ.';
+  const days=deliveryDeleteLimitDays(user);if(!days)return '';
+  if(!today){const formatter=scfDeliveryDeleteIssue._dateFormatter||(scfDeliveryDeleteIssue._dateFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}));const parts=formatter.formatToParts(new Date());today=['year','month','day'].map(k=>parts.find(p=>p.type===k).value).join('-');}
+  const age=(Date.parse(today+'T00:00:00Z')-stamp)/86400000;
+  return days&&age>days?'Đơn đã ngoài giới hạn '+days+' ngày sau ngày giao được xóa.':'';
+}
+
+function scfCanDeleteDeliveryOrder(user,order,trip){return canDel(user?.role,'delivery',user?.permLevels)&&!scfDeliveryDeleteIssue(user,order,trip);}

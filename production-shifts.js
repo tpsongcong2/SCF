@@ -44,6 +44,23 @@ function normalizeOrderForStorage(order){
   if(order.deliveryTime===deliveryTime&&order.prodShiftAssignMode===prodShiftAssignMode)return order;
   return {...order,deliveryTime,prodShiftAssignMode};
 }
+function scfOrderAwaitingDelivery(order,trips=[]){
+  if(!order||!['','pending','assigned','scheduled','planning'].includes(String(order.status||'')))return false;
+  const trip=(trips||[]).find(t=>String(t.id)===String(order.tripId||''))||(!order.tripId?(trips||[]).find(t=>(t.orderIds||[]).some(id=>String(id)===String(order.id))):null);
+  if(order.tripId&&!trip)return false;
+  return !trip||!trip.driverDispatchedAt&&!['active','completion_pending','completed','cancelled'].includes(trip.status);
+}
+function scfSyncPendingDeliveryQty(order,trips=[],previousOrder){
+  if(!scfOrderAwaitingDelivery(order,trips))return order;
+  const previousLines=new Map((previousOrder?.lines||[]).filter(l=>l.id).map(l=>[String(l.id),l]));
+  let changed=false;const lines=(order.lines||[]).map((line,index)=>{
+    const qty=numFmt(line.qtyProd??line.qty??line.quantity??line.qtyInvoice??0);
+    const old=previousOrder&&(line.id?previousLines.get(String(line.id)):previousOrder.lines?.[index]);
+    if(old&&String(old.productId||'')===String(line.productId||'')&&numFmt(old.qtyProd??old.qty??old.quantity??old.qtyInvoice??0)===qty)return line;
+    if(line.qtyDelivered!==undefined&&line.qtyDelivered!==null&&line.qtyDelivered!==''&&numFmt(line.qtyDelivered)===qty)return line;
+    changed=true;return {...line,qtyDelivered:qty};
+  });return changed?{...order,lines}:order;
+}
 function normalizeOrdersForStorage(list){
   if(!Array.isArray(list))return list;
   let changed=false;
@@ -286,8 +303,10 @@ function scfProductionScheduleKey(schedule){
 function scfProductionRuleTimeMatches(rule,time){
   const from=rule.deliveryTimeFrom||'',to=rule.deliveryTimeTo||from;
   if(!from&&!to)return true;
-  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time||''))return false;
-  return timeInRange(time,from,to);
+  const match=String(time||'').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if(!match||Number(match[1])>23||Number(match[2])>59)return false;
+  const normalized=match[1].padStart(2,'0')+':'+match[2];
+  return timeInRange(normalized,from,to);
 }
 function scfProductionRuleTimesOverlap(a,b){
   const af=a.deliveryTimeFrom||'',at=a.deliveryTimeTo||af,bf=b.deliveryTimeFrom||'',bt=b.deliveryTimeTo||bf;
