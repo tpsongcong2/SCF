@@ -724,11 +724,12 @@ function Sidebar({page,setPage,col,setCol,company,role,perms}){
 }
 function TopNav({page,setPage,role,perms,dept,currentUser,mobile=false}){
   const[open,setOpen]=useState(null);
+  const viewer=currentUser||{role,permissions:perms,dept};
   const groups=[]; let cur=null;
   NAV.forEach(item=>{
     if(item.sec){cur={sec:item.sec,pages:[]};groups.push(cur);return;}
     if(!canAccess(role,item.key,perms,dept)||mobile&&!canMobileFeature(currentUser||{role,permissions:perms,dept},item.key))return;
-    if(cur)cur.pages.push(item.key==='trips'&&(viewer.role==='driver'||employeeHasDepartment(viewer,'Lái xe'))?{...item,label:'Đơn hàng lái xe'}:item);
+    if(cur)cur.pages.push(mobile&&item.key==='trips'&&(viewer.role==='driver'||employeeHasDepartment(viewer,'Lái xe'))?{...item,label:'Đơn hàng lái xe'}:item);
     else groups.push({sec:item.label,pages:[item],single:true,icon:item.icon});
   });
   const visible=groups.filter(g=>g.pages.length);
@@ -763,7 +764,7 @@ function MobileNav({page,setPage,role,perms,dept,currentUser,onLogout,onQuickTri
   NAV.forEach(item=>{
     if(item.sec){cur={sec:item.sec,pages:[]};groups.push(cur);return;}
     if(!canAccess(role,item.key,perms,dept)||!allowed(item.key))return;
-    if(cur)cur.pages.push(item);
+    if(cur)cur.pages.push(item.key==='trips'&&(viewer.role==='driver'||employeeHasDepartment(viewer,'Lái xe'))?{...item,label:'Đơn hàng lái xe'}:item);
     else groups.push({sec:item.label,pages:[item],single:true});
   });
   const visible=groups.filter(g=>g.pages.length);
