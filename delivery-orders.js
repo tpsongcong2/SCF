@@ -1844,10 +1844,18 @@ function useDeliveryPrintFilters({orders,customers,trips,initialDate,initialDate
   return {...scope,fields,orderDate:o=>o.deliveryDate||o.date||o.ngayGiao||''};
 }
 
-function PrintByCustomerModal({orders,customers,products,company,trips=[],initialDate,initialDateTo,initialDateBasis,initialGroup,onClose}) {
-  const [tpl,setTpl]=useState('welstory');
+function deliverySelectedTripPrintOrders(orders,trips,tripId,customers=[]){
+  const trip=(trips||[]).find(item=>String(item.id)===String(tripId));if(!trip)return [];
+  const members=(orders||[]).filter(order=>order.status!=='cancelled'&&String(manualTripForOrder(trips,order)?.id||'')===String(tripId));
+  return sortTripOrdersByDeliveryOrder(trip,members,customers);
+}
+function PrintByCustomerModal({orders,customers,products,company,trips=[],initialDate,initialDateTo,initialDateBasis,initialGroup,tripOnlyId='',onClose}) {
+  const tripOrders=tripOnlyId?deliverySelectedTripPrintOrders(orders,trips,tripOnlyId,customers):[];
+  const selectedTrip=tripOnlyId?trips.find(trip=>String(trip.id)===String(tripOnlyId)):null;
+  const [tpl,setTpl]=useState(()=>tripOnlyId?resolveOrderPrintTemplate(tripOrders[0],customers.find(customer=>String(customer.id)===String(tripOrders[0]?.customerId||tripOrders[0]?.custId||''))):'welstory');
   const [selected,setSelected]=useState({});
-  const {filtered,fields,orderDate}=useDeliveryPrintFilters({orders,customers,trips,initialDate,initialDateTo,initialDateBasis,initialGroup});
+  const {filtered:filterOrders,fields,orderDate}=useDeliveryPrintFilters({orders,customers,trips,initialDate,initialDateTo,initialDateBasis,initialGroup});
+  const filtered=tripOnlyId?tripOrders:filterOrders;
   const selectedOrders=filtered.filter(o=>selected[o.id]!==false);
   const allChecked=filtered.length>0&&selectedOrders.length===filtered.length;
   const toggleAll=checked=>setSelected(p=>{const n={...p};filtered.forEach(o=>{n[o.id]=checked;});return n;});
@@ -1873,14 +1881,16 @@ function PrintByCustomerModal({orders,customers,products,company,trips=[],initia
       return;
     }
     const win=window.open('','_blank');
+    if(!win){window.showToast('Hãy cho phép mở cửa sổ để in phiếu.','warn');return;}
     win.document.write(printHtml);
     win.document.close();
     setTimeout(function(){win.print();},500);
   };
 
-  return h(Modal,{title:'In phiếu giao hàng theo khách hàng',lg:true,onClose},
-    fields(id=>{const customer=customers.find(c=>String(c.id)===id);if(customer)setTpl(resolveOrderPrintTemplate({},customer));}),
+  return h(Modal,{title:tripOnlyId?'In phiếu giao hàng trong chuyến':'In phiếu giao hàng theo khách hàng',lg:true,onClose},
+    tripOnlyId?h('p',{className:'delivery-print-trip-scope'},h('b',null,selectedTrip?.shiftName||'Chuyến đã chọn'),' · '+(selectedTrip?.deliveryDate||'')+' · '+(selectedTrip?.driverName||'Chưa có lái xe')):fields(id=>{const customer=customers.find(c=>String(c.id)===id);if(customer)setTpl(resolveOrderPrintTemplate({},customer));}),
     h(F,{label:'Mẫu in'},h('select',{'aria-label':'Mẫu in',value:tpl,onChange:e=>setTpl(e.target.value)},PRINT_TEMPLATES.map(t=>h('option',{key:t.id,value:t.id},t.name)))),
+    tripOnlyId&&h('p',{style:{fontSize:12,color:'var(--tx2)'}},'Mẫu in áp dụng cho các phiếu đã chọn bên dưới.'),
     tpl==='youngsun'&&h('div',{style:{fontSize:12,color:'var(--tx2)',margin:'0 0 10px'}},
       'YOUGSUN tự lấy bếp từ địa điểm giao và xác định ca: 02:00 Sáng · 07:00 Trưa · 13:00 Chiều · 19:00 Đêm.'
     ),
@@ -1894,12 +1904,12 @@ function PrintByCustomerModal({orders,customers,products,company,trips=[],initia
         h('table',{style:{width:'100%',fontSize:12,borderCollapse:'collapse'}},
           h('thead',null,h('tr',{style:{background:'var(--bg2)'}},
             h('th',{style:{padding:'5px 8px',textAlign:'left',borderBottom:'1px solid var(--bd)',width:34}},
-              h('input',{type:'checkbox',checked:allChecked,onChange:e=>toggleAll(e.target.checked),style:{width:'auto'}})
+              h('input',{type:'checkbox','aria-label':'Chọn tất cả đơn in',checked:allChecked,onChange:e=>toggleAll(e.target.checked),style:{width:'auto'}})
             ),
             ['Ngày','Địa điểm','Giờ','SP'].map(c=>h('th',{key:c,style:{padding:'5px 8px',textAlign:'left',borderBottom:'1px solid var(--bd)'}},c))
           )),
           h('tbody',null,filtered.map(o=>h('tr',{key:o.id},
-            h('td',{style:{padding:'4px 8px'}},h('input',{type:'checkbox',checked:selected[o.id]!==false,onChange:e=>toggleOne(o.id,e.target.checked),style:{width:'auto'}})),
+            h('td',{style:{padding:'4px 8px'}},h('input',{type:'checkbox','aria-label':'In đơn '+o.id,checked:selected[o.id]!==false,onChange:e=>toggleOne(o.id,e.target.checked),style:{width:'auto'}})),
             h('td',{style:{padding:'4px 8px'}},orderDate(o)),
             h('td',{style:{padding:'4px 8px',fontWeight:500}},o.pointName||'—'),
             h('td',{style:{padding:'4px 8px'}},o.deliveryTime||'—'),

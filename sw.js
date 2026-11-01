@@ -1,4 +1,4 @@
-const CACHE = 'scf-v770';
+const CACHE = 'scf-v772';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const ASSETS = [
   './vendor/supabase.min.js?v=358',
   './vendor/react.production.min.js?v=358',
   './vendor/react-dom.production.min.js?v=358',
-  './styles.css?v=766',
+  './styles.css?v=771',
   './runtime.js?v=457',
   './storage.js?v=765',
   './print-agent.js?v=763',
@@ -37,13 +37,13 @@ const ASSETS = [
   './auth-workforce.js?v=551',
   './quotations.js',
   './finance.js?v=702',
-  './delivery-orders.js?v=769',
+  './delivery-orders.js?v=772',
   './delivery-fast-entry.js?v=751',
   './delivery-catalog-edit.js?v=733',
   './qrcode.min.js?v=357',
   './import-tools.js?v=770',
-  './trips.js?v=766',
-  './driver-orders-mobile.js?v=766',
+  './trips.js?v=771',
+  './driver-orders-mobile.js?v=772',
   './delivery-excel.js?v=718',
   './vendor/exceljs-4.4.0.min.js',
   './production-closing-domain.js?v=644',
@@ -55,7 +55,7 @@ const ASSETS = [
   './production-assignments.js?v=644',
   './permissions.js?v=768',
   './permission-settings.js?v=768',
-  './app.js?v=770',
+  './app.js?v=772',
   './bootstrap.js?v=645',
   './manifest.json',
   './icon-192.png',
@@ -68,7 +68,7 @@ const ASSETS = [
 // thật sự cần tới; tránh tải lặp toàn bộ ứng dụng và ba bản font ngay lần mở đầu.
 const PRECACHE_ASSETS = [
   './index.html',
-  './styles.css?v=766',
+  './styles.css?v=771',
   './vendor/tabler-icons.min.css?v=394'
 ];
 
