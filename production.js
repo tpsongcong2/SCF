@@ -1,4 +1,22 @@
 /* ─── Tổng hợp sản xuất ─── */
+function scfProductionSourceRanks(orders,trips,customers){
+  const byId=new Map((orders||[]).map(order=>[String(order.id),order])),ranks=new Map(),groups=new Map();
+  const tripById=new Map((trips||[]).map(trip=>[String(trip.id),trip])),members=new Map();
+  const fallback=new Map();
+  for(const trip of trips||[])for(const id of trip.orderIds||[])if(!fallback.has(String(id)))fallback.set(String(id),trip);
+  for(const order of orders||[]){
+    const trip=order.tripId?tripById.get(String(order.tripId)):order.tripAssignMode==='manual'?null:fallback.get(String(order.id));
+    if(!trip||trip.status==='cancelled')continue;
+    const key=String(trip.id);if(!members.has(key))members.set(key,[]);members.get(key).push(order);
+  }
+  const sorted=typeof scfSortTripImageTrips==='function'?scfSortTripImageTrips(trips||[]):trips||[];
+  for(const trip of sorted){
+    const rows=members.get(String(trip.id))||[];
+    const ordered=typeof sortTripOrdersByDeliveryOrder==='function'?sortTripOrdersByDeliveryOrder(trip,rows,customers||[]):rows;
+    for(const order of ordered){const id=String(order.id);ranks.set(id,ranks.size);groups.set(id,trip);}
+  }
+  return {groups,sort:ids=>[...new Set(ids||[])].sort((a,b)=>(ranks.get(String(a))??Infinity)-(ranks.get(String(b))??Infinity)||String(byId.get(String(a))?.deliveryDate||'').split('/').reverse().join('-').localeCompare(String(byId.get(String(b))?.deliveryDate||'').split('/').reverse().join('-'))||String(byId.get(String(a))?.deliveryTime||'').localeCompare(String(byId.get(String(b))?.deliveryTime||''),undefined,{numeric:true})||String(a).localeCompare(String(b),undefined,{numeric:true}))};
+}
 function ProductionSummaryPreviewModal({loadData,onClose,currentUser,...summaryProps}){
   const[status,setStatus]=useState('loading'),[error,setError]=useState(''),[attempt,setAttempt]=useState(0);
   const[prepared,setPrepared]=useState(null);
@@ -32,6 +50,9 @@ function ProductionSummaryPreviewModal({loadData,onClose,currentUser,...summaryP
     status==='ready'&&h(ProductionSummaryTab,{...summaryProps,currentUser}),
     h('div',{className:'production-preview-close-row'},h('button',{type:'button','data-scf-action':'view',onClick:onClose},'Đóng cửa sổ'))
   );
+}
+function canViewProductionSourceOrders(user){
+  return ['admin','administrator'].includes(String(user?.role||'').trim().toLowerCase())||user?.productionSourceOrders===true;
 }
 function canViewProductionShiftWeight(user){
   return ['admin','administrator'].includes(String(user?.role||'').trim().toLowerCase())||user?.productionShiftWeight===true;
@@ -237,6 +258,7 @@ function ProductionSummaryTab({orders,products,prodCats=[],prodShifts,prodShiftR
   const[workshop,setWorkshop]=useState('all');
   const canEditActual=!snapshotReadOnly&&canWrite(currentUser?.role,'prodsummary',currentUser?.permLevels);
   const showShiftWeight=canViewProductionShiftWeight(currentUser);
+  const showSourceOrders=canViewProductionSourceOrders(currentUser);
   const canCheckSource=canEditActual&&['admin','administrator','manager'].includes(String(currentUser?.role||'').toLowerCase());
   const[openOrderRows,setOpenOrderRows]=useState(()=>new Set());
   const[stockClock,setStockClock]=useState(()=>Date.now());
@@ -292,23 +314,27 @@ function ProductionSummaryTab({orders,products,prodCats=[],prodShifts,prodShiftR
       return next;
     });
   };
+  const sourceRanks=React.useMemo(()=>scfProductionSourceRanks(orders,globalThis.window?.__SCF_TRIPS||[],globalThis.window?.__SCF_CUSTOMERS||[]),[orders,globalThis.window?.__SCF_TRIPS,globalThis.window?.__SCF_CUSTOMERS]);
   const sourceControl=(row,id)=>{
+    if(!showSourceOrders)return null;
     const qty=row.sourceQty?.[String(id)]||0;
     const key=actualKey(row.prodDate,row.shift,row.productId);
     const sourceEditable=canCheckSource&&(typeof scfClosingActualDeadline!=='function'||Date.now()<scfClosingActualDeadline(key,rules));
-    const check=prodActuals?.[key]?.sourceChecks?.[String(id)];
+    const check=scfEffectiveProductionSourceCheck(row,orderById.get(String(id)),prodActuals?.[key]?.sourceChecks?.[String(id)],globalThis.window?.__SCF_UI_SETTINGS);
     const done=check?.completed===true&&Number(check.orderedQty)===qty;
     const toggle=()=>{
       if(!sourceEditable)return;
+      const sourceEventId='PSC'+uid(),sourceClickedAt=new Date().toISOString();
       setProdActuals(previous=>{
         const record=previous?.[key]||{},old=record.sourceChecks?.[String(id)];
-        const completed=!(old?.completed===true&&Number(old.orderedQty)===qty);
-        const event={completed,orderedQty:qty,checkedBy:currentUser?.name||currentUser?.username||'',checkedById:currentUser?.id||'',checkedAt:new Date().toISOString()};
+        const currentCheck=scfEffectiveProductionSourceCheck(row,orderById.get(String(id)),old,globalThis.window?.__SCF_UI_SETTINGS);
+        const completed=!(currentCheck?.completed===true&&Number(currentCheck.orderedQty)===qty);
+        const event={eventId:sourceEventId,completed,orderedQty:qty,checkedBy:currentUser?.name||currentUser?.username||'',checkedById:currentUser?.id||'',checkedAt:sourceClickedAt};
         return{...previous,[key]:{...record,date:row.prodDate,shiftId:row.shift,productId:row.productId,productName:row.productName,sourceChecks:{...record.sourceChecks,[String(id)]:{...event,history:[...(old?.history||[]),event]}}}};
       });
     };
     return h('div',{key:id,className:'production-mobile-source'},
-      h('div',{className:'production-source-main'},h('span',null,orderLabel(id)),h('b',null,qty.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(row.unit||'')),
+      h('div',{className:'production-source-main'},h('span',null,sourceRanks.groups.get(String(id))&&h('small',{style:{display:'block',color:'var(--pri)'}},sourceRanks.groups.get(String(id)).shiftName||sourceRanks.groups.get(String(id)).id),orderLabel(id)),h('b',null,qty.toLocaleString('vi-VN',{maximumFractionDigits:3})+' '+(row.unit||'')),
         h('button',{type:'button',className:'production-source-check '+(done?'done':'pending'),'data-scf-action':sourceEditable?'write':'view',disabled:!sourceEditable,'aria-label':(done?'Đã sản xuất xong: ':'Chưa sản xuất xong: ')+orderLabel(id),'aria-pressed':done,title:sourceEditable?(done?'Bấm để bỏ xác nhận':'Bấm xác nhận đã sản xuất xong'):'Chỉ quản lý có quyền ghi và ca còn hạn sửa mới được xác nhận',onClick:toggle},done?'✓':'✕')),
       check?.checkedBy&&h('small',{className:'production-source-actor'},(check.completed?'Xác nhận: ':'Bỏ xác nhận: ')+check.checkedBy+' · '+new Date(check.checkedAt).toLocaleString('vi-VN',{timeZone:'Asia/Bangkok'})),
       check?.completed&&!done&&h('small',{className:'production-mobile-error'},'Lượng đặt đã đổi · cần xác nhận lại'),
@@ -421,10 +447,10 @@ function ProductionSummaryTab({orders,products,prodCats=[],prodShifts,prodShiftR
                 row.unknownCodes>0&&h('div',{className:'production-mobile-error'},row.unknownCodes+' dòng chưa có quy cách/khối lượng, chưa tính mã.')
               )
             ),
-            h('details',{className:'production-source-section'},
+            showSourceOrders&&h('details',{className:'production-source-section'},
               h('summary',null,h('span',null,'Xem nguồn đơn ('+[...new Set(row.orders)].length+')'),h('i',{className:'ti ti-chevron-down','aria-hidden':true})),
-              h('small',{className:'production-source-quantities'},(()=>{const confirmed=Object.entries(row.sourceQty||{}).reduce((sum,[id,qty])=>{const check=prodActuals?.[actualKey(row.prodDate,row.shift,row.productId)]?.sourceChecks?.[id];return sum+(check?.completed===true&&Math.abs(Number(check.orderedQty)-qty)<1e-8?qty:0);},0);return 'Đã SX theo đơn: '+confirmed.toLocaleString('vi-VN')+' '+row.unit+' · Còn thiếu: '+Math.max(0,row.qtyProd-confirmed).toLocaleString('vi-VN')+' '+row.unit;})()),
-              [...new Set(row.orders)].map(id=>sourceControl(row,id))
+              h('small',{className:'production-source-quantities'},(()=>{const confirmed=Object.entries(row.sourceQty||{}).reduce((sum,[id,qty])=>{const check=scfEffectiveProductionSourceCheck(row,orderById.get(String(id)),prodActuals?.[actualKey(row.prodDate,row.shift,row.productId)]?.sourceChecks?.[id],globalThis.window?.__SCF_UI_SETTINGS);return sum+(check?.completed===true&&Math.abs(Number(check.orderedQty)-qty)<1e-8?qty:0);},0);return 'Đã SX theo đơn: '+confirmed.toLocaleString('vi-VN')+' '+row.unit+' · Còn thiếu: '+Math.max(0,row.qtyProd-confirmed).toLocaleString('vi-VN')+' '+row.unit;})()),
+              sourceRanks.sort(row.orders).map(id=>sourceControl(row,id))
             )
           )
         )))
@@ -530,8 +556,8 @@ function ProductionSummaryTab({orders,products,prodCats=[],prodShifts,prodShiftR
                     const rowBadQty=numFmt(readBadQty(r.prodDate,r.shift,r.productId));
                     const rowBadRate=calcBadRate(rowActualQty,rowBadQty);
                     const orderRowKey=[r.prodDate,r.shift,r.productId].join('|');
-                    const orderIds=[...new Set(r.orders||[])];
-                    const ordersOpen=openOrderRows.has(orderRowKey);
+                    const orderIds=sourceRanks.sort(r.orders);
+                    const ordersOpen=showSourceOrders&&openOrderRows.has(orderRowKey);
                     return h('tr',{key:i,className:rowInvalid?'production-summary-invalid':isBanhCuon(r.productName)?'production-summary-banh-cuon':undefined},
                     h('td',null,h('div',{style:{fontWeight:500}},r.productName)),
                     h('td',null,h('span',{className:'badge',style:{background:rule.color||'#EAF3DE',color:rule.textColor||'#3B6D11'}},r.unit)),
@@ -541,7 +567,7 @@ function ProductionSummaryTab({orders,products,prodCats=[],prodShifts,prodShiftR
                     h('td',null,readBadQty(r.prodDate,r.shift,r.productId)===''?'—':numFmt(readBadQty(r.prodDate,r.shift,r.productId)).toLocaleString('vi-VN')),
                     h('td',null,h('div',{style:{fontSize:16,fontWeight:700,color:rowInvalid?'#B91C1C':'#1D4ED8'}},fmtRate(rowBadRate))),
                     h('td',null,
-                      h('button',{
+                      showSourceOrders&&h('button',{
                         type:'button',
                         onClick:()=>toggleOrderRow(orderRowKey),
                         'aria-expanded':ordersOpen,

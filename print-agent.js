@@ -2,14 +2,19 @@
 const SCF_PRINT_QUEUE_KEY='scf_print_jobs';
 const SCF_PRINT_SETTINGS_KEY='scf_print_agent_settings';
 
-function scfPrintAgentSettings(){
+function scfPrintAgentSettings({trip=false}={}){
+  let local={};
   try{
-    return JSON.parse(localStorage.getItem(SCF_PRINT_SETTINGS_KEY)||'{}')||{};
-  }catch{return {};}
+    local=JSON.parse(localStorage.getItem(SCF_PRINT_SETTINGS_KEY)||'{}')||{};
+  }catch{}
+  const shared=window.__SCF_UI_SETTINGS?.driverPrinters,access=window.__SCF_ACCESS_CONTEXT;
+  if(shared?.enabled===true&&(trip||access?.role==='driver'||['trips','driver-preview'].includes(access?.page)))return {...local,agentId:shared.labelAgentId,printerRole:shared.labelPrinterRole,a4AgentId:shared.a4AgentId,lanEnabled:shared.lanEnabled===true,autoRoute:shared.autoRoute===true,labelAutoAddress:shared.labelAutoAddress===true,a4AutoAddress:shared.a4AutoAddress===true,labelLanUrl:shared.labelLanUrl,a4LanUrl:shared.a4LanUrl,androidEnabled:shared.androidEnabled===true,androidShelfLifeHours:shared.androidShelfLifeHours===36?36:24,sharedManaged:true};
+  return local;
 }
 
 function scfSavePrintAgentSettings(value){
-  const next={...scfPrintAgentSettings(),...(value||{})};
+  let previous={};try{previous=JSON.parse(localStorage.getItem(SCF_PRINT_SETTINGS_KEY)||'{}')||{};}catch{}
+  const next={...previous,...(value||{})};delete next.sharedManaged;
   localStorage.setItem(SCF_PRINT_SETTINGS_KEY,JSON.stringify(next));
   return next;
 }
@@ -67,11 +72,25 @@ async function scfUploadLabelPng(file,target){
   return url;
 }
 
-async function scfQueueLabelPrint({agentId,printerRole='x350',label,title,paperWidthMm,paperHeightMm,svgs,rotate180=false,beforeEnqueue}){
+async function scfQueueLabelPrint({agentId,printerRole='x350',label,title,paperWidthMm,paperHeightMm,svgs,labelDetails,rotate180=false,beforeEnqueue,tripContext,simulate=false}){
   beforeEnqueue?.();
+  if(simulate){window.showToast('Trải nghiệm: đã mô phỏng gửi '+svgs.length+' tem; không gửi máy in thật.','success');return {id:'PREVIEW'};}
+  const sharedSettings=scfPrintAgentSettings({trip:!!tripContext});
+  if(sharedSettings.sharedManaged){agentId=sharedSettings.agentId;printerRole=sharedSettings.printerRole;}
   const target=String(agentId||'SCF-PC-01').trim().toUpperCase();
   if(!target)throw new Error('Chưa nhập mã SCF Print Agent.');
   if(!Array.isArray(svgs)||!svgs.length)throw new Error('Chưa có tem để gửi in.');
+  const android=sharedSettings.sharedManaged&&sharedSettings.androidEnabled&&tripContext&&/Android/i.test(navigator.userAgent||'');
+  const route=!android&&sharedSettings.sharedManaged&&sharedSettings.lanEnabled&&tripContext?await scfSelectPrintRoute(sharedSettings,printerRole):{route:'cloud'};
+  if(route.route==='lan'){
+    const images=[];
+    for(let index=0;index<svgs.length;index++){
+      beforeEnqueue?.();const file=await scfSvgToPngFile(svgs[index],index,rotate180,paperWidthMm,paperHeightMm);
+      images.push(await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Không đọc được ảnh tem.'));reader.readAsDataURL(file);}));
+    }
+    beforeEnqueue?.();
+    return window.scfSendLanPrint({agentId:target,printerRole,label:String(label||title||'Tem SCF'),title:String(title||'In tem SCF'),paperWidthMm:Number(paperWidthMm)||58,paperHeightMm:Number(paperHeightMm)||40,images,labelImageVersion:2,labelSourceDpi:600},tripContext,route.endpoint,beforeEnqueue);
+  }
   const imageUrls=[];
   for(let index=0;index<svgs.length;index++){
     beforeEnqueue?.();
@@ -82,7 +101,8 @@ async function scfQueueLabelPrint({agentId,printerRole='x350',label,title,paperW
     }
     imageUrls.push(url);
   }
-  const current=await dbGet(SCF_PRINT_QUEUE_KEY,[]);
+  const scoped=tripContext&&typeof serverAuthEnabled==='function'&&serverAuthEnabled();
+  const current=scoped?[]:await dbGet(SCF_PRINT_QUEUE_KEY,[]);
   const queue=Array.isArray(current)?current:[];
   const job={
     id:'PJ'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
@@ -95,12 +115,15 @@ async function scfQueueLabelPrint({agentId,printerRole='x350',label,title,paperW
     images:imageUrls,
     labelImageVersion:2,
     labelSourceDpi:600,
+    previewRotate180:!!rotate180,
+    ...(android?{labelDetails}:{}),
     status:'pending',
     createdAt:new Date().toISOString(),
     attempts:0
   };
   beforeEnqueue?.();
-  await dbSet(SCF_PRINT_QUEUE_KEY,[...queue.filter(Boolean),job]);
+  if(scoped){const {data,error}=await invokeScfAuth({body:{action:'driver_print',transport:android?'android':undefined,job,tripContext}});if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Chưa gửi được lệnh in cho chuyến.'));if(android){if(!data.androidAccess)throw Error('Máy chủ chưa hỗ trợ app Android.');job.transport='android';window.scfQueueAndroidHandoff(data.androidAccess,job.title,svgs.length);}}
+  else await dbSet(SCF_PRINT_QUEUE_KEY,[...queue.filter(Boolean),job]);
   scfSavePrintAgentSettings({agentId:target});
   return job;
 }
@@ -114,10 +137,15 @@ function scfShouldUsePrintAgent(){
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
 }
 
-async function scfQueueA4Print(html,{agentId,title='Đơn hàng SCF'}={}){
-  const settings=scfPrintAgentSettings();
-  const target=String(agentId||settings.agentId||'SCF-PC-01').trim().toUpperCase();
-  const current=await dbGet(SCF_PRINT_QUEUE_KEY,[]);
+async function scfQueueA4Print(html,{agentId,title='Đơn hàng SCF',tripContext,simulate=false,beforeEnqueue}={}){
+  beforeEnqueue?.();
+  if(simulate){window.showToast('Trải nghiệm: đã mô phỏng in phiếu; không gửi máy in thật.','success');return {id:'PREVIEW'};}
+  const settings=scfPrintAgentSettings({trip:!!tripContext});
+  const target=String(settings.sharedManaged?settings.a4AgentId:agentId||settings.a4AgentId||settings.agentId||'SCF-PC-01').trim().toUpperCase();
+  const route=settings.sharedManaged&&settings.lanEnabled&&tripContext?await scfSelectPrintRoute(settings,'canon'):{route:'cloud'};
+  if(route.route==='lan')return window.scfSendLanPrint({agentId:target,printerRole:'canon',label:String(title),title:String(title),paperWidthMm:210,paperHeightMm:297,html:String(html||'')},tripContext,route.endpoint,beforeEnqueue);
+  const scoped=tripContext&&typeof serverAuthEnabled==='function'&&serverAuthEnabled();
+  const current=scoped?[]:await dbGet(SCF_PRINT_QUEUE_KEY,[]);
   const queue=Array.isArray(current)?current:[];
   const job={
     id:'PJ'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
@@ -133,7 +161,9 @@ async function scfQueueA4Print(html,{agentId,title='Đơn hàng SCF'}={}){
     attempts:0
   };
   if(!job.html)throw new Error('Không tạo được nội dung đơn hàng để in.');
-  await dbSet(SCF_PRINT_QUEUE_KEY,[...queue.filter(Boolean),job]);
+  beforeEnqueue?.();
+  if(scoped){const {data,error}=await invokeScfAuth({body:{action:'driver_print',job,tripContext}});if(error||!data?.ok)throw new Error(await serverFunctionErrorMessage(error,data,'Chưa gửi được lệnh in cho chuyến.'));}
+  else await dbSet(SCF_PRINT_QUEUE_KEY,[...queue.filter(Boolean),job]);
   scfSavePrintAgentSettings({agentId:target});
   return job;
 }
